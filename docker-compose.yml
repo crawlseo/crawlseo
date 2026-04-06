@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://crawlseo:crawlseo@db:5432/crawlseo
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: crawlseo
+      POSTGRES_USER: crawlseo
+      POSTGRES_PASSWORD: crawlseo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawlseo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:

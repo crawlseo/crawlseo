@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ AUTH ============
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  googleTokens  Json?     // Encrypted GSC OAuth tokens
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sites         Site[]
+  alerts        Alert[]
+  sessions      Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ SITES ============
+
+model Site {
+  id          String   @id @default(cuid())
+  userId      String
+  domain      String   // e.g. "brandson.digital"
+  gscProperty String?  // e.g. "sc-domain:brandson.digital"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keywords    Keyword[]
+  pages       Page[]
+  crawls      Crawl[]
+  vitals      VitalsReport[]
+  alerts      Alert[]
+
+  @@unique([userId, domain])
+}
+
+// ============ GSC DATA ============
+
+model Keyword {
+  id          String   @id @default(cuid())
+  siteId      String
+  query       String   // The search query
+  date        DateTime // Date of the data point
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  page        String?  // Landing page URL
+  device      String?  // DESKTOP, MOBILE, TABLET
+  country     String?  // Country code
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, query, date])
+  @@index([siteId, date])
+  @@index([siteId, query, date])
+}
+
+model Page {
+  id          String   @id @default(cuid())
+  siteId      String
+  url         String
+  date        DateTime
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, url, date])
+  @@index([siteId, date])
+  @@index([siteId, url, date])
+}
+
+// ============ CRAWLER ============
+
+model Crawl {
+  id          String      @id @default(cuid())
+  siteId      String
+  status      CrawlStatus @default(PENDING)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  pagesFound  Int         @default(0)
+  issuesFound Int         @default(0)
+  healthScore Int?        // 0-100
+
+  site        Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  issues      CrawlIssue[]
+
+  @@index([siteId, startedAt])
+}
+
+enum CrawlStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model CrawlIssue {
+  id          String        @id @default(cuid())
+  crawlId     String
+  url         String
+  type        IssueType
+  severity    IssueSeverity
+  message     String
+  details     Json?         // Additional context
+
+  crawl       Crawl         @relation(fields: [crawlId], references: [id], onDelete: Cascade)
+
+  @@index([crawlId, type])
+}
+
+enum IssueType {
+  BROKEN_LINK           // 404, 500, etc.
+  REDIRECT              // 301, 302 chains
+  MISSING_TITLE         // No <title> tag
+  MISSING_DESCRIPTION   // No meta description
+  DUPLICATE_TITLE       // Same title on multiple pages
+  DUPLICATE_DESCRIPTION // Same description on multiple pages
+  MISSING_H1            // No H1 heading
+  MULTIPLE_H1           // More than one H1
+  MISSING_ALT           // Images without alt text
+  MISSING_CANONICAL     // No canonical tag
+  MISSING_ROBOTS        // No robots.txt
+  MISSING_SITEMAP       // No sitemap.xml
+  MISSING_SCHEMA        // No structured data
+  SLOW_PAGE             // Load time > 3s
+  MIXED_CONTENT         // HTTP resources on HTTPS page
+  LARGE_PAGE            // Page size > 3MB
+}
+
+enum IssueSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+// ============ CORE WEB VITALS ============
+
+model VitalsReport {
+  id          String   @id @default(cuid())
+  siteId      String
+  url         String
+  date        DateTime @default(now())
+  device      String   // MOBILE or DESKTOP
+
+  // Core Web Vitals
+  lcp         Float?   // Largest Contentful Paint (seconds)
+  fid         Float?   // First Input Delay (milliseconds)
+  cls         Float?   // Cumulative Layout Shift (score)
+  inp         Float?   // Interaction to Next Paint (milliseconds)
+
+  // Performance
+  perfScore   Int?     // 0-100 Lighthouse performance score
+  speedIndex  Float?   // Speed Index (seconds)
+  ttfb        Float?   // Time to First Byte (seconds)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, date])
+  @@index([siteId, url, date])
+}
+
+// ============ ALERTS ============
+
+model Alert {
+  id          String     @id @default(cuid())
+  userId      String
+  siteId      String
+  type        AlertType
+  channel     AlertChannel
+  config      Json       // Thresholds, webhook URL, etc.
+  enabled     Boolean    @default(true)
+  lastFired   DateTime?
+  createdAt   DateTime   @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site        Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+enum AlertType {
+  TRAFFIC_DROP       // Clicks dropped > X%
+  POSITION_CHANGE    // Keyword position changed > X
+  NEW_404            // New broken links detected
+  VITALS_DEGRADED    // Core Web Vitals got worse
+  CRAWL_ISSUES       // New crawl issues detected
+}
+
+enum AlertChannel {
+  EMAIL
+  TELEGRAM
+  WEBHOOK
+  SLACK
+}
