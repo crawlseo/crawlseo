@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,20 +24,28 @@ interface GSCProperty {
   permissionLevel: string;
 }
 
-export function AddSiteModal() {
+export function AddSiteModal({
+  triggerLabel = "Add site",
+}: {
+  triggerLabel?: string;
+}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [properties, setProperties] = useState<GSCProperty[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<string>("");
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   async function handleOpenChange(newOpen: boolean) {
     setOpen(newOpen);
-
-    if (newOpen && properties.length === 0) {
-      await loadGSCProperties();
+    if (newOpen) {
+      setSuccess(false);
+      setError("");
+      if (properties.length === 0) {
+        await loadGSCProperties();
+      }
     }
   }
 
@@ -46,17 +55,17 @@ export function AddSiteModal() {
 
     try {
       const response = await fetch("/api/gsc/properties");
-
       if (!response.ok) {
-        throw new Error("Failed to load GSC properties");
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to load GSC properties");
       }
 
       const data = (await response.json()) as GSCProperty[];
       setProperties(data || []);
 
-      if (data.length === 0) {
+      if (!data?.length) {
         setError(
-          "No GSC properties found. Please verify your Google Search Console account."
+          "No GSC properties found. Verify this Google account has Search Console access."
         );
       }
     } catch (err) {
@@ -70,7 +79,7 @@ export function AddSiteModal() {
 
   async function handleAddSite() {
     if (!selectedProperty) {
-      setError("Please select a property");
+      setError("Select a property first");
       return;
     }
 
@@ -78,10 +87,17 @@ export function AddSiteModal() {
     setError("");
 
     try {
-      // Extract domain from siteUrl (e.g., "sc-domain:example.com" -> "example.com")
       let domain = selectedProperty;
       if (domain.includes(":")) {
         domain = domain.split(":")[1];
+      }
+      // URL-prefix properties: https://example.com/
+      try {
+        if (domain.startsWith("http")) {
+          domain = new URL(domain).hostname;
+        }
+      } catch {
+        // keep as-is
       }
 
       const response = await fetch("/api/sites", {
@@ -93,18 +109,22 @@ export function AddSiteModal() {
         }),
       });
 
+      const body = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error("Failed to add site");
+        throw new Error(body.error || "Failed to add site");
       }
 
       setSuccess(true);
       setSelectedProperty("");
+      router.refresh();
 
-      // Close modal and refresh after a short delay
       setTimeout(() => {
         setOpen(false);
-        window.location.reload();
-      }, 1000);
+        if (body.id) {
+          router.push(`/sites/${body.id}`);
+        }
+      }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add site");
     } finally {
@@ -114,43 +134,47 @@ export function AddSiteModal() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-          Add Site
-        </Button>
+      <DialogTrigger
+        render={
+          <Button className="bg-primary text-primary-foreground hover:brightness-110" />
+        }
+      >
+        {triggerLabel}
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Google Search Console Site</DialogTitle>
+          <DialogTitle>Connect Search Console</DialogTitle>
           <DialogDescription>
-            Select a Google Search Console property to connect to CrawlSEO
+            Pick a property you manage. We only request read-only GSC access.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-              Site added successfully! Syncing data...
+            <div className="rounded-lg border border-signal/30 bg-signal-muted px-3 py-2 text-sm text-signal">
+              Site connected. Opening workspace…
             </div>
           )}
 
           {loading ? (
-            <div className="text-center py-6">
-              <p className="text-slate-600">Loading GSC properties...</p>
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Loading properties from Google…
             </div>
           ) : properties.length > 0 ? (
-            <Select value={selectedProperty} onValueChange={(value) => value !== null && setSelectedProperty(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a GSC property..." />
+            <Select
+              value={selectedProperty}
+              onValueChange={(value) => value !== null && setSelectedProperty(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a GSC property…" />
               </SelectTrigger>
-
               <SelectContent>
                 {properties.map((prop) => (
                   <SelectItem key={prop.siteUrl} value={prop.siteUrl}>
@@ -161,7 +185,7 @@ export function AddSiteModal() {
             </Select>
           ) : null}
 
-          <div className="flex gap-3 justify-end pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
@@ -170,14 +194,13 @@ export function AddSiteModal() {
             >
               Cancel
             </Button>
-
             <Button
               type="button"
               onClick={handleAddSite}
               disabled={!selectedProperty || loading || adding}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-primary text-primary-foreground hover:brightness-110"
             >
-              {adding ? "Adding..." : "Add Site"}
+              {adding ? "Connecting…" : "Connect site"}
             </Button>
           </div>
         </div>

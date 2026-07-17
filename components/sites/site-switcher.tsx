@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -15,72 +14,53 @@ interface Site {
   domain: string;
 }
 
-export function SiteSwitcher() {
+export function SiteSwitcher({ sites }: { sites: Site[] }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [sites, setSites] = useState<Site[]>([]);
-  const [selectedSite, setSelectedSite] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
 
-  useEffect(() => {
-    async function loadSites() {
-      try {
-        const response = await fetch("/api/sites");
-        if (response.ok) {
-          const data = (await response.json()) as Site[];
-          setSites(data);
+  if (sites.length === 0) return null;
 
-          // Set initial selected site from localStorage or first site
-          const saved = localStorage.getItem("selectedSiteId");
-          if (saved && data.some((s) => s.id === saved)) {
-            setSelectedSite(saved);
-          } else if (data.length > 0) {
-            setSelectedSite(data[0].id);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load sites:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
+  const match = pathname.match(/\/sites\/([^/]+)/);
+  const fromPath =
+    match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : undefined;
+  const selected = fromPath ?? sites[0].id;
 
-    loadSites();
-  }, []);
+  function handleSiteChange(siteId: string | null) {
+    if (!siteId) return;
 
-  function handleSiteChange(siteId: string) {
-    setSelectedSite(siteId);
-    localStorage.setItem("selectedSiteId", siteId);
-
-    // Get the current pathname and keep it but update the siteId in the URL if needed
-    const pathname = window.location.pathname;
     if (pathname.includes("/sites/")) {
-      // Replace the site ID in the URL
-      const newPathname = pathname.replace(/\/sites\/[^/]+/, `/sites/${siteId}`);
-      router.push(newPathname);
+      const sub = pathname.match(/\/sites\/[^/]+\/([^/]+)/)?.[1];
+      if (sub && ["keywords", "pages", "crawl", "vitals", "opportunities", "alerts"].includes(sub)) {
+        router.push(`/sites/${siteId}/${sub}`);
+        return;
+      }
+      router.push(`/sites/${siteId}`);
+      return;
     }
-  }
 
-  if (loading || sites.length === 0) {
-    return null;
+    router.push(`/sites/${siteId}`);
   }
 
   if (sites.length === 1) {
     return (
-      <div className="text-sm">
-        <p className="text-slate-600">Current site</p>
-        <p className="font-medium text-slate-900">{sites[0].domain}</p>
+      <div className="rounded-lg border border-border/60 bg-panel/60 px-3 py-2">
+        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          Site
+        </p>
+        <p className="truncate text-sm font-medium text-foreground">
+          {sites[0].domain}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="w-56">
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
-        Select Site
+    <div>
+      <p className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        Switch site
       </p>
-      <Select value={selectedSite} onValueChange={(value) => value !== null && handleSiteChange(value)}>
-        <SelectTrigger className="bg-white border-slate-200">
+      <Select value={selected} onValueChange={handleSiteChange}>
+        <SelectTrigger className="w-full border-border/70 bg-panel">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

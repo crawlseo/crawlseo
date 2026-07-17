@@ -1,10 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function SyncButton({ siteId }: { siteId: string }) {
+export function SyncButton({
+  siteId,
+  className,
+  fullWidth = false,
+}: {
+  siteId: string;
+  className?: string;
+  fullWidth?: boolean;
+}) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const handleSync = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -12,6 +25,7 @@ export function SyncButton({ siteId }: { siteId: string }) {
 
     setLoading(true);
     setMessage(null);
+    setError(false);
 
     try {
       const response = await fetch("/api/gsc/sync", {
@@ -23,15 +37,18 @@ export function SyncButton({ siteId }: { siteId: string }) {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(`Error: ${data.error}`);
+        setError(true);
+        setMessage(data.error || "Sync failed");
         return;
       }
 
       setMessage(
-        `Synced! ${data.keywordsInserted} keywords, ${data.pagesInserted} pages`
+        `Synced ${data.keywordsInserted ?? 0} keywords · ${data.pagesInserted ?? 0} pages`
       );
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
+      router.refresh();
+      setTimeout(() => setMessage(null), 4000);
+    } catch {
+      setError(true);
       setMessage("Sync failed");
     } finally {
       setLoading(false);
@@ -39,16 +56,29 @@ export function SyncButton({ siteId }: { siteId: string }) {
   };
 
   return (
-    <div className="space-y-2">
-      <button
+    <div className={cn(fullWidth && "w-full", "space-y-2")}>
+      <Button
         onClick={handleSync}
         disabled={loading}
-        className="w-full px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded transition-colors font-medium"
+        className={cn(
+          "bg-primary text-primary-foreground hover:brightness-110",
+          fullWidth && "w-full",
+          className
+        )}
+        size="sm"
       >
-        {loading ? "Syncing..." : "Sync Now"}
-      </button>
+        {loading ? "Syncing…" : "Sync GSC"}
+      </Button>
       {message && (
-        <p className="text-xs text-center text-slate-600">{message}</p>
+        <p
+          className={cn(
+            "text-xs",
+            error ? "text-danger" : "text-signal",
+            fullWidth && "text-center"
+          )}
+        >
+          {message}
+        </p>
       )}
     </div>
   );

@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { syncGSCDataForSite } from "@/lib/workers/gsc-sync";
+import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 
 export async function GET() {
   try {
@@ -92,12 +94,12 @@ export async function POST(req: Request) {
       },
     });
 
-    // Trigger initial GSC sync in the background (without waiting)
-    fetch("http://localhost:3000/api/gsc/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ siteId: site.id }),
-    }).catch(console.error);
+    await ensureDefaultAlerts(session.user.id, site.id);
+
+    // Kick off initial GSC sync (don't block the response)
+    void syncGSCDataForSite(session.user.id, site.id, 28).catch((err) =>
+      console.error("Initial GSC sync failed:", err)
+    );
 
     return Response.json(site, { status: 201 });
   } catch (error) {

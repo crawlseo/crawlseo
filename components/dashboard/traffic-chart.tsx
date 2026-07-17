@@ -1,21 +1,19 @@
 "use client";
 
-import { db } from "@/lib/db";
+import { useEffect, useState } from "react";
 import {
-  LineChart,
-  Line,
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
-import { getDateRange } from "@/lib/date-utils";
-import { useEffect, useState } from "react";
 
 interface TrafficChartProps {
   siteId: string;
+  days?: number;
 }
 
 interface ChartData {
@@ -24,139 +22,159 @@ interface ChartData {
   impressions: number;
 }
 
-export function TrafficChart({ siteId }: TrafficChartProps) {
+function formatAxisDate(value: string) {
+  const d = new Date(`${value}T00:00:00Z`);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadData() {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
       try {
-        const { start, end } = getDateRange(90);
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-
-        // Note: In production, this would be an API call
-        // For now we're using client-side data loading
-        const keywords = await db.keyword.findMany({
-          where: {
-            siteId,
-            date: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-          select: {
-            date: true,
-            clicks: true,
-            impressions: true,
-          },
-          orderBy: { date: "asc" },
-        });
-
-        // Aggregate by date
-        const aggregated = new Map<string, { clicks: number; impressions: number }>();
-
-        for (const keyword of keywords) {
-          const dateStr = keyword.date.toISOString().split("T")[0];
-          if (!aggregated.has(dateStr)) {
-            aggregated.set(dateStr, { clicks: 0, impressions: 0 });
-          }
-          const current = aggregated.get(dateStr)!;
-          current.clicks += keyword.clicks;
-          current.impressions += keyword.impressions;
+        const res = await fetch(`/api/sites/${siteId}/traffic?days=${days}`);
+        if (!res.ok) throw new Error("Failed to load traffic");
+        const json = (await res.json()) as ChartData[];
+        if (!cancelled) setData(json);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load chart");
         }
-
-        const chartData = Array.from(aggregated.entries()).map(([date, metrics]) => ({
-          date,
-          clicks: metrics.clicks,
-          impressions: metrics.impressions,
-        }));
-
-        setData(chartData);
-      } catch (error) {
-        console.error("Failed to load chart data:", error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
-    loadData();
-  }, [siteId]);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, days]);
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-slate-200 p-6 h-80 flex items-center justify-center">
-        <p className="text-slate-600">Loading chart...</p>
+      <div className="panel flex h-80 items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading traffic…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="panel flex h-80 items-center justify-center">
+        <p className="text-sm text-danger">{error}</p>
       </div>
     );
   }
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-slate-200 p-6 h-80 flex items-center justify-center">
-        <p className="text-slate-600">No data available for chart</p>
+      <div className="panel flex h-80 flex-col items-center justify-center gap-2">
+        <p className="font-heading text-base font-medium text-foreground">No traffic yet</p>
+        <p className="text-sm text-muted-foreground">
+          Sync GSC data to populate the last {days} days.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-6">
-      <h3 className="text-lg font-semibold text-slate-900 mb-6">
-        Traffic Over Time (Last 90 Days)
-      </h3>
+    <div className="panel p-5 sm:p-6">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="font-heading text-lg font-semibold text-foreground">
+            Search traffic
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Daily clicks & impressions · last {days} days
+          </p>
+        </div>
+        <div className="flex gap-4 text-xs">
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <span className="size-2 rounded-full bg-signal" /> Clicks
+          </span>
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <span className="size-2 rounded-full bg-chart-2" /> Impressions
+          </span>
+        </div>
+      </div>
 
-      <ResponsiveContainer width="100%" height={400}>
-        <LineChart
-          data={data}
-          margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+      <ResponsiveContainer width="100%" height={320}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="clicksFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="oklch(0.84 0.18 145)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="oklch(0.84 0.18 145)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="imprFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="oklch(0.75 0.12 220)" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="oklch(0.75 0.12 220)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="oklch(0.35 0.02 250 / 0.35)" strokeDasharray="3 6" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 12 }}
-            stroke="#94a3b8"
+            tickFormatter={formatAxisDate}
+            tick={{ fill: "oklch(0.68 0.02 250)", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            minTickGap={28}
           />
           <YAxis
-            tick={{ fontSize: 12 }}
-            stroke="#94a3b8"
+            yAxisId="clicks"
+            tick={{ fill: "oklch(0.68 0.02 250)", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={40}
+          />
+          <YAxis
+            yAxisId="impressions"
+            orientation="right"
+            tick={{ fill: "oklch(0.68 0.02 250)", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={48}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#f8fafc",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              padding: "12px",
+              background: "oklch(0.17 0.014 250)",
+              border: "1px solid oklch(0.28 0.02 250 / 55%)",
+              borderRadius: 12,
+              fontSize: 12,
+              boxShadow: "0 12px 40px oklch(0 0 0 / 0.4)",
             }}
-            formatter={(value) => {
-              if (typeof value === "number") {
-                return value.toLocaleString();
-              }
-              return value;
-            }}
+            labelFormatter={(label) => formatAxisDate(String(label))}
+            formatter={(value, name) => [
+              typeof value === "number" ? value.toLocaleString() : value,
+              name === "clicks" ? "Clicks" : "Impressions",
+            ]}
           />
-          <Legend
-            wrapperStyle={{ paddingTop: "20px" }}
-            iconType="line"
-          />
-          <Line
-            type="monotone"
-            dataKey="clicks"
-            stroke="#2563eb"
-            strokeWidth={2}
-            dot={false}
-            name="Clicks"
-            isAnimationActive={false}
-          />
-          <Line
+          <Area
+            yAxisId="impressions"
             type="monotone"
             dataKey="impressions"
-            stroke="#7c3aed"
+            stroke="oklch(0.75 0.12 220)"
+            fill="url(#imprFill)"
             strokeWidth={2}
-            dot={false}
-            name="Impressions"
             isAnimationActive={false}
           />
-        </LineChart>
+          <Area
+            yAxisId="clicks"
+            type="monotone"
+            dataKey="clicks"
+            stroke="oklch(0.84 0.18 145)"
+            fill="url(#clicksFill)"
+            strokeWidth={2}
+            isAnimationActive={false}
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

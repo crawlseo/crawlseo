@@ -41,8 +41,10 @@ export async function fetchPageSpeed(
     url,
     category: "PERFORMANCE",
     strategy,
-    key: process.env.GOOGLE_PAGESPEED_KEY || "",
   });
+  if (process.env.GOOGLE_PAGESPEED_KEY) {
+    params.set("key", process.env.GOOGLE_PAGESPEED_KEY);
+  }
 
   const response = await fetch(`${PAGESPEED_API_BASE}?${params}`, {
     headers: {
@@ -51,8 +53,9 @@ export async function fetchPageSpeed(
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => "");
     throw new Error(
-      `Failed to fetch PageSpeed data: ${response.statusText}`
+      `Failed to fetch PageSpeed data: ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}. Set GOOGLE_PAGESPEED_KEY for reliable quota.`
     );
   }
 

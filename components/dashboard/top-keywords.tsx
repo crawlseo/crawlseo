@@ -1,133 +1,102 @@
-import { db } from "@/lib/db";
-import { getDateRange } from "@/lib/date-utils";
+import Link from "next/link";
+import { getTopKeywords } from "@/lib/seo-metrics";
+import {
+  PositionBadge,
+  CtrCell,
+  NumCell,
+} from "@/components/ui/data-table";
 
 interface TopKeywordsProps {
   siteId: string;
+  days?: number;
+  limit?: number;
 }
 
-export async function TopKeywords({ siteId }: TopKeywordsProps) {
-  const { start, end } = getDateRange(28);
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-
-  // Fetch keywords and aggregate by query
-  const keywords = await db.keyword.findMany({
-    where: {
-      siteId,
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
-    },
-    select: {
-      query: true,
-      clicks: true,
-      impressions: true,
-      position: true,
-      ctr: true,
-    },
-  });
-
-  // Group by query and take latest metrics
-  const groupedByQuery = new Map<
-    string,
-    {
-      query: string;
-      clicks: number;
-      impressions: number;
-      position: number;
-      ctr: number;
-    }
-  >();
-
-  for (const keyword of keywords) {
-    const key = keyword.query;
-    if (!groupedByQuery.has(key)) {
-      groupedByQuery.set(key, {
-        query: keyword.query,
-        clicks: keyword.clicks,
-        impressions: keyword.impressions,
-        position: keyword.position,
-        ctr: keyword.ctr,
-      });
-    }
-  }
-
-  const topKeywords = Array.from(groupedByQuery.values())
-    .sort((a, b) => b.clicks - a.clicks)
-    .slice(0, 10);
+export async function TopKeywords({
+  siteId,
+  days = 28,
+  limit = 10,
+}: TopKeywordsProps) {
+  const topKeywords = await getTopKeywords(siteId, days, limit);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900">
-          Top 10 Keywords (Last 28 Days)
-        </h3>
+    <div className="panel overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <div>
+          <h3 className="font-heading text-lg font-semibold text-foreground">
+            Top keywords
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Ranked by clicks · last {days} days
+          </p>
+        </div>
+        <Link
+          href={`/sites/${siteId}/keywords`}
+          className="text-sm font-medium text-signal hover:underline"
+        >
+          View all
+        </Link>
       </div>
 
       {topKeywords.length === 0 ? (
-        <div className="p-6 text-center text-slate-600">
-          No keywords data available yet
+        <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+          No keyword data yet. Run a GSC sync.
         </div>
       ) : (
-        <table className="w-full">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                Query
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wider">
-                Position
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wider">
-                Clicks
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wider">
-                Impressions
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wider">
-                CTR
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {topKeywords.map((keyword, idx) => (
-              <tr
-                key={keyword.query}
-                className="hover:bg-slate-50 transition-colors"
-              >
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-sm font-semibold text-blue-600">
-                      {idx + 1}
-                    </span>
-                    <span className="font-medium text-slate-900">
-                      {keyword.query}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-slate-900 font-semibold">
-                    {Math.round(keyword.position)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-slate-900">{keyword.clicks}</span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-slate-900">
-                    {keyword.impressions}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="text-slate-900">
-                    {(keyword.ctr * 100).toFixed(2)}%
-                  </span>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border/50 bg-muted/20">
+                <th className="px-5 py-3 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Query
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Pos
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Clicks
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Impr.
+                </th>
+                <th className="px-5 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  CTR
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {topKeywords.map((keyword, idx) => (
+                <tr
+                  key={keyword.query}
+                  className="transition-colors hover:bg-muted/25"
+                >
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-data w-5 text-xs text-muted-foreground">
+                        {idx + 1}
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {keyword.query}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <PositionBadge position={keyword.position} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <NumCell value={keyword.clicks} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <NumCell value={keyword.impressions} />
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <CtrCell ctr={keyword.ctr} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
