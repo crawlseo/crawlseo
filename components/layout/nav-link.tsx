@@ -22,10 +22,10 @@ export function NavLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200",
+        "flex items-center rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-200",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--primary)]"
-          : "text-sidebar-foreground/80 hover:bg-muted hover:text-foreground"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/75 hover:bg-muted hover:text-foreground"
       )}
     >
       {children}

@@ -21,7 +21,12 @@ export default async function DashboardLayout({
   });
 
   return (
-    <AppShell email={session.user?.email} sites={sites}>
+    <AppShell
+      email={session.user?.email}
+      name={session.user?.name}
+      image={session.user?.image}
+      sites={sites}
+    >
       {children}
     </AppShell>
   );

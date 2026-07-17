@@ -87,10 +87,10 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
     );
   }
 
-  const info = "#0284FE";
-  const success = "#36AB80";
-  const axis = "#8A94A6";
-  const grid = "#E1E4E8";
+  const info = "#A78BFA";
+  const success = "#34D399";
+  const axis = "#71717A";
+  const grid = "rgba(255,255,255,0.06)";
 
   return (
     <div className="panel p-5 sm:p-6">
@@ -151,12 +151,12 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
           />
           <Tooltip
             contentStyle={{
-              background: "#FFFFFF",
-              border: "1px solid #E1E4E8",
-              borderRadius: 12,
+              background: "#161618",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 14,
               fontSize: 12,
-              boxShadow: "0 0 1px 0 rgba(8,11,14,0.06), 0 16px 16px -1px rgba(8,11,14,0.1)",
-              color: "#0A1F44",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.55)",
+              color: "#F4F4F5",
             }}
             labelFormatter={(label) => formatAxisDate(String(label))}
             formatter={(value, name) => [

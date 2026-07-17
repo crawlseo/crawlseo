@@ -1,68 +1,82 @@
-import Link from "next/link";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { IconRail } from "@/components/layout/icon-rail";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 type AppShellProps = {
   email?: string | null;
+  name?: string | null;
+  image?: string | null;
   children: React.ReactNode;
   sites: { id: string; domain: string }[];
 };
 
-export function AppShell({ email, children, sites }: AppShellProps) {
+export function AppShell({
+  email,
+  name,
+  image,
+  children,
+  sites,
+}: AppShellProps) {
+  const displayName = name || email?.split("@")[0] || "User";
+  const initial = displayName.charAt(0).toUpperCase();
+
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="border-b border-sidebar-border bg-sidebar lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
-        <div className="flex h-full flex-col px-3 py-5">
-          <Link
-            href="/dashboard"
-            className="mb-6 flex items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-sidebar-accent"
-          >
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[var(--shadow-2)]">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M4 18 L12 5 L20 18"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinejoin="round"
-                />
-                <circle cx="12" cy="15.5" r="1.6" fill="currentColor" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[15px] font-semibold tracking-tight text-foreground">
-                CrawlSEO
-              </p>
-              <p className="text-atom-tiny font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                Search ops
-              </p>
-            </div>
-          </Link>
+    <div className="flex min-h-screen bg-background">
+      {/* Dual sidebar: icon rail + text nav (Atomize PRO) */}
+      <aside className="hidden h-screen sticky top-0 z-20 md:flex">
+        <IconRail />
+
+        <div className="flex w-[240px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-4">
+          <div className="mb-5 px-2">
+            <p className="text-[15px] font-semibold tracking-tight text-foreground">
+              CrawlSEO
+            </p>
+            <p className="text-[11px] text-muted-foreground">Search operations</p>
+          </div>
 
           <SidebarNav sites={sites} />
 
-          <div className="mt-auto space-y-3 border-t border-sidebar-border pt-4">
+          <div className="mt-auto space-y-3 pt-4">
             {sites.length > 0 && (
               <div className="px-1">
                 <SiteSwitcher sites={sites} />
               </div>
             )}
 
-            <div className="rounded-xl border border-border bg-card px-3 py-3 shadow-[var(--shadow-1)]">
-              <p className="text-atom-tiny font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Signed in
-              </p>
-              <p className="mt-1 truncate text-sm font-medium text-foreground">
-                {email}
-              </p>
+            {/* User card + theme (screenshot pattern) */}
+            <div className="rounded-2xl border border-border bg-card p-3 shadow-[var(--shadow-2)]">
+              <div className="mb-3 flex items-center gap-2.5">
+                {image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={image}
+                    alt=""
+                    className="size-9 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-blue-400 text-sm font-semibold text-primary-foreground">
+                    {initial}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {displayName}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-3 flex items-center justify-between gap-2 px-0.5">
+                <span className="text-[11px] text-muted-foreground">Theme</span>
+                <ThemeToggle />
+              </div>
+
               <form
-                className="mt-3"
                 action={async () => {
                   "use server";
                   await signOut({ redirectTo: "/login" });
@@ -74,7 +88,7 @@ export function AppShell({ email, children, sites }: AppShellProps) {
                   size="sm"
                   className="w-full"
                 >
-                  Sign out
+                  Logout
                 </Button>
               </form>
             </div>
@@ -82,8 +96,19 @@ export function AppShell({ email, children, sites }: AppShellProps) {
         </div>
       </aside>
 
-      <div className="min-w-0 bg-background">
-        <main className="mx-auto max-w-[1156px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      {/* Mobile top bar */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-border bg-sidebar px-4 py-3 md:hidden">
+          <div className="flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <span className="text-xs font-bold">C</span>
+            </div>
+            <span className="font-semibold">CrawlSEO</span>
+          </div>
+          <ThemeToggle />
+        </header>
+
+        <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>

@@ -2,10 +2,6 @@ import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-/**
- * Atomize uses SF Pro Text as primary.
- * On the web we map to Inter (closest open metric match) + system SF stack fallback.
- */
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
@@ -36,7 +32,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230284FE'/><path d='M22 68 L50 22 L78 68 Z' fill='none' stroke='white' stroke-width='8' stroke-linejoin='round'/><circle cx='50' cy='58' r='6' fill='white'/></svg>",
+        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23A78BFA'/><path d='M22 68 L50 22 L78 68 Z' fill='none' stroke='%230C0C0E' stroke-width='8' stroke-linejoin='round'/><circle cx='50' cy='58' r='6' fill='%230C0C0E'/></svg>",
         type: "image/svg+xml",
       },
     ],
@@ -51,13 +47,21 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${interHeading.variable} ${plexMono.variable} h-full`}
+      className={`${inter.variable} ${interHeading.variable} ${plexMono.variable} dark h-full`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('crawlseo-theme')||'dark';var d=m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.classList.toggle('light',!d);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className="h-full font-sans"
         style={{
           fontFamily:
-            'var(--font-sans), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            'var(--font-sans), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         }}
       >
         {children}
