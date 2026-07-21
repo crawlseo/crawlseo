@@ -647,8 +647,12 @@ async function executeCrawl(
       if (!normalized || visited.has(normalized)) continue;
       if (!sameHost(normalized, seedUrl)) continue;
 
-      // Check robots.txt
-      if (robotsChecker && !robotsChecker.isAllowed(normalized, USER_AGENT)) {
+      // Check robots.txt. isAllowed() returns `undefined` (not `false`) when
+      // the URL's host differs from the one robots.txt was fetched from —
+      // e.g. an apex domain that redirects to www. sameHost() above already
+      // confirms it's the same site, so only an explicit `false` (a real
+      // Disallow match) should block the crawl here.
+      if (robotsChecker && robotsChecker.isAllowed(normalized, USER_AGENT) === false) {
         visited.add(normalized);
         continue;
       }
