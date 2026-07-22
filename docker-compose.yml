@@ -15,7 +15,7 @@ services:
       retries: 3
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://crawlseo:crawlseo@db:5432/crawlseo
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crawlseo}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-crawlseo}
 
   db:
     image: postgres:16-alpine
@@ -25,11 +25,11 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: crawlseo
-      POSTGRES_USER: crawlseo
-      POSTGRES_PASSWORD: crawlseo
+      POSTGRES_DB: ${POSTGRES_DB:-crawlseo}
+      POSTGRES_USER: ${POSTGRES_USER:-crawlseo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crawlseo"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crawlseo}"]
       interval: 10s
       timeout: 5s
       retries: 5
