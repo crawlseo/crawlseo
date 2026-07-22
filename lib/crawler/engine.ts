@@ -699,6 +699,15 @@ async function executeCrawl(
       const redirectUrl =
         finalNormalized !== url ? finalNormalized : null;
 
+      // A redirect can resolve to a URL that's also seeded from the sitemap or
+      // linked elsewhere. Only the requested URL was marked visited, so without
+      // this the resolved page gets fetched and stored twice — inflating page
+      // counts and producing phantom DUPLICATE_TITLE/DESCRIPTION issues.
+      if (redirectUrl) {
+        if (visited.has(finalNormalized)) continue;
+        visited.add(finalNormalized);
+      }
+
       const page = parseHtml(
         finalNormalized,
         res.html,
