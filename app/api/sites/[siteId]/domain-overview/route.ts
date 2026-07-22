@@ -4,7 +4,7 @@ import { domainOverview, backlinksOverview } from "@/lib/dataforseo/client";
 import { getSitePeriodMetrics } from "@/lib/seo-metrics";
 
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ siteId: string }> }
 ) {
   try {
@@ -22,8 +22,7 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    const url = new URL(req.url);
-    const targetDomain = url.searchParams.get("domain") || site.domain;
+    const targetDomain = site.domain;
 
     // Try DataForSEO
     const [domainData, backlinksData] = await Promise.all([
@@ -40,39 +39,29 @@ export async function GET(
       });
     }
 
-    // Fallback to GSC data (only for own domain)
-    if (targetDomain === site.domain) {
-      const metrics = await getSitePeriodMetrics(siteId, 28);
+    // Fallback to GSC data
+    const metrics = await getSitePeriodMetrics(siteId, 28);
 
-      const keywordCount = await db.keyword.groupBy({
-        by: ["query"],
-        where: {
-          siteId,
-          date: { gte: new Date(Date.now() - 28 * 86400000) },
-        },
-      });
+    const keywordCount = await db.keyword.groupBy({
+      by: ["query"],
+      where: {
+        siteId,
+        date: { gte: new Date(Date.now() - 28 * 86400000) },
+      },
+    });
 
-      return Response.json({
-        source: "gsc",
-        domain: targetDomain,
-        overview: {
-          organicKeywords: keywordCount.length,
-          organicTraffic: metrics.current.clicks,
-          organicCost: null,
-          backlinks: null,
-          referringDomains: null,
-        },
-        backlinks: null,
-        metrics,
-      });
-    }
-
-    // No data available for competitor without DataForSEO
     return Response.json({
-      source: "none",
+      source: "gsc",
       domain: targetDomain,
-      overview: null,
+      overview: {
+        organicKeywords: keywordCount.length,
+        organicTraffic: metrics.current.clicks,
+        organicCost: null,
+        backlinks: null,
+        referringDomains: null,
+      },
       backlinks: null,
+      metrics,
     });
   } catch (error) {
     console.error("Domain overview error:", error);

@@ -15,6 +15,13 @@ export async function POST(
     }
 
     const { siteId } = await params;
+    const site = await db.site.findUnique({
+      where: { id: siteId },
+      select: { userId: true },
+    });
+    if (!site || site.userId !== session.user.id) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
     const result = await syncVitalsForSite(session.user.id, siteId, 5);
     return Response.json(result);
   } catch (error) {

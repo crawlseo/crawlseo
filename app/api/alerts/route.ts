@@ -35,6 +35,13 @@ export async function POST(req: Request) {
     };
 
     if (body.action === "ensure" && body.siteId) {
+      const site = await db.site.findUnique({
+        where: { id: body.siteId },
+        select: { userId: true },
+      });
+      if (!site || site.userId !== session.user.id) {
+        return Response.json({ error: "Not found" }, { status: 404 });
+      }
       await ensureDefaultAlerts(session.user.id, body.siteId);
       return Response.json({ ok: true });
     }

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assertPublicDomain } from "@/lib/crawler/engine";
 import { syncGSCDataForSite } from "@/lib/workers/gsc-sync";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 
@@ -58,6 +59,16 @@ export async function POST(req: Request) {
     if (!domain || !gscProperty) {
       return Response.json(
         { error: "Missing domain or gscProperty" },
+        { status: 400 }
+      );
+    }
+
+    // Reject domains that resolve to private/internal IPs (SSRF protection)
+    try {
+      await assertPublicDomain(domain);
+    } catch {
+      return Response.json(
+        { error: "Domain must resolve to a public IP address" },
         { status: 400 }
       );
     }

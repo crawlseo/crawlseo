@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { lookup } from "dns/promises";
 import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import robotsParser from "robots-parser";
@@ -8,6 +9,8 @@ const ABSOLUTE_MAX_PAGES = 2000;
 const BATCH_SIZE = 15;
 const BATCH_DELAY_MS = 100;
 const FETCH_TIMEOUT_MS = 12_000;
+const MAX_REDIRECTS = 5;
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 const USER_AGENT =
   "CrawlSEOBot/1.0 (+https://crawlseo.dev; self-hosted SEO audit)";
 
@@ -84,6 +87,52 @@ function sameHost(a: string, b: string): boolean {
 function originOf(url: string): string {
   const u = new URL(url);
   return `${u.protocol}//${u.host}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SSRF protection                                                   */
+/* ------------------------------------------------------------------ */
+
+function isPrivateIp(ip: string): boolean {
+  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  const v4mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (v4mapped) return isPrivateIp(v4mapped[1]);
+
+  // IPv4
+  const parts = ip.split(".").map(Number);
+  if (parts.length === 4 && parts.every((n) => n >= 0 && n <= 255)) {
+    if (parts[0] === 0) return true;                                  // 0.0.0.0/8
+    if (parts[0] === 127) return true;                                // 127.0.0.0/8
+    if (parts[0] === 10) return true;                                 // 10.0.0.0/8
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
+    if (parts[0] === 192 && parts[1] === 168) return true;            // 192.168.0.0/16
+    if (parts[0] === 169 && parts[1] === 254) return true;            // 169.254.0.0/16
+    return false;
+  }
+
+  // IPv6
+  const lower = ip.toLowerCase();
+  if (lower === "::1") return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;  // fc00::/7
+  if (lower.startsWith("fe80")) return true;                           // fe80::/10 link-local
+  return false;
+}
+
+async function assertPublicUrl(url: string): Promise<void> {
+  const { hostname } = new URL(url);
+  const { address } = await lookup(hostname);
+  if (isPrivateIp(address)) {
+    throw new Error(`Blocked: ${hostname} resolves to private/reserved IP`);
+  }
+}
+
+/**
+ * Validates that a domain string resolves to a public IP.
+ * Used at site-creation time to reject private/reserved targets.
+ */
+export async function assertPublicDomain(domain: string): Promise<void> {
+  const url = domain.startsWith("http") ? domain : `https://${domain}`;
+  await assertPublicUrl(url);
 }
 
 /* ------------------------------------------------------------------ */
@@ -296,6 +345,30 @@ function parseHtml(
 /*  Fetch helpers                                                     */
 /* ------------------------------------------------------------------ */
 
+async function readBodyCapped(res: Response): Promise<ArrayBuffer> {
+  if (!res.body) return new ArrayBuffer(0);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error(`Response exceeded ${MAX_RESPONSE_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buf.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return buf.buffer;
+}
+
 async function fetchPage(url: string): Promise<{
   statusCode: number;
   html: string;
@@ -308,15 +381,34 @@ async function fetchPage(url: string): Promise<{
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   const started = Date.now();
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
-    const buf = await res.arrayBuffer();
+    let currentUrl = url;
+    let res: Response | null = null;
+
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      await assertPublicUrl(currentUrl);
+      res = await fetch(currentUrl, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html,application/xhtml+xml",
+        },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get("location");
+        if (!location) break;
+        currentUrl = new URL(location, currentUrl).toString();
+        if (hop === MAX_REDIRECTS - 1) {
+          throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+        }
+        continue;
+      }
+      break;
+    }
+
+    if (!res) throw new Error("No response");
+
+    const buf = await readBodyCapped(res);
     const bytes = buf.byteLength;
     const contentType = res.headers.get("content-type") || "";
     const html =
@@ -326,7 +418,7 @@ async function fetchPage(url: string): Promise<{
     return {
       statusCode: res.status,
       html,
-      finalUrl: res.url || url,
+      finalUrl: currentUrl,
       loadMs: Date.now() - started,
       bytes,
       contentType,
@@ -338,6 +430,7 @@ async function fetchPage(url: string): Promise<{
 
 async function fetchText(url: string): Promise<string | null> {
   try {
+    await assertPublicUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
