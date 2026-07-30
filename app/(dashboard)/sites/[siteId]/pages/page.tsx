@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import { getTopPages } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -76,14 +78,23 @@ export default async function PagesPage({ params }: PagesPageProps) {
                 className="transition-colors hover:bg-muted/25"
               >
                 <td className="max-w-xl px-4 py-3">
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="break-all font-medium text-signal hover:underline"
-                  >
-                    {page.url}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/sites/${siteId}/pages/detail?url=${encodeURIComponent(page.url)}`}
+                      className="break-all font-medium text-foreground transition hover:text-primary hover:underline"
+                    >
+                      {page.url}
+                    </Link>
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-muted-foreground transition hover:text-signal"
+                      title="Open page in new tab"
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <PositionBadge position={page.position} />

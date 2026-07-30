@@ -75,9 +75,12 @@ export async function TopKeywords({
                       <span className="font-data w-5 text-xs text-muted-foreground">
                         {idx + 1}
                       </span>
-                      <span className="font-medium text-foreground">
+                      <Link
+                        href={`/sites/${siteId}/keywords/detail?query=${encodeURIComponent(keyword.query)}`}
+                        className="font-medium text-primary underline decoration-primary/40 underline-offset-2 transition hover:decoration-primary"
+                      >
                         {keyword.query}
-                      </span>
+                      </Link>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">

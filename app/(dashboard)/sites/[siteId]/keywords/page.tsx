@@ -51,7 +51,7 @@ export default async function KeywordsPage({ params }: KeywordsPageProps) {
           description="Sync Google Search Console to populate query-level performance."
         />
       ) : (
-        <KeywordsTable keywords={keywords} />
+        <KeywordsTable keywords={keywords} siteId={siteId} />
       )}
     </div>
   );

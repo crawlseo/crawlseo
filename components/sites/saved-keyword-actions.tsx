@@ -10,6 +10,7 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -17,14 +18,23 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
     if (!query.trim()) return;
     setLoading(true);
     try {
+      const tags = tagsInput
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
       const res = await fetch(`/api/sites/${siteId}/saved-keywords`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), notes: notes.trim() || undefined }),
+        body: JSON.stringify({
+          query: query.trim(),
+          notes: notes.trim() || undefined,
+          tags: tags.length > 0 ? tags : undefined,
+        }),
       });
       if (!res.ok) throw new Error("Failed to save keyword");
       setQuery("");
       setNotes("");
+      setTagsInput("");
       setOpen(false);
       router.refresh();
     } catch (err) {
@@ -54,6 +64,16 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
           placeholder="e.g. seo tools"
           className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           autoFocus
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] text-muted-foreground">Tags (comma-separated)</label>
+        <input
+          type="text"
+          value={tagsInput}
+          onChange={(e) => setTagsInput(e.target.value)}
+          placeholder="brand, money, local"
+          className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
       </div>
       <div>

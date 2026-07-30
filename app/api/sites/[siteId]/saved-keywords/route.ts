@@ -80,13 +80,29 @@ export async function POST(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    const body = (await req.json()) as { query?: string; notes?: string };
+    const body = (await req.json()) as {
+      query?: string;
+      notes?: string;
+      tags?: unknown;
+    };
     if (!body.query || typeof body.query !== "string") {
       return Response.json(
         { error: "Missing required field: query" },
         { status: 400 }
       );
     }
+
+    // Normalize tags: strings only, trimmed, de-duplicated, capped.
+    const tags = Array.isArray(body.tags)
+      ? Array.from(
+          new Set(
+            body.tags
+              .filter((t): t is string => typeof t === "string")
+              .map((t) => t.trim())
+              .filter((t) => t.length > 0 && t.length <= 40)
+          )
+        ).slice(0, 20)
+      : undefined;
 
     const saved = await db.savedKeyword.upsert({
       where: {
@@ -99,9 +115,11 @@ export async function POST(
         siteId,
         query: body.query,
         notes: body.notes ?? null,
+        tags: tags ?? [],
       },
       update: {
         notes: body.notes ?? undefined,
+        tags: tags ?? undefined,
       },
     });
 

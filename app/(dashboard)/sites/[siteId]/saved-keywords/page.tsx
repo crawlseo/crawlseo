@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -78,6 +79,9 @@ export default async function SavedKeywordsPage({ params }: Props) {
                     Keyword
                   </th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Tags
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                     Notes
                   </th>
                   <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -103,7 +107,28 @@ export default async function SavedKeywordsPage({ params }: Props) {
                   return (
                     <tr key={kw.id} className="transition-colors hover:bg-muted/25">
                       <td className="px-4 py-3 font-medium text-foreground">
-                        {kw.query}
+                        <Link
+                          href={`/sites/${siteId}/keywords/detail?query=${encodeURIComponent(kw.query)}`}
+                          className="transition hover:text-primary hover:underline"
+                        >
+                          {kw.query}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {kw.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {kw.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-medium text-primary"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="max-w-xs truncate px-4 py-3 text-muted-foreground">
                         {kw.notes || "—"}

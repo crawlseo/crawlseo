@@ -175,6 +175,7 @@ model SavedKeyword {
   siteId    String
   query     String
   notes     String?
+  tags      String[] @default([])
   createdAt DateTime @default(now())
 
   site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)

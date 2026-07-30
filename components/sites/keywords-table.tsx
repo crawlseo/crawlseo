@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import type { KeywordRow } from "@/lib/seo-metrics";
 import {
@@ -41,7 +42,13 @@ function parseMin(value: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
+export function KeywordsTable({
+  keywords,
+  siteId,
+}: {
+  keywords: KeywordRow[];
+  siteId: string;
+}) {
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PositionFilter>("all");
   const [minClicks, setMinClicks] = useState("");
@@ -221,9 +228,12 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
               className="transition-colors hover:bg-muted/25"
             >
               <td className="max-w-md px-4 py-3">
-                <span className="font-medium text-foreground">
+                <Link
+                  href={`/sites/${siteId}/keywords/detail?query=${encodeURIComponent(keyword.query)}`}
+                  className="font-medium text-primary underline decoration-primary/40 underline-offset-2 transition hover:decoration-primary"
+                >
                   {keyword.query}
-                </span>
+                </Link>
               </td>
               <td className="px-4 py-3 text-right">
                 <PositionBadge position={keyword.position} />
