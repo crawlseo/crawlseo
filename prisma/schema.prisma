@@ -85,6 +85,8 @@ model Site {
   userId      String
   domain      String   // e.g. "brandson.digital"
   gscProperty String?  // e.g. "sc-domain:brandson.digital"
+  gbpLocation String?  // Business Profile resource name, e.g. "locations/12345"
+  gbpLabel    String?  // Human-readable location title for display
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -96,6 +98,7 @@ model Site {
   alerts        Alert[]
   savedKeywords SavedKeyword[]
   rankSnapshots RankSnapshot[]
+  gbpMetrics    GBPDailyMetric[]
 
   @@unique([userId, domain])
 }
@@ -137,6 +140,32 @@ model Page {
   @@unique([siteId, url, date])
   @@index([siteId, date])
   @@index([siteId, url, date])
+}
+
+// ============ GBP (GOOGLE BUSINESS PROFILE) ============
+
+model GBPDailyMetric {
+  id                String   @id @default(cuid())
+  siteId            String
+  date              DateTime // Day of the data point (UTC midnight)
+
+  // Raw impression breakdown (surface x device)
+  desktopMaps       Int      @default(0)
+  desktopSearch     Int      @default(0)
+  mobileMaps        Int      @default(0)
+  mobileSearch      Int      @default(0)
+
+  // Customer actions
+  websiteClicks     Int      @default(0)
+  callClicks        Int      @default(0)
+  directionRequests Int      @default(0)
+  conversations     Int      @default(0)
+  bookings          Int      @default(0)
+
+  site              Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date])
+  @@index([siteId, date])
 }
 
 // ============ SAVED KEYWORDS ============

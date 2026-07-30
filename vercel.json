@@ -13,6 +13,15 @@
     },
     "app/api/gsc/sync/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/gsc-sync/route.ts": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/gsc-sync",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }

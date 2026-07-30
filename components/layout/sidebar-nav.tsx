@@ -17,6 +17,7 @@ import {
   Bot,
   Link as LinkIcon,
   SearchCheck,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,6 +63,7 @@ export function SidebarNav({
           { href: `/sites/${activeSiteId}/pages`, label: "Pages", icon: FileText },
           { href: `/sites/${activeSiteId}/crawl`, label: "Crawl / Audit", icon: Bug },
           { href: `/sites/${activeSiteId}/vitals`, label: "Vitals", icon: Gauge },
+          { href: `/sites/${activeSiteId}/gbp-progress`, label: "GBP Progress", icon: MapPin },
           { href: `/sites/${activeSiteId}/opportunities`, label: "Opportunities", icon: Lightbulb },
           { href: `/sites/${activeSiteId}/alerts`, label: "Alerts", icon: Bell },
         ],
