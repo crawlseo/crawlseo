@@ -168,10 +168,29 @@ git clone https://github.com/crawlseo/crawlseo.git
 cd crawlseo
 cp .env.example .env
 # Edit .env with your credentials
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
 
-The full stack (PostgreSQL + Next.js) starts in ~2 minutes. Migrations run automatically.
+Compose pulls the prebuilt `ghcr.io/crawlseo/crawlseo:latest` image, so deployment
+credentials are only needed at runtime. Images support `linux/amd64` and
+`linux/arm64`, and database migrations run automatically when the container
+starts.
+
+Version tags are also published as immutable image tags (for example, `1.2.3`)
+and minor-version tags (for example, `1.2`). To use a pinned release or an image
+from a fork, set `CRAWLSEO_IMAGE` in `.env`:
+
+```bash
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:1.2.3
+```
+
+To build locally instead, build the same image name before starting Compose:
+
+```bash
+docker build -t crawlseo:local .
+CRAWLSEO_IMAGE=crawlseo:local docker compose up -d
+```
 
 ### Manual
 
