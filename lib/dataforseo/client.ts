@@ -48,7 +48,7 @@ async function getCredentials(userId: string): Promise<{ login: string; password
   const apiKey = await db.apiKey.findUnique({
     where: { userId_provider: { userId, provider: "dataforseo" } },
   });
-  if (!apiKey) return null;
+  if (!apiKey || !apiKey.encryptedLogin) return null;
 
   return {
     login: decrypt(apiKey.encryptedLogin),
