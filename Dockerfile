@@ -26,7 +26,7 @@ COPY package-lock.json ./
 # Keep the migration CLI in the image instead of downloading it through npx at
 # container startup. Reading the version from the lockfile keeps it aligned with
 # the generated Prisma client.
-RUN npm install --global "prisma@$(node -p \"require('./package-lock.json').packages['node_modules/prisma'].version\")" \
+RUN npm install --global "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
     && npm cache clean --force
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -38,4 +38,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
