@@ -25,4 +25,10 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
+# Docker auto-sets $HOSTNAME to the container ID for every container. Next's
+# standalone server.js does `process.env.HOSTNAME || '0.0.0.0'` to pick its
+# bind address, so it silently inherits Docker's container-ID value instead
+# of ever reaching the 0.0.0.0 fallback - binding somewhere neither
+# localhost (the healthcheck) nor the outside world can reliably reach.
+ENV HOSTNAME="0.0.0.0"
 CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
