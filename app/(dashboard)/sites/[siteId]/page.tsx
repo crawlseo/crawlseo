@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SyncButton } from "@/components/sites/sync-button";
 import { DataLagBadge } from "@/components/ui/data-lag-badge";
+import { LastSyncedBadge } from "@/components/ui/last-synced-badge";
 import {
   CrawlButton,
   VitalsButton,
@@ -30,6 +31,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
       userId: true,
       domain: true,
       gscProperty: true,
+      gscLastSyncedAt: true,
       _count: { select: { keywords: true } },
     },
   });
@@ -64,6 +66,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
         actions={
           <div className="flex flex-wrap items-start gap-2">
             <DataLagBadge />
+            <LastSyncedBadge lastSyncedAt={site.gscLastSyncedAt?.toISOString() ?? null} />
             <SyncButton siteId={siteId} />
             <CrawlButton siteId={siteId} />
             <VitalsButton siteId={siteId} />

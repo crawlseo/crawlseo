@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { fetchSearchAnalytics, fetchPageAnalytics } from "@/lib/google";
+import { fetchSearchAnalytics, fetchPageAnalytics, ReauthRequiredError } from "@/lib/google";
 import { getDateRange } from "@/lib/date-utils";
 
 interface SyncResult {
@@ -9,6 +9,29 @@ interface SyncResult {
   startDate: string;
   endDate: string;
   error?: string;
+}
+
+// A 180-day sync can return 100k+ rows; upserting one at a time (one
+// sequential Postgres round-trip per row) made that take tens of minutes.
+// Bounded concurrency gets the same upsert semantics - same per-row
+// try/catch, one failure doesn't abort the batch - at a fraction of the
+// wall-clock time.
+export async function upsertBatch<T>(
+  items: T[],
+  fn: (item: T) => Promise<void>,
+  onError: (item: T, err: unknown) => void,
+  concurrency = 50
+): Promise<number> {
+  let succeeded = 0;
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const results = await Promise.allSettled(chunk.map(fn));
+    results.forEach((r, idx) => {
+      if (r.status === "fulfilled") succeeded++;
+      else onError(chunk[idx], r.reason);
+    });
+  }
+  return succeeded;
 }
 
 /**
@@ -62,9 +85,9 @@ export async function syncGSCDataForSite(
     );
 
     // Insert/update keywords with upsert
-    let keywordsInserted = 0;
-    for (const keyword of keywords) {
-      try {
+    const keywordsInserted = await upsertBatch(
+      keywords,
+      async (keyword) => {
         const date = new Date(keyword.date);
         date.setHours(0, 0, 0, 0); // Normalize to start of day
 
@@ -98,19 +121,15 @@ export async function syncGSCDataForSite(
             country: keyword.country,
           },
         });
-
-        keywordsInserted++;
-      } catch (error) {
-        console.warn(`[GSC Sync] Failed to upsert keyword: ${keyword.query}`, error);
-      }
-    }
+      },
+      (keyword, error) =>
+        console.warn(`[GSC Sync] Failed to upsert keyword: ${keyword.query}`, error)
+    );
 
     // Insert/update pages
-    let pagesInserted = 0;
-    for (const page of pages) {
-      if (!page.page) continue;
-
-      try {
+    const pagesInserted = await upsertBatch(
+      pages.filter((p): p is typeof pages[number] & { page: string } => Boolean(p.page)),
+      async (page) => {
         const date = new Date(page.date);
         date.setHours(0, 0, 0, 0); // Normalize to start of day
 
@@ -138,16 +157,19 @@ export async function syncGSCDataForSite(
             position: page.position,
           },
         });
-
-        pagesInserted++;
-      } catch (error) {
-        console.warn(`[GSC Sync] Failed to upsert page: ${page.page}`, error);
-      }
-    }
+      },
+      (page, error) =>
+        console.warn(`[GSC Sync] Failed to upsert page: ${page.page}`, error)
+    );
 
     console.log(
       `[GSC Sync] Sync completed: ${keywordsInserted} keywords, ${pagesInserted} pages`
     );
+
+    await db.site.update({
+      where: { id: siteId },
+      data: { gscLastSyncedAt: new Date() },
+    });
 
     return {
       success: true,
@@ -157,6 +179,11 @@ export async function syncGSCDataForSite(
       endDate: end,
     };
   } catch (error) {
+    // Re-throw as-is: the caller (e.g. the manual sync route) needs to
+    // distinguish this from a generic failure to prompt reconnecting Google,
+    // not just show "sync failed".
+    if (error instanceof ReauthRequiredError) throw error;
+
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`[GSC Sync] Error syncing site ${siteId}:`, errorMessage);
 
@@ -189,13 +216,70 @@ export async function syncAllUserSites(userId: string): Promise<
   const results = [];
 
   for (const site of sites) {
-    const result = await syncGSCDataForSite(userId, site.id);
     results.push({
       siteId: site.id,
       domain: site.domain,
-      result,
+      result: await syncOneSiteIsolated(userId, site.id),
     });
   }
 
   return results;
+}
+
+/**
+ * Syncs GSC data for every site, across every user, that has a GSC property
+ * connected. Used by the daily recurring sync (see instrumentation.ts) - a
+ * small trailing window is enough here since only the most recent few days
+ * of GSC data are ever revised; the 180-day depth is handled once, up
+ * front, by the initial per-site sync instead of being re-fetched daily.
+ */
+export async function syncAllSites(daysBack: number = 7): Promise<
+  Array<{
+    siteId: string;
+    domain: string;
+    result: SyncResult;
+  }>
+> {
+  const sites = await db.site.findMany({
+    where: { gscProperty: { not: null } },
+    select: { id: true, userId: true, domain: true },
+  });
+
+  const results = [];
+
+  for (const site of sites) {
+    results.push({
+      siteId: site.id,
+      domain: site.domain,
+      result: await syncOneSiteIsolated(site.userId, site.id, daysBack),
+    });
+  }
+
+  return results;
+}
+
+// syncGSCDataForSite re-throws ReauthRequiredError (a single-site,
+// awaited manual sync needs to distinguish it from a generic failure).
+// A batch loop over many sites must not let one site's expired token abort
+// every other site's sync - isolate it back into the normal SyncResult shape.
+async function syncOneSiteIsolated(
+  userId: string,
+  siteId: string,
+  daysBack?: number
+): Promise<SyncResult> {
+  try {
+    return await syncGSCDataForSite(userId, siteId, daysBack);
+  } catch (error) {
+    if (error instanceof ReauthRequiredError) {
+      return {
+        success: false,
+        keywordsInserted: 0,
+        pagesInserted: 0,
+        startDate: "",
+        endDate: "",
+        error: error.message,
+      };
+    }
+    throw error;
+  }
 }

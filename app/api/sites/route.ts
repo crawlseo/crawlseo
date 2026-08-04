@@ -107,8 +107,10 @@ export async function POST(req: Request) {
 
     await ensureDefaultAlerts(session.user.id, site.id);
 
-    // Kick off initial GSC sync (don't block the response)
-    void syncGSCDataForSite(session.user.id, site.id, 28).catch((err) =>
+    // Kick off initial GSC sync (don't block the response). 90 days, not the
+    // usual 28 - a brand-new site should get real historical depth up front
+    // instead of waiting weeks for the daily sync to accumulate it.
+    void syncGSCDataForSite(session.user.id, site.id, 90).catch((err) =>
       console.error("Initial GSC sync failed:", err)
     );
 
