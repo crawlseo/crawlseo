@@ -97,35 +97,43 @@ export async function getSitePeriodMetrics(
   const currentRange = parseRange(days);
   const prevRange = previousRange(days);
 
-  const [currentRows, previousRows] = await Promise.all([
+  // Clicks/impressions/position come from Page, not Keyword. Google
+  // suppresses the query text (not the traffic itself) for low-volume or
+  // potentially-identifying searches - confirmed directly against the API:
+  // the same 28-day window sums to the real site total the instant `query`
+  // is dropped as a dimension, and stays wrong regardless of page/device/
+  // country. A site with a long tail of one-off queries (like this one)
+  // can lose the large majority of its true clicks this way - not a bug,
+  // an unavoidable Google privacy policy, but it means summing Keyword
+  // rows for a *site-wide* total silently undercounts. Page rows aren't
+  // query-dimensioned, so they're not subject to this at all - getDailyTraffic
+  // already relies on this same fact for the traffic chart.
+  const [currentRows, previousRows, currentKeywords, previousKeywords] = await Promise.all([
+    db.page.findMany({
+      where: { siteId, date: { gte: currentRange.start, lte: currentRange.end } },
+      select: { clicks: true, impressions: true, position: true },
+    }),
+    db.page.findMany({
+      where: { siteId, date: { gte: prevRange.start, lte: prevRange.end } },
+      select: { clicks: true, impressions: true, position: true },
+    }),
+    // "Keywords with data" is intentionally a Keyword-table count, not a
+    // claim about total clicks - undercounting here is expected/labeled,
+    // unlike silently undercounting the headline clicks/impressions tiles.
     db.keyword.findMany({
-      where: {
-        siteId,
-        date: { gte: currentRange.start, lte: currentRange.end },
-      },
-      select: {
-        query: true,
-        clicks: true,
-        impressions: true,
-        position: true,
-      },
+      where: { siteId, date: { gte: currentRange.start, lte: currentRange.end } },
+      select: { query: true },
+      distinct: ["query"],
     }),
     db.keyword.findMany({
-      where: {
-        siteId,
-        date: { gte: prevRange.start, lte: prevRange.end },
-      },
-      select: {
-        query: true,
-        clicks: true,
-        impressions: true,
-        position: true,
-      },
+      where: { siteId, date: { gte: prevRange.start, lte: prevRange.end } },
+      select: { query: true },
+      distinct: ["query"],
     }),
   ]);
 
-  const current = aggregatePeriod(currentRows);
-  const previous = aggregatePeriod(previousRows);
+  const current = { ...aggregatePeriod(currentRows), uniqueKeywords: currentKeywords.length };
+  const previous = { ...aggregatePeriod(previousRows), uniqueKeywords: previousKeywords.length };
 
   return {
     current,
