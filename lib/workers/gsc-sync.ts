@@ -88,8 +88,15 @@ export async function syncGSCDataForSite(
     const keywordsInserted = await upsertBatch(
       keywords,
       async (keyword) => {
+        // keyword.date is a bare "YYYY-MM-DD" string from Google's API -
+        // new Date() already parses that as exact UTC midnight per spec, no
+        // normalization needed. setHours() operates in *local* time, so on
+        // any host not running in UTC it silently shifts the stored date by
+        // the local UTC offset, corrupting which calendar day the row lands
+        // on. (Confirmed in practice: rows synced from a UTC+2 dev machine
+        // landed at 22:00 UTC the previous day, double-counting into the
+        // wrong day's totals once aggregated.)
         const date = new Date(keyword.date);
-        date.setHours(0, 0, 0, 0); // Normalize to start of day
 
         await db.keyword.upsert({
           where: {
@@ -130,8 +137,8 @@ export async function syncGSCDataForSite(
     const pagesInserted = await upsertBatch(
       pages.filter((p): p is typeof pages[number] & { page: string } => Boolean(p.page)),
       async (page) => {
+        // See the keyword upsert above - no normalization needed or wanted.
         const date = new Date(page.date);
-        date.setHours(0, 0, 0, 0); // Normalize to start of day
 
         await db.page.upsert({
           where: {
