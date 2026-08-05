@@ -27,6 +27,21 @@ function formatAxisDate(value: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// The API returns only real synced rows, never zero-padded to fill the
+// requested window - a newly-connected site can have far less history than
+// `days` asked for. Describe what's actually plotted, not what was asked for.
+function rangeLabel(data: ChartData[], days: number): string {
+  if (data.length === 0) return `last ${days} days`;
+  const spanDays =
+    Math.round(
+      (new Date(`${data[data.length - 1].date}T00:00:00Z`).getTime() -
+        new Date(`${data[0].date}T00:00:00Z`).getTime()) /
+        86_400_000
+    ) + 1;
+  if (spanDays >= days) return `last ${days} days`;
+  return `${formatAxisDate(data[0].date)} – ${formatAxisDate(data[data.length - 1].date)} (${spanDays} days synced so far)`;
+}
+
 export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +115,7 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
             Search traffic
           </h3>
           <p className="text-atom-caption text-muted-foreground">
-            Daily clicks & impressions · last {days} days
+            Daily clicks & impressions · {rangeLabel(data, days)}
           </p>
         </div>
         <div className="flex gap-4 text-atom-caption">
