@@ -7,18 +7,20 @@ import {
   MetricTable,
   CtrCell,
   NumCell,
+  useTableSort,
+  sortRows,
+  sortLabel,
+  SearchField,
+  filterInputClass,
+  matchesPosition,
+  parseMin,
+  POSITION_OPTIONS,
+  type MetricHeader,
+  type PositionFilter,
+  type SortDir,
 } from "@/components/ui/data-table";
 
-type PositionFilter = "all" | "top3" | "top10" | "11-20" | "20+";
-type SortKey = "clicks" | "impressions" | "position" | "ctr";
-
-const POSITION_OPTIONS: { value: PositionFilter; label: string }[] = [
-  { value: "all", label: "All positions" },
-  { value: "top3", label: "Top 3" },
-  { value: "top10", label: "Top 10" },
-  { value: "11-20", label: "11–20" },
-  { value: "20+", label: "20+" },
-];
+type SortKey = "query" | "clicks" | "impressions" | "position" | "ctr";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "clicks", label: "Clicks" },
@@ -27,26 +29,28 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "ctr", label: "CTR" },
 ];
 
-function matchesPosition(position: number, filter: PositionFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "top3") return position > 0 && position <= 3;
-  if (filter === "top10") return position > 0 && position <= 10;
-  if (filter === "11-20") return position > 10 && position <= 20;
-  return position > 20;
-}
+const HEADERS: MetricHeader[] = [
+  { label: "Query", sortKey: "query", defaultDir: "asc" },
+  { label: "Position", align: "right", sortKey: "position", defaultDir: "asc" },
+  { label: "Clicks", align: "right", sortKey: "clicks" },
+  { label: "Impressions", align: "right", sortKey: "impressions" },
+  { label: "CTR", align: "right", sortKey: "ctr" },
+];
 
-function parseMin(value: string): number | null {
-  if (value.trim() === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
+const DEFAULT_DIRS: Record<SortKey, SortDir> = {
+  query: "asc",
+  position: "asc",
+  clicks: "desc",
+  impressions: "desc",
+  ctr: "desc",
+};
 
 export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PositionFilter>("all");
   const [minClicks, setMinClicks] = useState("");
   const [minImpressions, setMinImpressions] = useState("");
-  const [sortBy, setSortBy] = useState<SortKey>("clicks");
+  const { sort, setSort, toggle } = useTableSort({ key: "clicks", dir: "desc" });
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const minClicksNum = parseMin(minClicks);
@@ -65,27 +69,14 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
       return true;
     });
 
-    rows.sort((a, b) => {
-      if (sortBy === "position") {
-        return a.position - b.position || b.impressions - a.impressions;
-      }
-      if (sortBy === "impressions") {
-        return b.impressions - a.impressions || b.clicks - a.clicks;
-      }
-      if (sortBy === "ctr") {
-        return b.ctr - a.ctr || b.impressions - a.impressions;
-      }
-      return b.clicks - a.clicks || b.impressions - a.impressions;
-    });
-
-    return rows;
+    return sortRows(rows, sort);
   }, [
     keywords,
     deferredSearch,
     position,
     minClicksNum,
     minImpressionsNum,
-    sortBy,
+    sort,
   ]);
 
   const hasActiveFilters =
@@ -93,34 +84,26 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
     position !== "all" ||
     minClicks.trim() !== "" ||
     minImpressions.trim() !== "" ||
-    sortBy !== "clicks";
+    sort.key !== "clicks" ||
+    sort.dir !== "desc";
 
   function clearFilters() {
     setSearch("");
     setPosition("all");
     setMinClicks("");
     setMinImpressions("");
-    setSortBy("clicks");
+    setSort({ key: "clicks", dir: "desc" });
   }
 
-  const inputClass =
-    "h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex min-w-[180px] flex-1 flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Search
-          </span>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by query…"
-            className={inputClass}
-          />
-        </label>
+      <div className="flex flex-wrap items-end gap-3">
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Filter by query..."
+        />
 
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -129,7 +112,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value as PositionFilter)}
-            className={`${inputClass} pr-8`}
+            className={`${filterInputClass} pr-8`}
           >
             {POSITION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -139,33 +122,31 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           </select>
         </label>
 
-        <label className="flex w-28 flex-col gap-1">
+        <label className="flex flex-col gap-1">
           <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
             Min clicks
           </span>
           <input
             type="number"
             min={0}
-            inputMode="numeric"
             value={minClicks}
             onChange={(e) => setMinClicks(e.target.value)}
             placeholder="0"
-            className={inputClass}
+            className={`${filterInputClass} w-24`}
           />
         </label>
 
-        <label className="flex w-32 flex-col gap-1">
+        <label className="flex flex-col gap-1">
           <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
             Min impressions
           </span>
           <input
             type="number"
             min={0}
-            inputMode="numeric"
             value={minImpressions}
             onChange={(e) => setMinImpressions(e.target.value)}
             placeholder="0"
-            className={inputClass}
+            className={`${filterInputClass} w-24`}
           />
         </label>
 
@@ -174,9 +155,12 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
             Sort by
           </span>
           <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className={`${inputClass} pr-8`}
+            value={sort.key}
+            onChange={(e) => {
+              const key = e.target.value as SortKey;
+              setSort({ key, dir: DEFAULT_DIRS[key] });
+            }}
+            className={`${filterInputClass} pr-8`}
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -190,7 +174,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           <button
             type="button"
             onClick={clearFilters}
-            className="h-9 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="h-9 rounded-lg border border-border px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           >
             Clear
           </button>
@@ -206,14 +190,10 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         </div>
       ) : (
         <MetricTable
-          headers={[
-            { label: "Query" },
-            { label: "Position", align: "right" },
-            { label: "Clicks", align: "right" },
-            { label: "Impressions", align: "right" },
-            { label: "CTR", align: "right" },
-          ]}
-          footer={`Showing ${filtered.length} of ${keywords.length} keywords · sorted by ${sortBy}`}
+          sort={sort}
+          onSort={toggle}
+          headers={HEADERS}
+          footer={`Showing ${filtered.length} of ${keywords.length} keywords · sorted by ${sortLabel(HEADERS, sort)}`}
         >
           {filtered.map((keyword) => (
             <tr
