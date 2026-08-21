@@ -14,6 +14,45 @@ const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 const USER_AGENT =
   "CrawlSEOBot/1.0 (+https://crawlseo.dev; self-hosted SEO audit)";
 
+/* ------------------------------------------------------------------ */
+/*  Known managed-infrastructure path patterns                        */
+/*  URLs matching these are expected to return non-200 status codes    */
+/*  and should not be flagged as critical broken links.                */
+/* ------------------------------------------------------------------ */
+
+export type ManagedInfraPattern = {
+  /** Path prefix matched with startsWith (e.g. "/cdn-cgi/") */
+  pathPrefix: string;
+  /** Optional regex tested against the pathname — takes precedence over pathPrefix when set */
+  pathRegex?: RegExp;
+  /** Human-readable provider name shown in the issue message */
+  provider: string;
+};
+
+export const MANAGED_INFRA_PATTERNS: ManagedInfraPattern[] = [
+  { pathPrefix: "/cdn-cgi/", provider: "Cloudflare" },
+  // Add more CDN / managed-endpoint patterns here, e.g.:
+  // { pathPrefix: "/.well-known/", provider: "Well-Known" },
+  // { pathPrefix: "/_vercel/", provider: "Vercel" },
+  // { pathPrefix: "/_next/", pathRegex: /^\/_next\//, provider: "Next.js" },
+];
+
+export function matchManagedInfra(url: string): ManagedInfraPattern | null {
+  try {
+    const { pathname } = new URL(url);
+    for (const pattern of MANAGED_INFRA_PATTERNS) {
+      if (pattern.pathRegex) {
+        if (pattern.pathRegex.test(pathname)) return pattern;
+      } else {
+        if (pathname.startsWith(pattern.pathPrefix)) return pattern;
+      }
+    }
+  } catch {
+    // malformed URL — not a managed path
+  }
+  return null;
+}
+
 type IssueInput = {
   url: string;
   type: IssueType;
@@ -474,13 +513,28 @@ function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueInput[] {
   };
 
   if (page.statusCode >= 400) {
-    issues.push({
-      url,
-      type: "BROKEN_LINK",
-      severity: "CRITICAL",
-      message: `HTTP ${page.statusCode}`,
-      details: { statusCode: page.statusCode, ...rem("BROKEN_LINK") },
-    });
+    const infra = matchManagedInfra(url);
+    if (infra) {
+      issues.push({
+        url,
+        type: "BROKEN_LINK",
+        severity: "INFO",
+        message: `Managed infra endpoint (${infra.provider}) — expected, not a broken link`,
+        details: {
+          statusCode: page.statusCode,
+          provider: infra.provider,
+          ...rem("MANAGED_INFRA"),
+        },
+      });
+    } else {
+      issues.push({
+        url,
+        type: "BROKEN_LINK",
+        severity: "CRITICAL",
+        message: `HTTP ${page.statusCode}`,
+        details: { statusCode: page.statusCode, ...rem("BROKEN_LINK") },
+      });
+    }
     return issues;
   }
 
@@ -773,14 +827,30 @@ async function executeCrawl(
       const { url, res, error } = result.value;
 
       if (error || !res) {
-        issues.push({
-          url,
-          type: "BROKEN_LINK",
-          severity: "CRITICAL",
-          message:
-            error instanceof Error ? error.message : "Fetch failed",
-          details: { howToFix: REMEDIATION.BROKEN_LINK?.howToFix },
-        });
+        const infra = matchManagedInfra(url);
+        if (infra) {
+          issues.push({
+            url,
+            type: "BROKEN_LINK",
+            severity: "INFO",
+            message: `Managed infra endpoint (${infra.provider}) — expected, not a broken link`,
+            details: {
+              provider: infra.provider,
+              ...REMEDIATION.MANAGED_INFRA
+                ? { howToFix: REMEDIATION.MANAGED_INFRA.howToFix }
+                : {},
+            },
+          });
+        } else {
+          issues.push({
+            url,
+            type: "BROKEN_LINK",
+            severity: "CRITICAL",
+            message:
+              error instanceof Error ? error.message : "Fetch failed",
+            details: { howToFix: REMEDIATION.BROKEN_LINK?.howToFix },
+          });
+        }
         continue;
       }
 
