@@ -1,10 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  fetchSearchAnalytics,
-  fetchPageAnalytics,
-  ReauthRequiredError,
-} from "@/lib/google";
+import { fetchSearchAnalytics, fetchPageAnalytics } from "@/lib/google";
 import { getDateRange } from "@/lib/date-utils";
 
 export async function POST(req: Request) {
@@ -15,7 +11,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { siteId } = (await req.json()) as { siteId: string };
+    const { siteId, daysBack: requestedDaysBack } = (await req.json()) as {
+      siteId: string;
+      daysBack?: number;
+    };
+
+    // Allow callers (e.g. a one-off history backfill) to widen the sync window
+    // beyond the default 28 days. Clamped to keep a single request from
+    // trying to pull an unbounded amount of GSC history in one shot.
+    const daysBack = Math.min(
+      Math.max(Number(requestedDaysBack) || 28, 1),
+      500
+    );
 
     // Verify site belongs to user
     const site = await db.site.findUnique({
@@ -37,8 +44,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch last 28 days of data
-    const { start, end } = getDateRange(28);
+    // Fetch last `daysBack` days of data (28 by default)
+    const { start, end } = getDateRange(daysBack);
 
     const [keywords, pages] = await Promise.all([
       fetchSearchAnalytics(
@@ -118,13 +125,6 @@ export async function POST(req: Request) {
       pagesInserted: pages.length,
     });
   } catch (error) {
-    if (error instanceof ReauthRequiredError) {
-      return Response.json(
-        { error: error.message, code: "REAUTH_REQUIRED" },
-        { status: 401 }
-      );
-    }
-
     console.error("Error syncing GSC data:", error);
 
     return Response.json(
