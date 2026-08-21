@@ -3,7 +3,13 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "./db";
 
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+// Skipped during `next build` so the Docker image can be built without real
+// credentials.  NEXT_PHASE is set by Next.js; SKIP_ENV_VALIDATION is a manual
+// escape hatch for other build toolchains.
+const isBuild =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.SKIP_ENV_VALIDATION === "1";
+if (!isBuild && (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET)) {
   throw new Error("Missing Google OAuth credentials");
 }
 

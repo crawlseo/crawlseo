@@ -9,14 +9,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Next.js evaluates the Auth.js configuration while collecting build output.
-# These non-secret placeholders keep the image build independent of runtime
-# configuration; deployments provide the real values to the final stage.
-ENV DATABASE_URL=postgresql://crawlseo:crawlseo@localhost:5432/crawlseo
-ENV GOOGLE_CLIENT_ID=docker-build-placeholder
-ENV GOOGLE_CLIENT_SECRET=docker-build-placeholder
-ENV NEXTAUTH_SECRET=docker-build-placeholder
-RUN npx prisma generate
+# Prisma generate needs a syntactically valid DATABASE_URL but never connects.
+# Inline it so it does not persist as an image layer.
+RUN DATABASE_URL="postgresql://build:build@localhost/build" npx prisma generate
 RUN npm run build
 
 FROM base AS runner
