@@ -22,12 +22,6 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package-lock.json ./
-# Keep the migration CLI in the image instead of downloading it through npx at
-# container startup. Reading the version from the lockfile keeps it aligned with
-# the generated Prisma client.
-RUN npm install --global "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
-    && npm cache clean --force
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
@@ -35,8 +29,15 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Reuse the Prisma CLI already built in the deps/builder stages instead of
+# running a second npm install under QEMU emulation (which crashes with SIGILL
+# on arm64). Only the CLI package and its engine binaries are needed for
+# `prisma migrate deploy` at container startup.
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node server.js"]
