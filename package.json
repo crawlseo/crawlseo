@@ -26,7 +26,9 @@
     "lint": "eslint",
     "mcp": "npx tsx mcp/server.ts",
     "seed:demo": "npx tsx scripts/seed-demo.ts",
-    "seed:demo:clean": "npx tsx scripts/seed-demo.ts --clean"
+    "seed:demo:clean": "npx tsx scripts/seed-demo.ts --clean",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
@@ -57,6 +59,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }
