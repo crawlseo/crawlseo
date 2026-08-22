@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CrawlButton } from "@/components/sites/action-buttons";
 import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
+import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -117,75 +118,27 @@ export default async function CrawlPage({ params }: Props) {
 
           {/* Crawled pages table (from AuditPage model) */}
           {auditPages.length > 0 && (
-            <div className="panel overflow-hidden">
-              <div className="border-b border-border/60 px-5 py-4">
+            <div>
+              <div className="px-1 pb-3">
                 <h3 className="font-heading text-lg font-semibold">Crawled pages</h3>
                 <p className="text-sm text-muted-foreground">
                   {auditPages.length} pages stored with full metadata
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[800px] text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50 bg-muted/20 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                      <th className="px-4 py-3 text-left">URL</th>
-                      <th className="px-4 py-3 text-right">Status</th>
-                      <th className="px-4 py-3 text-right">Score</th>
-                      <th className="px-4 py-3 text-right">Words</th>
-                      <th className="px-4 py-3 text-right">H1s</th>
-                      <th className="px-4 py-3 text-right">Images</th>
-                      <th className="px-4 py-3 text-right">Int. links</th>
-                      <th className="px-4 py-3 text-right">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {auditPages.slice(0, 100).map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/20">
-                        <td className="max-w-md truncate px-4 py-2.5 font-medium" title={p.url}>
-                          {p.url}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data">
-                          <span className={cn(
-                            p.statusCode >= 400 ? "text-danger" :
-                            p.statusCode >= 300 ? "text-warning" : "text-signal"
-                          )}>
-                            {p.statusCode}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data">
-                          <span className={cn(
-                            p.contentScore >= 70 ? "text-signal" :
-                            p.contentScore >= 50 ? "text-warning" : "text-danger"
-                          )}>
-                            {p.contentScore}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                          {p.wordCount}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                          {p.h1Count}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                          {p.imagesMissingAlt > 0 ? (
-                            <span className="text-warning">
-                              {p.imagesMissingAlt}/{p.imageCount}
-                            </span>
-                          ) : (
-                            p.imageCount
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                          {p.internalLinks}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
-                          {p.responseTimeMs}ms
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CrawledPagesTable
+                rows={auditPages.slice(0, 100).map((p) => ({
+                  id: p.id,
+                  url: p.url,
+                  statusCode: p.statusCode,
+                  contentScore: p.contentScore,
+                  wordCount: p.wordCount,
+                  h1Count: p.h1Count,
+                  imageCount: p.imageCount,
+                  imagesMissingAlt: p.imagesMissingAlt,
+                  internalLinks: p.internalLinks,
+                  responseTimeMs: p.responseTimeMs,
+                }))}
+              />
             </div>
           )}
 
