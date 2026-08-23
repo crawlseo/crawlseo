@@ -53,7 +53,7 @@ export function matchManagedInfra(url: string): ManagedInfraPattern | null {
   return null;
 }
 
-type IssueInput = {
+export type IssueInput = {
   url: string;
   type: IssueType;
   severity: IssueSeverity;
@@ -70,7 +70,7 @@ type LinkInfo = {
   statusCode: number | null;
 };
 
-type PageSnapshot = {
+export type PageSnapshot = {
   url: string;
   statusCode: number;
   redirectUrl: string | null;
@@ -503,7 +503,7 @@ function parseSitemapUrls(xml: string, base: string): string[] {
 /*  Issue detection per page                                          */
 /* ------------------------------------------------------------------ */
 
-function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueInput[] {
+export function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueInput[] {
   const issues: IssueInput[] = [];
   const { url } = page;
 
@@ -633,7 +633,7 @@ function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueInput[] {
   return issues;
 }
 
-function computeHealthScore(issues: IssueInput[], pagesFound: number): number {
+export function computeHealthScore(issues: IssueInput[], pagesFound: number): number {
   if (pagesFound === 0) return 0;
   let score = 100;
   for (const issue of issues) {
