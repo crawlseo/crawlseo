@@ -1,0 +1,9 @@
+# Local override — upstream docker-compose.yml stays unmodified so the fork
+# remains cleanly rebaseable.
+#
+# The DB host port binding is REMOVED rather than remapped: the app reaches
+# Postgres at db:5432 over the compose network, so publishing it to the host
+# is unnecessary exposure. (Host 5432 and 55432 are both occupied here anyway.)
+services:
+  db:
+    ports: !reset []
