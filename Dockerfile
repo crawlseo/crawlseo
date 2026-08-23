@@ -24,15 +24,27 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-# Reuse the Prisma CLI already built in the deps/builder stages instead of
-# running a second npm install under QEMU emulation (which crashes with SIGILL
-# on arm64). Only the CLI package and its engine binaries are needed for
-# `prisma migrate deploy` at container startup.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# The Prisma CLI (for `migrate deploy` at startup) gets its OWN complete
+# node_modules tree at /prisma-cli, rather than cherry-picking packages into the
+# app's slim standalone tree.
+#
+# Why: selective copying cannot work. Copying only @prisma/engines failed on
+# @prisma/debug; copying all of @prisma/ then failed on `effect`, a third-party
+# transitive of @prisma/config. The CLI's dependency closure is deep and not
+# scoped, so any hand-picked subset is one release away from breaking again.
+#
+# Also note node_modules/.bin/prisma is deliberately NOT copied: npm makes it a
+# symlink into prisma/build/, `COPY` dereferences it into a plain file, and the
+# CLI then resolves its assets relative to .bin/ and dies with ENOENT on
+# prisma_schema_build_bg.wasm. Invoke build/index.js directly instead.
+COPY --from=builder /app/node_modules /prisma-cli/node_modules
+
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node server.js"]
+# Invoke the CLI at its real path, NOT via node_modules/.bin/prisma. In npm that
+# bin entry is a SYMLINK into prisma/build/; `COPY` dereferences it into a plain
+# file under .bin/, so the CLI then resolves its assets relative to .bin/ and dies
+# with ENOENT on prisma_schema_build_bg.wasm.
+CMD ["sh", "-c", "node /prisma-cli/node_modules/prisma/build/index.js migrate deploy --schema /app/prisma/schema.prisma && node server.js"]
