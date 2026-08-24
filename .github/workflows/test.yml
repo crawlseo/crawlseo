@@ -1,0 +1,54 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Lint only files changed in this PR / push, not the whole repo.
+      # Pre-existing lint errors in untouched files are ignored.
+      # If a PR touches an already-dirty file, lint WILL fail — that's
+      # intentional: you touched it, you own its lint errors now.
+      - name: Lint changed files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          FILES=$(git diff --name-only --diff-filter=d "$BASE"...HEAD -- '*.ts' '*.tsx' || true)
+          if [ -z "$FILES" ]; then
+            echo "No .ts/.tsx files changed — skipping lint"
+          else
+            echo "Linting changed files:"
+            echo "$FILES"
+            echo "$FILES" | xargs npx eslint
+          fi
+
+      - name: Test
+        run: npm test

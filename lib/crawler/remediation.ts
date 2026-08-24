@@ -4,6 +4,11 @@ export const REMEDIATION: Record<string, { title: string; howToFix: string }> = 
     howToFix:
       "Update or remove the broken link. If the target page was moved, replace the URL with the new destination. Set up 301 redirects for any pages you have retired.",
   },
+  MANAGED_INFRA: {
+    title: "Managed Infrastructure Endpoint",
+    howToFix:
+      "This URL belongs to a CDN or hosting provider (e.g. Cloudflare /cdn-cgi/). It is managed automatically and is expected to return a non-200 status when accessed directly. No action is needed.",
+  },
   REDIRECT: {
     title: "Redirect Detected",
     howToFix:
