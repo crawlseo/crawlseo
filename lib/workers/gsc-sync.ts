@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { fetchSearchAnalytics, fetchPageAnalytics } from "@/lib/google";
-import { getDateRange } from "@/lib/date-utils";
+import { getDateRange, getDataLagDate } from "@/lib/date-utils";
 
 interface SyncResult {
   success: boolean;
@@ -39,8 +39,10 @@ export async function syncGSCDataForSite(
       throw new Error("Site does not have GSC property connected");
     }
 
-    // Get date range
-    const { start, end } = getDateRange(daysBack);
+    // Get date range — end at the data lag boundary (3 days ago) because
+    // Google's most recent 2-3 days are always incomplete.
+    const { start } = getDateRange(daysBack);
+    const end = getDataLagDate();
 
     console.log(`[GSC Sync] Starting sync for site ${siteId}`);
     console.log(`[GSC Sync] Date range: ${start} to ${end}`);

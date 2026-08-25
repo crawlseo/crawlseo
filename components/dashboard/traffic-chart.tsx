@@ -184,6 +184,10 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
           />
         </AreaChart>
       </ResponsiveContainer>
+
+      <p className="mt-3 text-atom-caption text-muted-foreground">
+        Google reports with a ~3 day delay; the most recent days are not shown yet.
+      </p>
     </div>
   );
 }

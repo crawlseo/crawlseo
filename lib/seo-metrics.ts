@@ -67,17 +67,17 @@ function weightedPosition(
 }
 
 function aggregatePeriod(
-  rows: { clicks: number; impressions: number; position: number; query?: string }[]
+  rows: { clicks: number; impressions: number; position: number }[],
+  uniqueKeywords = 0
 ): PeriodMetrics {
   const clicks = rows.reduce((s, r) => s + r.clicks, 0);
   const impressions = rows.reduce((s, r) => s + r.impressions, 0);
-  const queries = new Set(rows.map((r) => r.query).filter(Boolean));
   return {
     clicks,
     impressions,
     avgPosition: weightedPosition(rows),
     avgCtr: impressions > 0 ? clicks / impressions : 0,
-    uniqueKeywords: queries.size,
+    uniqueKeywords,
   };
 }
 
@@ -97,35 +97,51 @@ export async function getSitePeriodMetrics(
   const currentRange = parseRange(days);
   const prevRange = previousRange(days);
 
-  const [currentRows, previousRows] = await Promise.all([
-    db.keyword.findMany({
-      where: {
-        siteId,
-        date: { gte: currentRange.start, lte: currentRange.end },
-      },
-      select: {
-        query: true,
-        clicks: true,
-        impressions: true,
-        position: true,
-      },
-    }),
-    db.keyword.findMany({
-      where: {
-        siteId,
-        date: { gte: prevRange.start, lte: prevRange.end },
-      },
-      select: {
-        query: true,
-        clicks: true,
-        impressions: true,
-        position: true,
-      },
-    }),
-  ]);
+  // Site-wide traffic totals come from the Page model (GSC page-level data),
+  // NOT Keyword. Google suppresses query text for low-volume searches
+  // ("anonymized queries"), so those searches never appear as Keyword rows.
+  // Page rows have no query dimension and include ALL traffic.
+  // Measured gap on real data: Keyword undercounts clicks by ~95% and
+  // impressions by ~63% vs Page.
+  const [currentPages, previousPages, currentKwCount, previousKwCount] =
+    await Promise.all([
+      db.page.findMany({
+        where: {
+          siteId,
+          date: { gte: currentRange.start, lte: currentRange.end },
+        },
+        select: { clicks: true, impressions: true, position: true },
+      }),
+      db.page.findMany({
+        where: {
+          siteId,
+          date: { gte: prevRange.start, lte: prevRange.end },
+        },
+        select: { clicks: true, impressions: true, position: true },
+      }),
+      // Unique keyword count still comes from Keyword — it's genuinely query-level.
+      db.keyword
+        .groupBy({
+          by: ["query"],
+          where: {
+            siteId,
+            date: { gte: currentRange.start, lte: currentRange.end },
+          },
+        })
+        .then((rows) => rows.length),
+      db.keyword
+        .groupBy({
+          by: ["query"],
+          where: {
+            siteId,
+            date: { gte: prevRange.start, lte: prevRange.end },
+          },
+        })
+        .then((rows) => rows.length),
+    ]);
 
-  const current = aggregatePeriod(currentRows);
-  const previous = aggregatePeriod(previousRows);
+  const current = aggregatePeriod(currentPages, currentKwCount);
+  const previous = aggregatePeriod(previousPages, previousKwCount);
 
   return {
     current,
