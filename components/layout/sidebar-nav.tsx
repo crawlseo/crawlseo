@@ -115,33 +115,6 @@ export function SidebarNav({
         </div>
       ))}
 
-      {/* Properties quick list */}
-      {!collapsed && sites.length > 1 && (
-        <div>
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Properties
-          </p>
-          <div className="space-y-0.5">
-            {sites.slice(0, 6).map((s) => {
-              const active = activeSiteId === s.id;
-              return (
-                <Link
-                  key={s.id}
-                  href={`/sites/${s.id}`}
-                  className={cn(
-                    "block truncate rounded-xl px-3 py-2 text-sm transition",
-                    active
-                      ? "bg-sidebar-accent text-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  {s.domain}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </nav>
   );
 }
