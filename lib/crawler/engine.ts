@@ -183,6 +183,77 @@ function extractTag(html: string, re: RegExp): string | null {
   return m?.[1]?.trim() || null;
 }
 
+/*
+ * HTML5 allows three attribute value syntaxes: "double quoted", 'single
+ * quoted', and unquoted. Minifiers drop the quotes whenever the value has no
+ * spaces, so a real page can serve `<meta content="Some text" name=description>`
+ * — `content` keeps its quotes because the value has spaces, `name` loses them.
+ * A pattern that only knows the quoted form reports that tag as missing.
+ *
+ * One attribute: a name, optionally followed by a value in any of the three
+ * syntaxes HTML5 allows — "double quoted", 'single quoted', or unquoted. An
+ * unquoted value ends only at whitespace or `>`, so query strings survive
+ * (`href=/search?q=shoes&page=2`).
+ */
+const ATTR_RE = /([^\s"'>/=]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?/g;
+
+/** Strips the surrounding quotes from a raw attribute value, if any. */
+function unquote(raw: string): string {
+  const q = raw[0];
+  return (q === '"' || q === "'") && raw.length > 1 && raw.endsWith(q)
+    ? raw.slice(1, -1)
+    : raw;
+}
+
+/**
+ * Attributes of one tag, lower-cased names, first occurrence winning (browsers
+ * ignore later duplicates).
+ *
+ * Parsed positionally in a single pass rather than searched for by name: a
+ * name search matches text inside ANOTHER attribute's value, so
+ * `<a onclick="go('href=/tracker')" href="/real">` would yield `/tracker`.
+ * Accepts a whole tag or a bare attribute list.
+ */
+function parseAttrs(tag: string): Map<string, string> {
+  const body = tag.replace(/^<[^\s/>]*/, "").replace(/\/?>$/, "");
+  const out = new Map<string, string>();
+  for (const m of body.matchAll(ATTR_RE)) {
+    const name = m[1].toLowerCase();
+    if (!out.has(name)) out.set(name, m[2] === undefined ? "" : unquote(m[2]));
+  }
+  return out;
+}
+
+/**
+ * Every `<tag …>` in the document. The alternation lets a quoted value contain
+ * `>`, which is legal (`<meta content="Before > After" …>`); a plain `[^>]*`
+ * envelope would cut the tag in half there and lose the later attributes.
+ */
+function tagsNamed(html: string, tag: string): string[] {
+  return html.match(new RegExp(`<${tag}\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, "gi")) ?? [];
+}
+
+/**
+ * Value of `attrName` on the first `<tag>` whose `name` attribute is `value`.
+ * Keeps scanning when a matching tag has no `attrName`, so an empty
+ * `<meta name=robots>` does not mask the real one that follows.
+ */
+function tagAttr(
+  html: string,
+  tag: string,
+  name: string,
+  value: string,
+  attrName: string
+): string | null {
+  for (const t of tagsNamed(html, tag)) {
+    const attrs = parseAttrs(t);
+    if (attrs.get(name)?.toLowerCase() !== value) continue;
+    const found = attrs.get(attrName);
+    if (found) return found;
+  }
+  return null;
+}
+
 function decodeEntities(s: string): string {
   return s
     .replace(/&amp;/g, "&")
@@ -210,7 +281,7 @@ function hashText(text: string): string {
 /*  Parse a fetched HTML page into a snapshot                         */
 /* ------------------------------------------------------------------ */
 
-function parseHtml(
+export function parseHtml(
   url: string,
   html: string,
   statusCode: number,
@@ -224,40 +295,16 @@ function parseHtml(
     ? decodeEntities(titleRaw.replace(/\s+/g, " ").trim())
     : null;
 
-  const description =
-    extractTag(
-      html,
-      /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i
-    ) ||
-    extractTag(
-      html,
-      /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i
-    );
+  const description = tagAttr(html, "meta", "name", "description", "content");
 
   const h1s = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)].map((m) =>
     decodeEntities(stripTags(m[1])).slice(0, 200)
   );
 
-  const canonical =
-    extractTag(
-      html,
-      /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
-    ) ||
-    extractTag(
-      html,
-      /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i
-    );
+  const canonical = tagAttr(html, "link", "rel", "canonical", "href");
 
   // robots meta
-  const robotsMeta =
-    extractTag(
-      html,
-      /<meta[^>]+name=["']robots["'][^>]+content=["']([^"']*)["']/i
-    ) ||
-    extractTag(
-      html,
-      /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']robots["']/i
-    );
+  const robotsMeta = tagAttr(html, "meta", "name", "robots", "content");
 
   const hasSchema =
     /application\/ld\+json/i.test(html) ||
@@ -265,28 +312,20 @@ function parseHtml(
     /\bitemtype\b/i.test(html);
 
   // hreflang tags
-  const hreflangTags = [
-    ...html.matchAll(
-      /<link[^>]+rel=["']alternate["'][^>]+hreflang=["']([^"']+)["'][^>]+href=["']([^"']+)["'][^>]*>/gi
-    ),
-    ...html.matchAll(
-      /<link[^>]+href=["']([^"']+)["'][^>]+hreflang=["']([^"']+)["'][^>]+rel=["']alternate["'][^>]*>/gi
-    ),
-  ].map((m) => {
-    // The capture groups might be in different order depending on which regex matched
-    // First regex: hreflang is group 1, href is group 2
-    // Second regex: href is group 1, hreflang is group 2
-    if (m[0].indexOf("hreflang") < m[0].indexOf("href=")) {
-      return { lang: m[1], href: m[2] };
-    }
-    return { lang: m[2], href: m[1] };
-  });
+  const hreflangTags = tagsNamed(html, "link")
+    .map((tag) => parseAttrs(tag))
+    .filter((a) => a.get("rel")?.toLowerCase() === "alternate")
+    .map((a) => ({ lang: a.get("hreflang") ?? "", href: a.get("href") ?? "" }))
+    .filter((t) => t.lang !== "" && t.href !== "");
 
   // Images
-  const imgTags = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
+  const imgTags = tagsNamed(html, "img");
   const imageCount = imgTags.length;
+  // An empty alt still counts as missing, exactly as before: the old pattern
+  // required `[^"']+`. A whitespace-only alt still counts as PRESENT, also as
+  // before — values are not trimmed.
   const imagesMissingAlt = imgTags.filter(
-    (tag) => !/\balt\s*=\s*["'][^"']+["']/i.test(tag)
+    (tag) => !parseAttrs(tag).get("alt")
   ).length;
 
   // Body text and word count
@@ -308,14 +347,15 @@ function parseHtml(
   for (const m of anchorMatches) {
     const attrs = m[1];
     const anchorContent = m[2];
-    const hrefMatch = attrs.match(/href=["']([^"'#][^"']*)["']/i);
-    if (!hrefMatch) continue;
+    const tagAttrs = parseAttrs(attrs);
+    const href = tagAttrs.get("href");
+    if (!href || href.startsWith("#")) continue;
 
-    const abs = normalizeUrl(hrefMatch[1], url);
+    const abs = normalizeUrl(href, url);
     if (!abs) continue;
 
     const anchorText = decodeEntities(stripTags(anchorContent)).slice(0, 200) || null;
-    const isNofollow = /\brel=["'][^"']*nofollow[^"']*["']/i.test(attrs);
+    const isNofollow = /\bnofollow\b/i.test(tagAttrs.get("rel") ?? "");
     const isInternal = sameHost(abs, seedUrl);
 
     links.push({
@@ -884,7 +924,7 @@ async function executeCrawl(
       // Mixed content check on raw HTML
       if (
         page.url.startsWith("https://") &&
-        /(?:src|href)=["']http:\/\//i.test(res.html)
+        /(?:src|href)\s*=\s*["']?http:\/\//i.test(res.html)
       ) {
         issues.push({
           url: page.url,
