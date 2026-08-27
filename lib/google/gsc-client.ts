@@ -1,4 +1,7 @@
 import { getAccessToken } from "./google-auth";
+import { aggregateByQueryAndDate } from "./aggregate";
+import type { KeywordData } from "./types";
+export type { KeywordData } from "./types";
 
 const GSC_API_BASE = "https://www.googleapis.com/webmasters/v3";
 
@@ -21,17 +24,6 @@ export type GSCFilter = {
   expression: string;
 };
 
-export interface KeywordData {
-  query: string;
-  page?: string;
-  device?: string;
-  country?: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-  date: string;
-}
 
 /**
  * Lists all Google Search Console properties for a user
@@ -132,6 +124,7 @@ export async function fetchSearchAnalytics(
       });
     }
 
+
     // If we got fewer rows than requested, we've reached the end
     if (data.rows.length < rowLimit) {
       break;
@@ -140,7 +133,7 @@ export async function fetchSearchAnalytics(
     startRow += rowLimit;
   }
 
-  return results;
+  return aggregateByQueryAndDate(results);
 }
 
 /**
