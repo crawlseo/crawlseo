@@ -18,6 +18,8 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
+// Renders the raw value unless `Select` receives `items` (value → label);
+// it never reads the labels from the rendered `SelectItem` children.
 function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value

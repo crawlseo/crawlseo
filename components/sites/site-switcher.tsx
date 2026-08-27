@@ -21,9 +21,8 @@ export function SiteSwitcher({ sites }: { sites: Site[] }) {
   if (sites.length === 0) return null;
 
   const match = pathname.match(/\/sites\/([^/]+)/);
-  const fromPath =
-    match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : undefined;
-  const selected = fromPath ?? sites[0].id;
+  const selected =
+    match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : null;
 
   function handleSiteChange(siteId: string | null) {
     if (!siteId) return;
@@ -54,19 +53,21 @@ export function SiteSwitcher({ sites }: { sites: Site[] }) {
     );
   }
 
+  const items = sites.map((site) => ({ value: site.id, label: site.domain }));
+
   return (
     <div>
       <p className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         Switch site
       </p>
-      <Select value={selected} onValueChange={handleSiteChange}>
+      <Select value={selected} onValueChange={handleSiteChange} items={items}>
         <SelectTrigger className="w-full border-border/70 bg-panel">
-          <SelectValue />
+          <SelectValue placeholder="Choose a site" />
         </SelectTrigger>
-        <SelectContent>
-          {sites.map((site) => (
-            <SelectItem key={site.id} value={site.id}>
-              {site.domain}
+        <SelectContent alignItemWithTrigger={false}>
+          {items.map(({ value, label }) => (
+            <SelectItem key={value} value={value}>
+              {label}
             </SelectItem>
           ))}
         </SelectContent>
