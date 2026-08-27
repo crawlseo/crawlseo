@@ -75,28 +75,55 @@ export async function PUT(
     // Verify ownership
     const site = await db.site.findUnique({
       where: { id: siteId },
-      select: { userId: true },
+      select: { userId: true, bingSite: true },
     });
 
     if (!site || site.userId !== session.user.id) {
       return Response.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { domain, gscProperty } = (await req.json()) as {
+    const { domain, gscProperty, bingSite } = (await req.json()) as {
       domain?: string;
       gscProperty?: string;
+      bingSite?: string;
     };
+
+    // Stored Bing rows are keyed by site, not by property, so pointing the site
+    // at a different property would blend two properties' history - and page
+    // URLs from both would normalise to the same key and count twice.
+    const nextBingSite = bingSite === undefined ? undefined : bingSite || null;
+    // The picker only offers properties the account owns, but the endpoint is
+    // reachable directly: a value that is not a URL syncs nothing and looks
+    // exactly like a site with no Bing data.
+    if (nextBingSite !== null && nextBingSite !== undefined) {
+      const parsed = URL.parse?.(nextBingSite) ?? null;
+      if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+        return Response.json(
+          { error: "bingSite must be an http(s) URL" },
+          { status: 400 }
+        );
+      }
+    }
+    if (nextBingSite !== undefined && nextBingSite !== site.bingSite) {
+      await db.$transaction([
+        db.bingSearchWeekly.deleteMany({ where: { siteId } }),
+        db.bingDaily.deleteMany({ where: { siteId } }),
+      ]);
+    }
 
     const updated = await db.site.update({
       where: { id: siteId },
       data: {
         ...(domain && { domain }),
         ...(gscProperty && { gscProperty }),
+        // An empty string clears the connection; undefined leaves it alone.
+        ...(nextBingSite !== undefined && { bingSite: nextBingSite }),
       },
       select: {
         id: true,
         domain: true,
         gscProperty: true,
+        bingSite: true,
         updatedAt: true,
       },
     });
