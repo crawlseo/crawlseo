@@ -54,7 +54,7 @@ export interface BingCrawlDay {
  * exactly the grain of the ApiKey table. It is stored in `encryptedLogin`;
  * `encryptedPassword` is unused (the model was shaped for DataForSEO's pair).
  */
-async function getBingApiKey(userId: string): Promise<string> {
+export async function getBingApiKey(userId: string): Promise<string> {
   const apiKey = await db.apiKey.findUnique({
     where: { userId_provider: { userId, provider: "bing" } },
   });

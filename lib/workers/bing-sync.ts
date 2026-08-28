@@ -3,6 +3,7 @@ import {
   fetchBingCrawlStats,
   fetchBingSearchStats,
   fetchBingTraffic,
+  getBingApiKey,
 } from "@/lib/bing";
 
 export interface BingSyncResult {
@@ -71,6 +72,11 @@ export async function syncBingDataForSite(
     if (!site.bingSite) {
       throw new Error("Site does not have a Bing Webmaster property connected");
     }
+
+    // Resolve the key once up front: with no key every endpoint below would
+    // reject and the caller would see "every Bing endpoint failed" instead of
+    // "add a key in Settings".
+    await getBingApiKey(userId);
 
     // Four independent endpoints. Losing one should not throw away the three
     // that answered: there is no date parameter, so a retry re-downloads the

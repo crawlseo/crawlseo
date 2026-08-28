@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth";
-import { BingKeyMissingError } from "@/lib/bing";
 import { syncBingDataForSite } from "@/lib/workers/bing-sync";
 
 export async function POST(req: Request) {
@@ -23,13 +22,6 @@ export async function POST(req: Request) {
 
     return Response.json(result);
   } catch (error) {
-    if (error instanceof BingKeyMissingError) {
-      return Response.json(
-        { error: error.message, code: "BING_KEY_MISSING" },
-        { status: 400 }
-      );
-    }
-
     console.error("Bing sync error:", error);
 
     return Response.json(

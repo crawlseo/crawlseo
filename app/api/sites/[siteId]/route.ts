@@ -96,22 +96,21 @@ export async function PUT(
     // reachable directly: a value that is not a URL syncs nothing and looks
     // exactly like a site with no Bing data.
     if (nextBingSite !== null && nextBingSite !== undefined) {
-      const parsed = URL.parse?.(nextBingSite) ?? null;
-      if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+      let protocol = "";
+      try {
+        protocol = new URL(nextBingSite).protocol;
+      } catch {}
+      if (!/^https?:$/.test(protocol)) {
         return Response.json(
           { error: "bingSite must be an http(s) URL" },
           { status: 400 }
         );
       }
     }
-    if (nextBingSite !== undefined && nextBingSite !== site.bingSite) {
-      await db.$transaction([
-        db.bingSearchWeekly.deleteMany({ where: { siteId } }),
-        db.bingDaily.deleteMany({ where: { siteId } }),
-      ]);
-    }
+    const propertyChanged =
+      nextBingSite !== undefined && nextBingSite !== site.bingSite;
 
-    const updated = await db.site.update({
+    const update = db.site.update({
       where: { id: siteId },
       data: {
         ...(domain && { domain }),
@@ -127,6 +126,17 @@ export async function PUT(
         updatedAt: true,
       },
     });
+    // The wipe and the update commit together: if the update fails (say a
+    // duplicate domain), the old property keeps its history.
+    const updated = propertyChanged
+      ? (
+          await db.$transaction([
+            db.bingSearchWeekly.deleteMany({ where: { siteId } }),
+            db.bingDaily.deleteMany({ where: { siteId } }),
+            update,
+          ])
+        )[2]
+      : await update;
 
     return Response.json(updated);
   } catch (error) {
