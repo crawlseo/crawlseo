@@ -55,6 +55,53 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
+      # ---- Boot smoke test -------------------------------------------------
+      # A green build is not a bootable image: issue #27 shipped an image
+      # whose `prisma migrate deploy` crashed on missing modules before
+      # server.js ever ran, and CI never noticed because it only built.
+      # These steps load the amd64 image, boot it against a scratch Postgres
+      # and require /api/health to answer BEFORE anything is pushed.
+      - name: Build image for boot test (amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: crawlseo-smoke:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot smoke test
+        run: |
+          set -euo pipefail
+          docker network create smoke
+          docker run -d --name smoke-db --network smoke \
+            -e POSTGRES_USER=crawlseo -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=crawlseo \
+            postgres:16-alpine
+          for i in $(seq 1 30); do
+            docker exec smoke-db pg_isready -U crawlseo >/dev/null 2>&1 && break
+            sleep 1
+          done
+          # The image's CMD runs `prisma migrate deploy` before server.js, so
+          # a 200 from /api/health proves: modules resolve, migrations apply,
+          # the server starts, and it reaches the database.
+          docker run -d --name smoke-app --network smoke -p 3000:3000 \
+            -e DATABASE_URL=postgresql://crawlseo:smoke@smoke-db:5432/crawlseo \
+            -e NEXTAUTH_SECRET=smoke-test-only \
+            -e NEXTAUTH_URL=http://localhost:3000 \
+            crawlseo-smoke:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/api/health; then
+              echo; echo "boot smoke test: OK"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::image did not serve /api/health within 60s — it builds but does not boot (the issue #27 failure mode)"
+          echo "--- smoke-app logs ---"
+          docker logs smoke-app
+          exit 1
+      # ---------------------------------------------------------------------
+
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:

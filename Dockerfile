@@ -13,6 +13,10 @@ COPY . .
 # Inline it so it does not persist as an image layer.
 RUN DATABASE_URL="postgresql://build:build@localhost/build" npx prisma generate
 RUN npm run build
+# Stage the Prisma CLI with its FULL runtime dependency closure for the
+# runner. Computed from the installed tree, not hand-listed: a partial copy
+# shipped an image that crashed at start with MODULE_NOT_FOUND (issue #27).
+RUN node scripts/stage-prisma-cli.mjs /app/prisma-cli
 
 FROM base AS runner
 WORKDIR /app
@@ -24,15 +28,17 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-# Reuse the Prisma CLI already built in the deps/builder stages instead of
-# running a second npm install under QEMU emulation (which crashes with SIGILL
-# on arm64). Only the CLI package and its engine binaries are needed for
-# `prisma migrate deploy` at container startup.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Prisma CLI + full runtime dependency closure, staged by
+# scripts/stage-prisma-cli.mjs in the builder (see issue #27: hand-copied
+# subsets missed transitive deps and the container crash-looped at start).
+# Still no npm invocation in this stage — a second npm install under QEMU
+# arm64 emulation intermittently crashes with SIGILL (see PR #23).
+COPY --from=builder /app/prisma-cli ./node_modules
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node server.js"]
+# Invoke the CLI's real entry point, not node_modules/.bin/prisma: COPY
+# flattens that symlink into a file, and the CLI then resolves its WASM
+# relative to the wrong directory (fault 3 of issue #27).
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node server.js"]
