@@ -13,7 +13,6 @@ import {
 
 interface BingSite {
   url: string;
-  isVerified: boolean;
 }
 
 export function BingSiteSection({
@@ -35,7 +34,6 @@ export function BingSiteSection({
   const [error, setError] = useState<string | null>(null);
 
   async function loadSites() {
-    if (sites.length > 0) return;
     setLoading(true);
     setError(null);
 
@@ -95,6 +93,11 @@ export function BingSiteSection({
         `Synced ${data.daysUpserted} days, ${data.queriesUpserted} query weeks, ` +
           `${data.pagesUpserted} page weeks.`
       );
+      if (data.partial?.length) {
+        setError(
+          `Bing did not answer for: ${data.partial.join(", ")}. Run the sync again.`
+        );
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
@@ -159,7 +162,7 @@ export function BingSiteSection({
             <button
               type="button"
               onClick={handleSave}
-              disabled={!selected || selected === bingSite || saving}
+              disabled={!selected || selected === bingSite || saving || syncing}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
             >
               {saving ? (

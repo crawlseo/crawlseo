@@ -91,6 +91,9 @@ export async function PUT(
     // Stored Bing rows are keyed by site, not by property, so pointing the site
     // at a different property would blend two properties' history - and page
     // URLs from both would normalise to the same key and count twice.
+    if (bingSite !== undefined && typeof bingSite !== "string") {
+      return Response.json({ error: "bingSite must be a string" }, { status: 400 });
+    }
     const nextBingSite = bingSite === undefined ? undefined : bingSite || null;
     // The picker only offers properties the account owns, but the endpoint is
     // reachable directly: a value that is not a URL syncs nothing and looks

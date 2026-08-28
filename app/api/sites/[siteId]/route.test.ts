@@ -41,6 +41,13 @@ describe("PUT /api/sites/[siteId] with a new Bing property", () => {
     ]);
   });
 
+  it("rejects a property that is not a string without touching the rows", async () => {
+    db.$transaction.mockClear();
+    expect((await put({ bingSite: 0 })).status).toBe(400);
+    expect((await put({ bingSite: ["https://new.example/"] })).status).toBe(400);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects a property that is not an http(s) URL", async () => {
     const res = await put({ bingSite: "ftp://new.example/" });
     expect(res.status).toBe(400);

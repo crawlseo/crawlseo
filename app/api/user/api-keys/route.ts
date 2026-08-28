@@ -52,7 +52,11 @@ export async function POST(req: Request) {
       password?: string;
     };
 
-    const config = body.provider ? PROVIDERS[body.provider] : undefined;
+    // hasOwn: a plain object also answers for "constructor" and "__proto__".
+    const config =
+      body.provider && Object.hasOwn(PROVIDERS, body.provider)
+        ? PROVIDERS[body.provider]
+        : undefined;
     if (!body.provider || !config) {
       return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
@@ -103,18 +107,29 @@ export async function DELETE(req: Request) {
     }
 
     const body = (await req.json()) as { provider?: string };
-    if (!body.provider) {
-      return Response.json({ error: "Missing provider" }, { status: 400 });
+    if (!body.provider || !Object.hasOwn(PROVIDERS, body.provider)) {
+      return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
 
-    await db.apiKey.delete({
-      where: {
-        userId_provider: {
-          userId: session.user.id,
-          provider: body.provider,
-        },
-      },
+    const userId = session.user.id;
+    const deleteKey = db.apiKey.delete({
+      where: { userId_provider: { userId, provider: body.provider } },
     });
+    if (body.provider === "bing") {
+      // Without a key no property can sync, and a key from another account
+      // will not see these properties: disconnect them with the key.
+      await db.$transaction([
+        db.bingSearchWeekly.deleteMany({ where: { site: { userId } } }),
+        db.bingDaily.deleteMany({ where: { site: { userId } } }),
+        db.site.updateMany({
+          where: { userId, bingSite: { not: null } },
+          data: { bingSite: null },
+        }),
+        deleteKey,
+      ]);
+    } else {
+      await deleteKey;
+    }
 
     return Response.json({ success: true });
   } catch (error) {

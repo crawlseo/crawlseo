@@ -73,19 +73,18 @@ export async function syncBingDataForSite(
       throw new Error("Site does not have a Bing Webmaster property connected");
     }
 
-    // Resolve the key once up front: with no key every endpoint below would
-    // reject and the caller would see "every Bing endpoint failed" instead of
-    // "add a key in Settings".
-    await getBingApiKey(userId);
+    // Resolved once: with no key every endpoint below would reject and the
+    // caller would see "every Bing endpoint failed" instead of "add a key".
+    const apiKey = await getBingApiKey(userId);
 
     // Four independent endpoints. Losing one should not throw away the three
     // that answered: there is no date parameter, so a retry re-downloads the
     // whole history again.
     const settled = await Promise.allSettled([
-      fetchBingTraffic(userId, site.bingSite),
-      fetchBingSearchStats(userId, site.bingSite, "query"),
-      fetchBingSearchStats(userId, site.bingSite, "page"),
-      fetchBingCrawlStats(userId, site.bingSite),
+      fetchBingTraffic(apiKey, site.bingSite),
+      fetchBingSearchStats(apiKey, site.bingSite, "query"),
+      fetchBingSearchStats(apiKey, site.bingSite, "page"),
+      fetchBingCrawlStats(apiKey, site.bingSite),
     ]);
     const [traffic, queries, pages, crawl] = settled.map((result) =>
       result.status === "fulfilled" ? result.value : []
@@ -104,6 +103,17 @@ export async function syncBingDataForSite(
       .filter((name): name is string => name !== null);
     if (failed.length === settled.length) {
       throw new Error(`every Bing endpoint failed (${failed.join(", ")})`);
+    }
+
+    // The rows are keyed by site, not property. If the property was changed
+    // while the fetches ran, writing these would blend two properties' history
+    // under the new one right after the change wiped the old rows.
+    const current = await db.site.findUnique({
+      where: { id: siteId },
+      select: { bingSite: true },
+    });
+    if (current?.bingSite !== site.bingSite) {
+      throw new Error("Bing property changed during the sync; nothing written");
     }
 
     console.log(

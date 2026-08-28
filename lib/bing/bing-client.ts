@@ -22,7 +22,6 @@ export class BingKeyMissingError extends Error {
 
 export interface BingSite {
   url: string;
-  isVerified: boolean;
 }
 
 export interface BingTrafficDay {
@@ -113,10 +112,10 @@ export async function listBingSites(userId: string): Promise<BingSite[]> {
     apiKey,
     "GetUserSites"
   );
-  return (sites ?? []).map((site) => ({
-    url: site.Url,
-    isVerified: site.IsVerified ?? true,
-  }));
+  // Only verified properties answer the stats endpoints.
+  return (sites ?? [])
+    .filter((site) => site.IsVerified ?? true)
+    .map((site) => ({ url: site.Url }));
 }
 
 /** Free and site-independent, which makes it the natural connection test. */
@@ -131,10 +130,9 @@ export async function testBingKey(apiKey: string): Promise<boolean> {
 
 /** Site clicks/impressions, one row per calendar day (~16 months of history). */
 export async function fetchBingTraffic(
-  userId: string,
+  apiKey: string,
   siteUrl: string
 ): Promise<BingTrafficDay[]> {
-  const apiKey = await getBingApiKey(userId);
   const rows = await bingGet<
     Array<{ Date: string; Clicks: number; Impressions: number }>
   >(apiKey, "GetRankAndTrafficStats", { siteUrl });
@@ -150,11 +148,10 @@ export async function fetchBingTraffic(
  * and accepts no date parameters at all - every call returns the full history.
  */
 export async function fetchBingSearchStats(
-  userId: string,
+  apiKey: string,
   siteUrl: string,
   kind: "query" | "page"
 ): Promise<BingSearchWeek[]> {
-  const apiKey = await getBingApiKey(userId);
   const rows = await bingGet<RawQueryStats[]>(
     apiKey,
     kind === "query" ? "GetQueryStats" : "GetPageStats",
@@ -165,10 +162,9 @@ export async function fetchBingSearchStats(
 
 /** Bing's own crawler stats, one row per day. Google exposes no equivalent API. */
 export async function fetchBingCrawlStats(
-  userId: string,
+  apiKey: string,
   siteUrl: string
 ): Promise<BingCrawlDay[]> {
-  const apiKey = await getBingApiKey(userId);
   const rows = await bingGet<Array<Record<string, number | string>>>(
     apiKey,
     "GetCrawlStats",
