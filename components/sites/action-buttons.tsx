@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-const PAGE_LIMIT_PRESETS = ["25", "50", "100", "200"] as const;
+const PAGE_LIMIT_ITEMS = [
+  { value: "25", label: "25 pages" },
+  { value: "50", label: "50 pages" },
+  { value: "100", label: "100 pages" },
+  { value: "200", label: "200 pages" },
+  { value: "custom", label: "Custom" },
+];
 const MAX_CUSTOM_PAGES = 2000;
 const MIN_CUSTOM_PAGES = 1;
 
@@ -56,17 +62,20 @@ export function CrawlButton({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <Select value={limitSelection} onValueChange={(v) => v && setLimitSelection(v)}>
+        <Select
+          value={limitSelection}
+          onValueChange={(v) => v && setLimitSelection(v)}
+          items={PAGE_LIMIT_ITEMS}
+        >
           <SelectTrigger size="sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PAGE_LIMIT_PRESETS.map((n) => (
-              <SelectItem key={n} value={n}>
-                {n} pages
+            {PAGE_LIMIT_ITEMS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
-            <SelectItem value="custom">Custom</SelectItem>
           </SelectContent>
         </Select>
         {isCustom && (
