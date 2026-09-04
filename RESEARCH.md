@@ -91,10 +91,10 @@ This would make CrawlSEO AI-agent-accessible immediately. Start with a simpler s
 
 ### CrawlSEO
 
-- **Layout:** Dual sidebar (icon rail + nav panel) with Atomize PRO dark theme and theme toggle.
+- **Layout:** Dual sidebar (icon rail + nav panel) with dark theme and theme toggle.
 - **Dashboard:** Portfolio overview with KPI cards (clicks, impressions, avg position, keywords) + traffic chart + top keywords.
 - **Pages:** Sites list, Site overview, Keywords, Pages, Crawl, Vitals, Opportunities, Alerts.
-- **Design:** shadcn/ui components + custom Atomize design tokens. More polished dark UI.
+- **Design:** shadcn/ui components + custom design tokens. More polished dark UI.
 - **Notable UX:** Position badges (top3/top10/top20), delta indicators on KPIs, empty states with actions.
 
 ### Feature Gaps in CrawlSEO

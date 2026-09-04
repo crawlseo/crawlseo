@@ -41,6 +41,62 @@ export type BacklinkItem = {
 };
 
 // ---------------------------------------------------------------------------
+// API response shapes
+//
+// Only the fields this client actually reads are declared — DataForSEO returns
+// a great deal more, and mirroring the whole envelope would be noise.
+// ---------------------------------------------------------------------------
+
+type DfsEnvelope<TResult> = {
+  tasks?: { result?: TResult[] | null }[] | null;
+};
+
+type DfsKeywordInfo = {
+  search_volume?: number | null;
+  cpc?: number | null;
+  competition?: number | null;
+  monthly_searches?: { search_volume?: number | null }[] | null;
+};
+
+type DfsRelatedKeywordItem = {
+  keyword?: string | null;
+  keyword_data?: {
+    keyword?: string | null;
+    keyword_info?: DfsKeywordInfo | null;
+    keyword_properties?: { keyword_difficulty?: number | null } | null;
+  } | null;
+};
+
+type DfsDomainRankResult = {
+  metrics?: {
+    organic?: {
+      count?: number | null;
+      etv?: number | null;
+      estimated_paid_traffic_cost?: number | null;
+      backlinks?: number | null;
+      referring_domains?: number | null;
+    } | null;
+  } | null;
+};
+
+type DfsBacklinksSummaryResult = {
+  backlinks?: number | null;
+  referring_domains?: number | null;
+  referring_ips?: number | null;
+  referring_links_nofollow?: number | null;
+};
+
+type DfsBacklinkRow = {
+  referring_main_domain?: string | null;
+  url_from?: string | null;
+  url_to?: string | null;
+  anchor?: string | null;
+  dofollow?: boolean | null;
+  first_seen?: string | null;
+  last_seen?: string | null;
+};
+
+// ---------------------------------------------------------------------------
 // Credential helpers
 // ---------------------------------------------------------------------------
 
@@ -124,24 +180,33 @@ export async function keywordResearch(
   const creds = await getCredentials(userId);
   if (!creds) return null;
 
-  const data = await dataforseoPost<any>(creds.login, creds.password, "/dataforseo_labs/google/related_keywords/live", [
+  const data = await dataforseoPost<DfsEnvelope<{ items?: DfsRelatedKeywordItem[] | null }>>(
+    creds.login,
+    creds.password,
+    "/dataforseo_labs/google/related_keywords/live",
+    [
     {
       keyword: seed,
       language_code: language || "en",
       location_code: location || 2840, // US
-      limit: 50,
-    },
-  ]);
+        limit: 50,
+      },
+    ]
+  );
 
-  if (!data?.tasks?.[0]?.result?.[0]?.items) return [];
+  const items = data?.tasks?.[0]?.result?.[0]?.items;
+  if (!items) return [];
 
-  return data.tasks[0].result[0].items.map((item: any) => ({
+  return items.map((item) => ({
     keyword: item.keyword_data?.keyword ?? item.keyword ?? seed,
     volume: item.keyword_data?.keyword_info?.search_volume ?? null,
-    difficulty: item.keyword_data?.keyword_info?.keyword_difficulty ?? null,
+    difficulty: item.keyword_data?.keyword_properties?.keyword_difficulty ?? null,
     cpc: item.keyword_data?.keyword_info?.cpc ?? null,
     competition: item.keyword_data?.keyword_info?.competition ?? null,
-    trend: item.keyword_data?.keyword_info?.monthly_searches?.map((m: any) => m.search_volume) ?? null,
+    trend:
+      item.keyword_data?.keyword_info?.monthly_searches?.map(
+        (m) => m.search_volume ?? 0
+      ) ?? null,
   }));
 }
 
@@ -156,9 +221,14 @@ export async function domainOverview(
   const creds = await getCredentials(userId);
   if (!creds) return null;
 
-  const data = await dataforseoPost<any>(creds.login, creds.password, "/dataforseo_labs/google/domain_rank_overview/live", [
-    { target: domain, language_code: "en", location_code: 2840 },
-  ]);
+  const data = await dataforseoPost<DfsEnvelope<DfsDomainRankResult>>(
+    creds.login,
+    creds.password,
+    "/dataforseo_labs/google/domain_rank_overview/live",
+    [
+      { target: domain, language_code: "en", location_code: 2840 },
+    ]
+  );
 
   const item = data?.tasks?.[0]?.result?.[0];
   if (!item) return null;
@@ -183,9 +253,14 @@ export async function backlinksOverview(
   const creds = await getCredentials(userId);
   if (!creds) return null;
 
-  const data = await dataforseoPost<any>(creds.login, creds.password, "/backlinks/summary/live", [
-    { target: domain, internal_list_limit: 0, backlinks_filters: [] },
-  ]);
+  const data = await dataforseoPost<DfsEnvelope<DfsBacklinksSummaryResult>>(
+    creds.login,
+    creds.password,
+    "/backlinks/summary/live",
+    [
+      { target: domain, internal_list_limit: 0, backlinks_filters: [] },
+    ]
+  );
 
   const item = data?.tasks?.[0]?.result?.[0];
   if (!item) return null;
@@ -194,7 +269,7 @@ export async function backlinksOverview(
     totalBacklinks: item.backlinks ?? 0,
     referringDomains: item.referring_domains ?? 0,
     referringIps: item.referring_ips ?? 0,
-    dofollow: item.backlinks - (item.referring_links_nofollow ?? 0),
+    dofollow: (item.backlinks ?? 0) - (item.referring_links_nofollow ?? 0),
     nofollow: item.referring_links_nofollow ?? 0,
   };
 }
@@ -212,19 +287,25 @@ export async function backlinksProfile(
   const creds = await getCredentials(userId);
   if (!creds) return null;
 
-  const data = await dataforseoPost<any>(creds.login, creds.password, "/backlinks/backlinks/live", [
+  const data = await dataforseoPost<DfsEnvelope<{ items?: DfsBacklinkRow[] | null }>>(
+    creds.login,
+    creds.password,
+    "/backlinks/backlinks/live",
+    [
     {
       target: domain,
       mode: "as_is",
       limit,
       offset,
-      order_by: ["rank,desc"],
-    },
-  ]);
+        order_by: ["rank,desc"],
+      },
+    ]
+  );
 
-  if (!data?.tasks?.[0]?.result?.[0]?.items) return [];
+  const items = data?.tasks?.[0]?.result?.[0]?.items;
+  if (!items) return [];
 
-  return data.tasks[0].result[0].items.map((item: any) => ({
+  return items.map((item) => ({
     referringDomain: item.referring_main_domain ?? "",
     sourceUrl: item.url_from ?? "",
     targetUrl: item.url_to ?? "",

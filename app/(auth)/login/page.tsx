@@ -59,18 +59,6 @@ export default async function LoginPage() {
             <p>· Data stays on your server</p>
           </div>
         </div>
-
-        <p className="mt-8 text-center text-atom-caption text-muted-foreground">
-          UI inspired by{" "}
-          <a
-            href="https://atomizedesign.com/"
-            className="font-medium text-primary hover:underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Atomize PRO
-          </a>
-        </p>
       </div>
     </div>
   );
