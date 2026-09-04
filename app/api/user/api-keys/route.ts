@@ -2,6 +2,12 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
 
+/** Providers that can be stored, and whether they need a password alongside the login. */
+const PROVIDERS: Record<string, { needsPassword: boolean }> = {
+  dataforseo: { needsPassword: true },
+  bing: { needsPassword: false },
+};
+
 export async function GET() {
   try {
     const session = await auth();
@@ -14,9 +20,10 @@ export async function GET() {
       select: { provider: true, createdAt: true, updatedAt: true },
     });
 
-    const providers: Record<string, { connected: boolean; updatedAt?: string }> = {
-      dataforseo: { connected: false },
-    };
+    const providers: Record<string, { connected: boolean; updatedAt?: string }> =
+      Object.fromEntries(
+        Object.keys(PROVIDERS).map((provider) => [provider, { connected: false }])
+      );
 
     for (const key of keys) {
       providers[key.provider] = {
@@ -45,16 +52,26 @@ export async function POST(req: Request) {
       password?: string;
     };
 
-    if (!body.provider || !body.login || !body.password) {
+    // hasOwn: a plain object also answers for "constructor" and "__proto__".
+    const config =
+      body.provider && Object.hasOwn(PROVIDERS, body.provider)
+        ? PROVIDERS[body.provider]
+        : undefined;
+    if (!body.provider || !config) {
+      return Response.json({ error: "Unsupported provider" }, { status: 400 });
+    }
+
+    if (!body.login || (config.needsPassword && !body.password)) {
       return Response.json(
         { error: "Missing required fields: provider, login, password" },
         { status: 400 }
       );
     }
 
-    if (body.provider !== "dataforseo") {
-      return Response.json({ error: "Unsupported provider" }, { status: 400 });
-    }
+    // Single-secret providers (Bing) store the key in `encryptedLogin` and
+    // leave the password slot empty rather than growing the schema.
+    const encryptedLogin = encrypt(body.login);
+    const encryptedPassword = encrypt(body.password ?? "");
 
     const saved = await db.apiKey.upsert({
       where: {
@@ -66,13 +83,10 @@ export async function POST(req: Request) {
       create: {
         userId: session.user.id,
         provider: body.provider,
-        encryptedLogin: encrypt(body.login),
-        encryptedPassword: encrypt(body.password),
+        encryptedLogin,
+        encryptedPassword,
       },
-      update: {
-        encryptedLogin: encrypt(body.login),
-        encryptedPassword: encrypt(body.password),
-      },
+      update: { encryptedLogin, encryptedPassword },
     });
 
     return Response.json(
@@ -93,18 +107,29 @@ export async function DELETE(req: Request) {
     }
 
     const body = (await req.json()) as { provider?: string };
-    if (!body.provider) {
-      return Response.json({ error: "Missing provider" }, { status: 400 });
+    if (!body.provider || !Object.hasOwn(PROVIDERS, body.provider)) {
+      return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
 
-    await db.apiKey.delete({
-      where: {
-        userId_provider: {
-          userId: session.user.id,
-          provider: body.provider,
-        },
-      },
+    const userId = session.user.id;
+    const deleteKey = db.apiKey.delete({
+      where: { userId_provider: { userId, provider: body.provider } },
     });
+    if (body.provider === "bing") {
+      // Without a key no property can sync, and a key from another account
+      // will not see these properties: disconnect them with the key.
+      await db.$transaction([
+        db.bingSearchWeekly.deleteMany({ where: { site: { userId } } }),
+        db.bingDaily.deleteMany({ where: { site: { userId } } }),
+        db.site.updateMany({
+          where: { userId, bingSite: { not: null } },
+          data: { bingSite: null },
+        }),
+        deleteKey,
+      ]);
+    } else {
+      await deleteKey;
+    }
 
     return Response.json({ success: true });
   } catch (error) {

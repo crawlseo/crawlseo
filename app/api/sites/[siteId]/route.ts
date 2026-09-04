@@ -75,31 +75,71 @@ export async function PUT(
     // Verify ownership
     const site = await db.site.findUnique({
       where: { id: siteId },
-      select: { userId: true },
+      select: { userId: true, bingSite: true },
     });
 
     if (!site || site.userId !== session.user.id) {
       return Response.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { domain, gscProperty } = (await req.json()) as {
+    const { domain, gscProperty, bingSite } = (await req.json()) as {
       domain?: string;
       gscProperty?: string;
+      bingSite?: string;
     };
 
-    const updated = await db.site.update({
+    // Stored Bing rows are keyed by site, not by property, so pointing the site
+    // at a different property would blend two properties' history - and page
+    // URLs from both would normalise to the same key and count twice.
+    if (bingSite !== undefined && typeof bingSite !== "string") {
+      return Response.json({ error: "bingSite must be a string" }, { status: 400 });
+    }
+    const nextBingSite = bingSite === undefined ? undefined : bingSite || null;
+    // The picker only offers properties the account owns, but the endpoint is
+    // reachable directly: a value that is not a URL syncs nothing and looks
+    // exactly like a site with no Bing data.
+    if (nextBingSite !== null && nextBingSite !== undefined) {
+      let protocol = "";
+      try {
+        protocol = new URL(nextBingSite).protocol;
+      } catch {}
+      if (!/^https?:$/.test(protocol)) {
+        return Response.json(
+          { error: "bingSite must be an http(s) URL" },
+          { status: 400 }
+        );
+      }
+    }
+    const propertyChanged =
+      nextBingSite !== undefined && nextBingSite !== site.bingSite;
+
+    const update = db.site.update({
       where: { id: siteId },
       data: {
         ...(domain && { domain }),
         ...(gscProperty && { gscProperty }),
+        // An empty string clears the connection; undefined leaves it alone.
+        ...(nextBingSite !== undefined && { bingSite: nextBingSite }),
       },
       select: {
         id: true,
         domain: true,
         gscProperty: true,
+        bingSite: true,
         updatedAt: true,
       },
     });
+    // The wipe and the update commit together: if the update fails (say a
+    // duplicate domain), the old property keeps its history.
+    const updated = propertyChanged
+      ? (
+          await db.$transaction([
+            db.bingSearchWeekly.deleteMany({ where: { siteId } }),
+            db.bingDaily.deleteMany({ where: { siteId } }),
+            update,
+          ])
+        )[2]
+      : await update;
 
     return Response.json(updated);
   } catch (error) {
