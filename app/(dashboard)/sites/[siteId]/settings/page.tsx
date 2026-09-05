@@ -41,6 +41,7 @@ export default async function SettingsPage({ params }: Props) {
   });
   const apiKeyStatus: Record<string, { connected: boolean; updatedAt?: string }> = {
     dataforseo: { connected: false },
+    google_pagespeed: { connected: false },
   };
   for (const key of apiKeys) {
     apiKeyStatus[key.provider] = {

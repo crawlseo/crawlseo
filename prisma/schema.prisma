@@ -67,9 +67,9 @@ model VerificationToken {
 model ApiKey {
   id                String   @id @default(cuid())
   userId            String
-  provider          String   // "dataforseo"
-  encryptedLogin    String
-  encryptedPassword String
+  provider          String   // "dataforseo" (login+password) | "google_pagespeed" (single key)
+  encryptedLogin    String?  // null for single-key providers like google_pagespeed
+  encryptedPassword String   // holds the API key itself for single-key providers
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
