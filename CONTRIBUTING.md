@@ -2,6 +2,10 @@
 
 Thanks for your interest in contributing! CrawlSEO is open source and we welcome contributions of all kinds.
 
+## Open-Source vs. Paid Cloud Boundary
+
+Classic search performance — Google or Bing — belongs in the open-source core. Anything that measures brand mentions or citations inside AI answers is the paid cloud layer and won't be merged here.
+
 ## Getting Started
 
 1. **Fork** the repository on GitHub
@@ -67,6 +71,15 @@ We use conventional commits:
 - Include a clear description of what changed and why
 - Update documentation if your change affects the public API or user-facing behavior
 - Make sure the build passes before requesting review
+
+## Merge Gate
+
+Before a PR is merged, every change must pass all of the following:
+
+1. **Reproduce the bug on a real page or a real API response** — not just a synthetic fixture. If it is a crawler or page issue, point at real HTML; if it is an API issue, point at the real response shape.
+2. **Classify the behaviour against the relevant spec** — e.g. WCAG for accessibility issues, the upstream API reference for data-source issues. A fix that codifies a misreading of the spec will be sent back.
+3. **Add a test that fails on the old code and passes on the new one** — a regression test that pins the corrected behaviour.
+4. **Typecheck, lint on changed files, and the full test suite all pass** — `npx tsc --noEmit`, `npx eslint <changed-files>`, and `npm test`, clean before merge.
 
 ## Reporting Issues
 
