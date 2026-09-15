@@ -4,11 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * Atomize PRO 3.4 — dark product UI
- * Reference: Team settings preview (deep charcoal + lavender primary)
- * https://atomizedesign.com/
- */
+/* Dark product UI — deep charcoal + lavender primary */
 
 @theme inline {
   --color-background: var(--background);
@@ -66,7 +62,7 @@
   --radius-2xl: 24px;
 }
 
-/* ── Dark first (Atomize PRO screenshot) ── */
+/* ── Dark first ── */
 :root,
 .dark {
   --a-violet-400: #c4b5fd;
@@ -323,7 +319,7 @@ html.light:not(.dark) {
     line-height: 40px;
   }
 
-  /* Soft pill surface like Atomize cards */
+  /* Soft pill surface */
   .surface-inset {
     @apply rounded-2xl border border-border bg-muted/50;
   }

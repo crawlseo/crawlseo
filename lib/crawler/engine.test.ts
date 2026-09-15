@@ -300,8 +300,10 @@ describe("parseHtml with quoted attribute values", () => {
     expect(page.links[0]?.isNofollow).toBe(true);
   });
 
-  it("still treats an empty alt as missing", () => {
-    expect(page.imagesMissingAlt).toBe(1);
+  it("does not treat an empty alt as missing", () => {
+    // alt="" is how a decorative image is marked up; it is not a defect.
+    expect(page.imageCount).toBe(1);
+    expect(page.imagesMissingAlt).toBe(0);
   });
 });
 
@@ -351,6 +353,15 @@ describe("parseHtml attribute lookup edge cases", () => {
 
   it("treats a whitespace-only alt as present, like the quoted patterns did", () => {
     const page = parse('<img src="/a.png" alt=" "><img src="/b.png">');
+    expect(page.imagesMissingAlt).toBe(1);
+  });
+
+  it("separates a decorative image from one with no alt at all", () => {
+    const page = parse(
+      '<img src="/logo.png" alt=""><img src="/decor.png"><img src="/hero.png" alt="Hero">'
+    );
+    expect(page.imageCount).toBe(3);
+    // Only /decor.png is a defect: alt="" marks /logo.png decorative on purpose.
     expect(page.imagesMissingAlt).toBe(1);
   });
 });

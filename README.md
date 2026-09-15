@@ -83,7 +83,7 @@ Crawl up to 2,000 pages with concurrent fetching. Health score, 16 issue types, 
 | 💡 | **SEO Opportunities** | Striking distance keywords, low CTR, content decay, cannibalization detection |
 | 🔔 | **Alerts** | Traffic drops, position changes, new 404s, vitals degradation — via email, Slack, Telegram, webhook |
 | 📥 | **CSV Export** | Export keywords and pages data for offline analysis |
-| 🌗 | **Dark / Light theme** | Atomize PRO design system with smooth theme toggle |
+| 🌗 | **Dark / Light theme** | Custom design system with smooth theme toggle |
 
 ## Quick Start
 

@@ -321,11 +321,13 @@ export function parseHtml(
   // Images
   const imgTags = tagsNamed(html, "img");
   const imageCount = imgTags.length;
-  // An empty alt still counts as missing, exactly as before: the old pattern
-  // required `[^"']+`. A whitespace-only alt still counts as PRESENT, also as
-  // before — values are not trimmed.
+  // Only a genuinely absent alt attribute counts as missing. `alt=""` is the
+  // spec-mandated markup for a decorative image — it tells assistive tech to
+  // skip the image — so flagging it inverts the accessibility advice the issue
+  // is meant to give. A whitespace-only alt still counts as present: values are
+  // not trimmed.
   const imagesMissingAlt = imgTags.filter(
-    (tag) => !parseAttrs(tag).get("alt")
+    (tag) => !parseAttrs(tag).has("alt")
   ).length;
 
   // Body text and word count

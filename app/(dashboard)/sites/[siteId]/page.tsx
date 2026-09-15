@@ -30,7 +30,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
       userId: true,
       domain: true,
       gscProperty: true,
-      _count: { select: { keywords: true } },
+      _count: { select: { keywords: true, pages: true } },
     },
   });
 
@@ -50,10 +50,11 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
     select: { perfScore: true, lcp: true, url: true },
   });
 
-  const opportunities =
-    site._count.keywords > 0
-      ? await getAllOpportunities(siteId)
-      : null;
+  // Search Console anonymises the query dimension on low-traffic sites, so a
+  // synced site can have pages but no keywords. Either one means data arrived.
+  const hasData = site._count.keywords > 0 || site._count.pages > 0;
+
+  const opportunities = hasData ? await getAllOpportunities(siteId) : null;
 
   return (
     <div>
@@ -92,7 +93,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
         ))}
       </div>
 
-      {site._count.keywords === 0 ? (
+      {!hasData ? (
         <EmptyState
           icon="↻"
           title="Waiting for GSC data"

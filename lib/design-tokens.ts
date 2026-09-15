@@ -1,6 +1,5 @@
 /**
- * Atomize PRO 3.4 tokens (dark-first product UI)
- * @see https://atomizedesign.com/
+ * Design tokens (dark-first product UI)
  */
 export const atomize = {
   colors: {
