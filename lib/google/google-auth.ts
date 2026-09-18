@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import {
+  getServiceAccountAccessToken,
+  isServiceAccountConfigured,
+} from "./service-account";
 
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
@@ -62,9 +66,22 @@ async function refreshAccessToken(
 }
 
 /**
- * Gets a valid access token for a user, refreshing if necessary
+ * Gets a valid access token for a user, refreshing if necessary.
+ *
+ * When a service account is configured (GOOGLE_SERVICE_ACCOUNT_KEY), it takes
+ * precedence and `userId` is unused: the credential belongs to the deployment,
+ * not to a person, which is the whole point — no consent screen, no test-user
+ * list, no re-consent when a refresh token dies. See ./service-account.
+ *
+ * Precedence is deliberate rather than a fallback. Falling back on error would
+ * mean a broken service account silently resumes acting as whichever user
+ * happened to connect last, and the logs would show success.
  */
 export async function getAccessToken(userId: string): Promise<string> {
+  if (isServiceAccountConfigured()) {
+    return getServiceAccountAccessToken();
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { googleTokens: true },
