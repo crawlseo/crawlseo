@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { siteDomainFromProperty } from "@/lib/site-domain";
 
 export async function GET(
   req: Request,
@@ -87,10 +88,15 @@ export async function PUT(
       gscProperty?: string;
     };
 
+    const normalizedDomain = domain ? siteDomainFromProperty(domain) : null;
+    if (domain && !normalizedDomain) {
+      return Response.json({ error: "Invalid domain" }, { status: 400 });
+    }
+
     const updated = await db.site.update({
       where: { id: siteId },
       data: {
-        ...(domain && { domain }),
+        ...(normalizedDomain && { domain: normalizedDomain }),
         ...(gscProperty && { gscProperty }),
       },
       select: {

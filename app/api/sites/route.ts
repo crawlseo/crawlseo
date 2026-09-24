@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { assertPublicDomain } from "@/lib/crawler/engine";
 import { syncGSCDataForSite } from "@/lib/workers/gsc-sync";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
+import { siteDomainFromProperty } from "@/lib/site-domain";
 
 export async function GET() {
   try {
@@ -51,14 +52,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domain, gscProperty } = (await req.json()) as {
-      domain: string;
-      gscProperty: string;
-    };
+    // Any client-sent `domain` is ignored: it is derived from the property
+    // here so a bad client can never store "//host/" again.
+    const { gscProperty } = (await req.json()) as { gscProperty?: string };
 
-    if (!domain || !gscProperty) {
+    if (typeof gscProperty !== "string" || !gscProperty.trim()) {
+      return Response.json({ error: "Missing gscProperty" }, { status: 400 });
+    }
+
+    const domain = siteDomainFromProperty(gscProperty);
+    if (!domain) {
       return Response.json(
-        { error: "Missing domain or gscProperty" },
+        { error: "Could not derive a domain from gscProperty" },
         { status: 400 }
       );
     }
