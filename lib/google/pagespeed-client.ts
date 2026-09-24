@@ -1,4 +1,17 @@
+import { db } from "@/lib/db";
+import { decrypt } from "@/lib/encryption";
+
 const PAGESPEED_API_BASE = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
+
+async function resolveApiKey(userId?: string): Promise<string | undefined> {
+  if (userId) {
+    const stored = await db.apiKey.findUnique({
+      where: { userId_provider: { userId, provider: "google_pagespeed" } },
+    });
+    if (stored) return decrypt(stored.encryptedPassword);
+  }
+  return process.env.GOOGLE_PAGESPEED_KEY;
+}
 
 export interface CoreWebVitals {
   lcp?: number; // Largest Contentful Paint (seconds)
@@ -35,15 +48,17 @@ function msToSeconds(ms?: number): number | undefined {
  */
 export async function fetchPageSpeed(
   url: string,
-  strategy: "MOBILE" | "DESKTOP" = "MOBILE"
+  strategy: "MOBILE" | "DESKTOP" = "MOBILE",
+  userId?: string
 ): Promise<PageSpeedResult> {
   const params = new URLSearchParams({
     url,
     category: "PERFORMANCE",
     strategy,
   });
-  if (process.env.GOOGLE_PAGESPEED_KEY) {
-    params.set("key", process.env.GOOGLE_PAGESPEED_KEY);
+  const apiKey = await resolveApiKey(userId);
+  if (apiKey) {
+    params.set("key", apiKey);
   }
 
   const response = await fetch(`${PAGESPEED_API_BASE}?${params}`, {

@@ -2,6 +2,13 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
 
+const SUPPORTED_PROVIDERS = ["dataforseo", "google_pagespeed"] as const;
+type Provider = (typeof SUPPORTED_PROVIDERS)[number];
+
+function isSupportedProvider(value: unknown): value is Provider {
+  return typeof value === "string" && SUPPORTED_PROVIDERS.includes(value as Provider);
+}
+
 export async function GET() {
   try {
     const session = await auth();
@@ -16,6 +23,7 @@ export async function GET() {
 
     const providers: Record<string, { connected: boolean; updatedAt?: string }> = {
       dataforseo: { connected: false },
+      google_pagespeed: { connected: false },
     };
 
     for (const key of keys) {
@@ -43,17 +51,36 @@ export async function POST(req: Request) {
       provider?: string;
       login?: string;
       password?: string;
+      apiKey?: string;
     };
 
-    if (!body.provider || !body.login || !body.password) {
-      return Response.json(
-        { error: "Missing required fields: provider, login, password" },
-        { status: 400 }
-      );
+    if (!isSupportedProvider(body.provider)) {
+      return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
 
-    if (body.provider !== "dataforseo") {
-      return Response.json({ error: "Unsupported provider" }, { status: 400 });
+    // dataforseo: login + password (Basic Auth style credentials).
+    // google_pagespeed: a single key string - no login concept.
+    let encryptedLogin: string | null;
+    let encryptedPassword: string;
+
+    if (body.provider === "dataforseo") {
+      if (!body.login || !body.password) {
+        return Response.json(
+          { error: "Missing required fields: login, password" },
+          { status: 400 }
+        );
+      }
+      encryptedLogin = encrypt(body.login);
+      encryptedPassword = encrypt(body.password);
+    } else {
+      if (!body.apiKey) {
+        return Response.json(
+          { error: "Missing required field: apiKey" },
+          { status: 400 }
+        );
+      }
+      encryptedLogin = null;
+      encryptedPassword = encrypt(body.apiKey);
     }
 
     const saved = await db.apiKey.upsert({
@@ -66,12 +93,12 @@ export async function POST(req: Request) {
       create: {
         userId: session.user.id,
         provider: body.provider,
-        encryptedLogin: encrypt(body.login),
-        encryptedPassword: encrypt(body.password),
+        encryptedLogin,
+        encryptedPassword,
       },
       update: {
-        encryptedLogin: encrypt(body.login),
-        encryptedPassword: encrypt(body.password),
+        encryptedLogin,
+        encryptedPassword,
       },
     });
 
@@ -93,8 +120,8 @@ export async function DELETE(req: Request) {
     }
 
     const body = (await req.json()) as { provider?: string };
-    if (!body.provider) {
-      return Response.json({ error: "Missing provider" }, { status: 400 });
+    if (!isSupportedProvider(body.provider)) {
+      return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
 
     await db.apiKey.delete({
