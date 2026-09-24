@@ -1,5 +1,9 @@
 import { db } from "@/lib/db";
-import { fetchPageSpeed } from "@/lib/google/pagespeed-client";
+import {
+  fetchPageSpeed,
+  PageSpeedError,
+  type PageSpeedErrorCode,
+} from "@/lib/google/pagespeed-client";
 import { getTopPages } from "@/lib/seo-metrics";
 
 export async function syncVitalsForSite(
@@ -29,6 +33,7 @@ export async function syncVitalsForSite(
   );
 
   let inserted = 0;
+  let errorCode: PageSpeedErrorCode | undefined;
   const results: Array<
     | { url: string; device: "MOBILE"; perfScore: number; lcp?: number; cls?: number }
     | { url: string; error: string }
@@ -66,7 +71,8 @@ export async function syncVitalsForSite(
       // A quota error means every remaining page will fail identically -
       // stop burning requests against an already-exhausted daily quota
       // instead of retrying 4 more times for the same result.
-      if (message.includes("429") || /quota exceeded/i.test(message)) {
+      if (err instanceof PageSpeedError && err.code === "QUOTA_EXCEEDED") {
+        errorCode = err.code;
         break;
       }
     }
@@ -82,5 +88,5 @@ export async function syncVitalsForSite(
   const error =
     inserted === 0 && failures.length > 0 ? failures[0].error : undefined;
 
-  return { inserted, results, error };
+  return { inserted, results, error, errorCode };
 }
