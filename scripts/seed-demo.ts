@@ -10,7 +10,7 @@
  * at least once). To target a specific user pass --email=you@example.com.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { IssueSeverity, IssueType, PrismaClient } from "@prisma/client";
 import { gscDate } from "../lib/google/gsc-date";
 const db = new PrismaClient();
 
@@ -124,8 +124,8 @@ const PAGES = [
 
 const CRAWL_ISSUES: {
   path: string;
-  type: string;
-  severity: string;
+  type: IssueType;
+  severity: IssueSeverity;
   message: string;
 }[] = [
   // CRITICAL (4)
@@ -332,8 +332,8 @@ async function seed() {
       data: {
         crawlId: crawl.id,
         url: `https://acme.com${issue.path}`,
-        type: issue.type as any,
-        severity: issue.severity as any,
+        type: issue.type,
+        severity: issue.severity,
         message: issue.message,
       },
     });
