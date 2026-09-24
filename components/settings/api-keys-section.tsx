@@ -159,7 +159,7 @@ export function ApiKeysSection({
   }
 
   return (
-    <div className="panel p-5">
+    <div id="api-keys" className="panel scroll-mt-6 p-5">
       <h3 className="font-heading text-lg font-semibold text-foreground">
         External API Keys
       </h3>

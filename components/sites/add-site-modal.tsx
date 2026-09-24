@@ -87,26 +87,11 @@ export function AddSiteModal({
     setError("");
 
     try {
-      let domain = selectedProperty;
-      if (domain.includes(":")) {
-        domain = domain.split(":")[1];
-      }
-      // URL-prefix properties: https://example.com/
-      try {
-        if (domain.startsWith("http")) {
-          domain = new URL(domain).hostname;
-        }
-      } catch {
-        // keep as-is
-      }
-
+      // The server derives the stored domain from the property.
       const response = await fetch("/api/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          domain,
-          gscProperty: selectedProperty,
-        }),
+        body: JSON.stringify({ gscProperty: selectedProperty }),
       });
 
       const body = await response.json().catch(() => ({}));
