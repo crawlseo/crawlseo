@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { fetchSearchAnalytics, fetchPageAnalytics } from "@/lib/google";
+import { fetchSearchAnalytics, fetchPageAnalytics, gscDate } from "@/lib/google";
 import { getDateRange, getDataLagDate } from "@/lib/date-utils";
 
 interface SyncResult {
@@ -39,125 +39,7 @@ export async function syncGSCDataForSite(
       throw new Error("Site does not have GSC property connected");
     }
 
-    // Get date range — end at the data lag boundary (3 days ago) because
-    // Google's most recent 2-3 days are always incomplete.
-    const { start } = getDateRange(daysBack);
-    const end = getDataLagDate();
-
-    console.log(`[GSC Sync] Starting sync for site ${siteId}`);
-    console.log(`[GSC Sync] Date range: ${start} to ${end}`);
-
-    // Fetch keywords and pages in parallel
-    const [keywords, pages] = await Promise.all([
-      fetchSearchAnalytics(
-        userId,
-        site.gscProperty,
-        start,
-        end,
-        ["query", "page", "date", "device", "country"]
-      ),
-      fetchPageAnalytics(userId, site.gscProperty, start, end),
-    ]);
-
-    console.log(
-      `[GSC Sync] Fetched ${keywords.length} keyword records and ${pages.length} page records`
-    );
-
-    // Insert/update keywords with upsert
-    let keywordsInserted = 0;
-    for (const keyword of keywords) {
-      try {
-        const date = new Date(keyword.date);
-        date.setHours(0, 0, 0, 0); // Normalize to start of day
-
-        await db.keyword.upsert({
-          where: {
-            siteId_query_date: {
-              siteId,
-              query: keyword.query,
-              date,
-            },
-          },
-          create: {
-            siteId,
-            query: keyword.query,
-            date,
-            clicks: keyword.clicks,
-            impressions: keyword.impressions,
-            ctr: keyword.ctr,
-            position: keyword.position,
-            page: keyword.page,
-            device: keyword.device,
-            country: keyword.country,
-          },
-          update: {
-            clicks: keyword.clicks,
-            impressions: keyword.impressions,
-            ctr: keyword.ctr,
-            position: keyword.position,
-            page: keyword.page,
-            device: keyword.device,
-            country: keyword.country,
-          },
-        });
-
-        keywordsInserted++;
-      } catch (error) {
-        console.warn(`[GSC Sync] Failed to upsert keyword: ${keyword.query}`, error);
-      }
-    }
-
-    // Insert/update pages
-    let pagesInserted = 0;
-    for (const page of pages) {
-      if (!page.page) continue;
-
-      try {
-        const date = new Date(page.date);
-        date.setHours(0, 0, 0, 0); // Normalize to start of day
-
-        await db.page.upsert({
-          where: {
-            siteId_url_date: {
-              siteId,
-              url: page.page,
-              date,
-            },
-          },
-          create: {
-            siteId,
-            url: page.page,
-            date,
-            clicks: page.clicks,
-            impressions: page.impressions,
-            ctr: page.ctr,
-            position: page.position,
-          },
-          update: {
-            clicks: page.clicks,
-            impressions: page.impressions,
-            ctr: page.ctr,
-            position: page.position,
-          },
-        });
-
-        pagesInserted++;
-      } catch (error) {
-        console.warn(`[GSC Sync] Failed to upsert page: ${page.page}`, error);
-      }
-    }
-
-    console.log(
-      `[GSC Sync] Sync completed: ${keywordsInserted} keywords, ${pagesInserted} pages`
-    );
-
-    return {
-      success: true,
-      keywordsInserted,
-      pagesInserted,
-      startDate: start,
-      endDate: end,
-    };
+    return await runGSCSync(userId, siteId, site.gscProperty, daysBack);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`[GSC Sync] Error syncing site ${siteId}:`, errorMessage);
@@ -171,6 +53,136 @@ export async function syncGSCDataForSite(
       error: errorMessage,
     };
   }
+}
+
+/**
+ * Fetches and upserts GSC keywords and pages for a site whose ownership and
+ * GSC property the caller has already checked. Throws on fetch errors
+ * (including ReauthRequiredError) so callers can map them to a response.
+ */
+export async function runGSCSync(
+  userId: string,
+  siteId: string,
+  gscProperty: string,
+  daysBack: number = 28
+): Promise<SyncResult> {
+  // Get date range — end at the data lag boundary (3 days ago) because
+  // Google's most recent 2-3 days are always incomplete.
+  const { start } = getDateRange(daysBack);
+  const end = getDataLagDate();
+
+  console.log(`[GSC Sync] Starting sync for site ${siteId}`);
+  console.log(`[GSC Sync] Date range: ${start} to ${end}`);
+
+  // Fetch keywords and pages in parallel
+  const [keywords, pages] = await Promise.all([
+    fetchSearchAnalytics(
+      userId,
+      gscProperty,
+      start,
+      end,
+      ["query", "page", "date", "device", "country"]
+    ),
+    fetchPageAnalytics(userId, gscProperty, start, end),
+  ]);
+
+  console.log(
+    `[GSC Sync] Fetched ${keywords.length} keyword records and ${pages.length} page records`
+  );
+
+  // Insert/update keywords with upsert
+  let keywordsInserted = 0;
+  for (const keyword of keywords) {
+    try {
+      const date = gscDate(keyword.date);
+
+      await db.keyword.upsert({
+        where: {
+          siteId_query_date: {
+            siteId,
+            query: keyword.query,
+            date,
+          },
+        },
+        create: {
+          siteId,
+          query: keyword.query,
+          date,
+          clicks: keyword.clicks,
+          impressions: keyword.impressions,
+          ctr: keyword.ctr,
+          position: keyword.position,
+          page: keyword.page,
+          device: keyword.device,
+          country: keyword.country,
+        },
+        update: {
+          clicks: keyword.clicks,
+          impressions: keyword.impressions,
+          ctr: keyword.ctr,
+          position: keyword.position,
+          page: keyword.page,
+          device: keyword.device,
+          country: keyword.country,
+        },
+      });
+
+      keywordsInserted++;
+    } catch (error) {
+      console.warn(`[GSC Sync] Failed to upsert keyword: ${keyword.query}`, error);
+    }
+  }
+
+  // Insert/update pages
+  let pagesInserted = 0;
+  for (const page of pages) {
+    if (!page.page) continue;
+
+    try {
+      const date = gscDate(page.date);
+
+      await db.page.upsert({
+        where: {
+          siteId_url_date: {
+            siteId,
+            url: page.page,
+            date,
+          },
+        },
+        create: {
+          siteId,
+          url: page.page,
+          date,
+          clicks: page.clicks,
+          impressions: page.impressions,
+          ctr: page.ctr,
+          position: page.position,
+        },
+        update: {
+          clicks: page.clicks,
+          impressions: page.impressions,
+          ctr: page.ctr,
+          position: page.position,
+        },
+      });
+
+      pagesInserted++;
+    } catch (error) {
+      console.warn(`[GSC Sync] Failed to upsert page: ${page.page}`, error);
+    }
+  }
+
+  console.log(
+    `[GSC Sync] Sync completed: ${keywordsInserted} keywords, ${pagesInserted} pages`
+  );
+
+  return {
+    success: true,
+    keywordsInserted,
+    pagesInserted,
+    startDate: start,
+    endDate: end,
+  };
 }
 
 /**
