@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assertPublicDomain } from "@/lib/crawler/engine";
 import { siteDomainFromProperty } from "@/lib/site-domain";
 
 export async function GET(
@@ -91,6 +92,19 @@ export async function PUT(
     const normalizedDomain = domain ? siteDomainFromProperty(domain) : null;
     if (domain && !normalizedDomain) {
       return Response.json({ error: "Invalid domain" }, { status: 400 });
+    }
+
+    // Same SSRF guard as POST /api/sites: the crawler fetches
+    // https://${site.domain}, so a changed domain must be public too.
+    if (normalizedDomain) {
+      try {
+        await assertPublicDomain(normalizedDomain);
+      } catch {
+        return Response.json(
+          { error: "Domain must resolve to a public IP address" },
+          { status: 400 }
+        );
+      }
     }
 
     const updated = await db.site.update({
