@@ -10,7 +10,8 @@
  * at least once). To target a specific user pass --email=you@example.com.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { IssueSeverity, IssueType, PrismaClient } from "@prisma/client";
+import { gscDate } from "../lib/google/gsc-date";
 const db = new PrismaClient();
 
 const DEMO_DOMAIN = "acme.com";
@@ -29,11 +30,10 @@ function randf(min: number, max: number, decimals = 2) {
 function pick<T>(arr: T[]): T {
   return arr[rand(0, arr.length - 1)];
 }
+// UTC midnight, the same convention the GSC sync writes (see gscDate).
 function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const d = new Date(Date.now() - n * 86_400_000);
+  return gscDate(d.toISOString().slice(0, 10));
 }
 
 // -------------------------------------------------------------------------
@@ -124,8 +124,8 @@ const PAGES = [
 
 const CRAWL_ISSUES: {
   path: string;
-  type: string;
-  severity: string;
+  type: IssueType;
+  severity: IssueSeverity;
   message: string;
 }[] = [
   // CRITICAL (4)
@@ -332,8 +332,8 @@ async function seed() {
       data: {
         crawlId: crawl.id,
         url: `https://acme.com${issue.path}`,
-        type: issue.type as any,
-        severity: issue.severity as any,
+        type: issue.type,
+        severity: issue.severity,
         message: issue.message,
       },
     });
