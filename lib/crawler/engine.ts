@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { lookup } from "dns/promises";
+import { BlockList, isIPv4, isIPv6 } from "net";
 import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import robotsParser from "robots-parser";
@@ -132,29 +133,44 @@ function originOf(url: string): string {
 /*  SSRF protection                                                   */
 /* ------------------------------------------------------------------ */
 
-function isPrivateIp(ip: string): boolean {
+// Private, loopback, link-local, shared and reserved ranges. BlockList
+// matches IPv6 subnets however the address is written ("::" vs "0:0:…:0",
+// "64:ff9b::7f00:1" vs "64:ff9b::127.0.0.1"), which prefix strings cannot.
+const PRIVATE_RANGES = new BlockList();
+for (const [net, prefix] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],    // shared address space (CGNAT)
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],    // benchmarking
+  ["224.0.0.0", 4],      // multicast
+  ["240.0.0.0", 4],      // reserved, incl. 255.255.255.255
+] as const) {
+  PRIVATE_RANGES.addSubnet(net, prefix, "ipv4");
+}
+for (const [net, prefix] of [
+  ["::", 128],           // unspecified
+  ["::1", 128],          // loopback
+  ["64:ff9b::", 96],     // NAT64, embeds an IPv4 address
+  ["2002::", 16],        // 6to4, embeds an IPv4 address
+  ["fc00::", 7],         // unique local
+  ["fe80::", 10],        // link-local
+] as const) {
+  PRIVATE_RANGES.addSubnet(net, prefix, "ipv6");
+}
+
+export function isPrivateIp(ip: string): boolean {
   // IPv4-mapped IPv6 (::ffff:x.x.x.x)
   const v4mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (v4mapped) return isPrivateIp(v4mapped[1]);
 
-  // IPv4
-  const parts = ip.split(".").map(Number);
-  if (parts.length === 4 && parts.every((n) => n >= 0 && n <= 255)) {
-    if (parts[0] === 0) return true;                                  // 0.0.0.0/8
-    if (parts[0] === 127) return true;                                // 127.0.0.0/8
-    if (parts[0] === 10) return true;                                 // 10.0.0.0/8
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
-    if (parts[0] === 192 && parts[1] === 168) return true;            // 192.168.0.0/16
-    if (parts[0] === 169 && parts[1] === 254) return true;            // 169.254.0.0/16
-    return false;
-  }
-
-  // IPv6
-  const lower = ip.toLowerCase();
-  if (lower === "::1") return true;
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;  // fc00::/7
-  if (lower.startsWith("fe80")) return true;                           // fe80::/10 link-local
-  return false;
+  if (isIPv4(ip)) return PRIVATE_RANGES.check(ip, "ipv4");
+  if (isIPv6(ip)) return PRIVATE_RANGES.check(ip, "ipv6");
+  // Not an IP at all: refuse rather than guess.
+  return true;
 }
 
 async function assertPublicUrl(url: string): Promise<void> {
@@ -450,6 +466,36 @@ async function readBodyCapped(res: Response): Promise<ArrayBuffer> {
   return buf.buffer;
 }
 
+/**
+ * fetch() that follows redirects itself so every hop, not just the first
+ * URL, is checked against private/reserved IPs.
+ */
+async function fetchPublic(
+  url: string,
+  init: { signal: AbortSignal; headers: Record<string, string> }
+): Promise<{ res: Response; finalUrl: string }> {
+  let currentUrl = url;
+  let res: Response | null = null;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    await assertPublicUrl(currentUrl);
+    res = await fetch(currentUrl, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) break;
+      currentUrl = new URL(location, currentUrl).toString();
+      if (hop === MAX_REDIRECTS - 1) {
+        throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+      }
+      continue;
+    }
+    break;
+  }
+
+  if (!res) throw new Error("No response");
+  return { res, finalUrl: currentUrl };
+}
+
 async function fetchPage(url: string): Promise<{
   statusCode: number;
   html: string;
@@ -462,32 +508,13 @@ async function fetchPage(url: string): Promise<{
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   const started = Date.now();
   try {
-    let currentUrl = url;
-    let res: Response | null = null;
-
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      await assertPublicUrl(currentUrl);
-      res = await fetch(currentUrl, {
-        redirect: "manual",
-        signal: controller.signal,
-        headers: {
-          "User-Agent": USER_AGENT,
-          Accept: "text/html,application/xhtml+xml",
-        },
-      });
-      if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get("location");
-        if (!location) break;
-        currentUrl = new URL(location, currentUrl).toString();
-        if (hop === MAX_REDIRECTS - 1) {
-          throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
-        }
-        continue;
-      }
-      break;
-    }
-
-    if (!res) throw new Error("No response");
+    const { res, finalUrl } = await fetchPublic(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml",
+      },
+    });
 
     const buf = await readBodyCapped(res);
     const bytes = buf.byteLength;
@@ -499,7 +526,7 @@ async function fetchPage(url: string): Promise<{
     return {
       statusCode: res.status,
       html,
-      finalUrl: currentUrl,
+      finalUrl,
       loadMs: Date.now() - started,
       bytes,
       contentType,
@@ -509,13 +536,13 @@ async function fetchPage(url: string): Promise<{
   }
 }
 
-async function fetchText(url: string): Promise<string | null> {
+/** robots.txt / sitemap body, or null on any failure or blocked hop. */
+export async function fetchText(url: string): Promise<string | null> {
   try {
-    await assertPublicUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
+      const { res } = await fetchPublic(url, {
         signal: controller.signal,
         headers: { "User-Agent": USER_AGENT },
       });
