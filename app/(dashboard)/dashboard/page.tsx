@@ -19,15 +19,20 @@ export default async function DashboardPage() {
       id: true,
       domain: true,
       gscProperty: true,
-      _count: { select: { keywords: true, crawls: true } },
+      _count: { select: { keywords: true, pages: true, crawls: true } },
     },
     orderBy: { domain: "asc" },
   });
 
+  // Search Console anonymises the query dimension on low-traffic sites, so a
+  // synced site can have pages but no keywords. Either one means data arrived.
+  const hasData = (s: (typeof sites)[number]) =>
+    s._count.keywords > 0 || s._count.pages > 0;
+
   // Onboarding state
   const hasSites = sites.length > 0;
   const hasGscConnected = sites.some((s) => s.gscProperty);
-  const hasSyncedData = sites.some((s) => s._count.keywords > 0);
+  const hasSyncedData = sites.some(hasData);
   const hasCrawled = sites.some((s) => s._count.crawls > 0);
   const firstSiteId = sites[0]?.id;
 
@@ -59,7 +64,9 @@ export default async function DashboardPage() {
 
   const siteCards = await Promise.all(
     sites.map(async (site) => {
-      if (site._count.keywords === 0) {
+      // Metrics are computed from the Page model (see seo-metrics), so a site
+      // whose sync stored pages but no keywords still has real data to show.
+      if (!hasData(site)) {
         return {
           site,
           metrics: null as Awaited<ReturnType<typeof getSitePeriodMetrics>> | null,

@@ -29,7 +29,13 @@ services:
     image: postgres:16-alpine
     restart: always
     ports:
-      - "5432:5432"
+      # Loopback only. "5432:5432" binds every interface, so on a host with a
+      # public IP this publishes Postgres to the internet — with
+      # POSTGRES_PASSWORD defaulting to "changeme" a few lines below. The app
+      # never uses this mapping; it reaches the database as db:5432 over the
+      # compose network. It stays published on loopback so the host-side steps
+      # in CONTRIBUTING.md (prisma migrate dev, psql) keep working.
+      - "127.0.0.1:5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     environment:
