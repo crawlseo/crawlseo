@@ -6,6 +6,14 @@ Thanks for your interest in contributing! CrawlSEO is open source and we welcome
 
 Classic search performance — Google or Bing — belongs in the open-source core. Anything that measures brand mentions or citations inside AI answers is the paid cloud layer and won't be merged here.
 
+The paid cloud layer covers the following, and PRs adding them will be closed:
+
+- measuring brand mentions or citations inside AI answers;
+- calling AI engines (ChatGPT, Perplexity, Gemini, Claude, etc.) to run or track prompts, including with the user's own API keys;
+- network access for AI agents: MCP over HTTP or other remote/agent service APIs. The local stdio MCP server stays open source.
+
+Not sure? Open an issue before writing code.
+
 ## Getting Started
 
 1. **Fork** the repository on GitHub
