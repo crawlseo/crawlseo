@@ -125,6 +125,34 @@ Copy `.env.example` to `.env.local` and update:
    - Authorized redirect URIs: `http://localhost:3000/api/auth/callback/google`
 5. Copy Client ID and Client Secret to `.env.local`
 
+## Bing Webmaster Tools Setup
+
+Bing is optional and free. It reports queries, pages and crawl statistics that
+Search Console either anonymises or does not expose at all.
+
+1. Sign in at [Bing Webmaster Tools](https://www.bing.com/webmasters) and verify
+   the site.
+2. **Settings → API Access → API Key → Generate**. One key covers every verified
+   site on the account, and generating a new one invalidates the old.
+3. In CrawlSEO, open a site's **Settings → External API Keys → Bing Webmaster
+   Tools**, paste the key and save. **Test Connection** calls `GetUserSites`,
+   which costs nothing and needs no site.
+4. Under **Bing Webmaster property**, pick the property for this site and sync.
+
+The property URL often differs from the Search Console one — Bing may know
+`https://example.com/` where Search Console knows `https://www.example.com/` —
+so the two are stored separately.
+
+Two things about Bing's data are worth knowing when reading the numbers:
+
+- `GetQueryStats` and `GetPageStats` report **weekly** buckets ending on a
+  Friday, and accept no date range: every call returns the full history. A
+  window counts the buckets whose end date falls inside it, so its edges are
+  approximate by up to six days. Site traffic and crawl stats are daily.
+- In `GetCrawlStats`, only `CrawledPages` is a per-day count. The status fields
+  are running snapshots of the URLs Bing knows in each state, so they are
+  reported as a latest value plus its movement, never summed.
+
 ## Testing
 
 ### Manual Testing Checklist

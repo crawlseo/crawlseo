@@ -85,6 +85,7 @@ model Site {
   userId      String
   domain      String   // e.g. "brandson.digital"
   gscProperty String?  // e.g. "sc-domain:brandson.digital"
+  bingSite    String?  // e.g. "https://brandson.digital/" (Bing's own URL form)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -96,6 +97,8 @@ model Site {
   alerts        Alert[]
   savedKeywords SavedKeyword[]
   rankSnapshots RankSnapshot[]
+  bingDaily     BingDaily[]
+  bingWeekly    BingSearchWeekly[]
 
   @@unique([userId, domain])
 }
@@ -137,6 +140,51 @@ model Page {
   @@unique([siteId, url, date])
   @@index([siteId, date])
   @@index([siteId, url, date])
+}
+
+// ============ BING WEBMASTER DATA ============
+
+/// Bing's daily grain: site traffic (GetRankAndTrafficStats) and crawler stats
+/// (GetCrawlStats) share one row because both are keyed by (site, day).
+/// Kept apart from Keyword/Page so no existing Google query changes meaning.
+model BingDaily {
+  id              String   @id @default(cuid())
+  siteId          String
+  date            DateTime
+  clicks          Int?
+  impressions     Int?
+  crawledPages    Int?
+  inIndex         Int?
+  inLinks         Int?
+  code2xx         Int?
+  code301         Int?
+  code302         Int?
+  code4xx         Int?
+  code5xx         Int?
+  blockedByRobots Int?
+  crawlErrors     Int?
+
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date])
+}
+
+/// Bing's weekly grain: GetQueryStats and GetPageStats return the same contract
+/// in buckets ending on a Friday, so `kind` distinguishes them.
+model BingSearchWeekly {
+  id                    String   @id @default(cuid())
+  siteId                String
+  kind                  String   // "query" | "page"
+  key                   String   // the search query, or the page URL
+  weekEnding            DateTime
+  clicks                Int      @default(0)
+  impressions           Int      @default(0)
+  avgImpressionPosition Float?
+
+  site                  Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, kind, key, weekEnding])
+  @@index([siteId, kind, weekEnding])
 }
 
 // ============ SAVED KEYWORDS ============
