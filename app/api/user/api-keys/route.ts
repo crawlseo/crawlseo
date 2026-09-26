@@ -2,7 +2,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
 
-const SUPPORTED_PROVIDERS = ["dataforseo", "google_pagespeed"] as const;
+// dataforseo takes a login + password pair. The others take one key, stored
+// in `encryptedPassword` with `encryptedLogin` left null.
+const SUPPORTED_PROVIDERS = ["dataforseo", "google_pagespeed", "bing"] as const;
 type Provider = (typeof SUPPORTED_PROVIDERS)[number];
 
 function isSupportedProvider(value: unknown): value is Provider {
@@ -21,10 +23,10 @@ export async function GET() {
       select: { provider: true, createdAt: true, updatedAt: true },
     });
 
-    const providers: Record<string, { connected: boolean; updatedAt?: string }> = {
-      dataforseo: { connected: false },
-      google_pagespeed: { connected: false },
-    };
+    const providers: Record<string, { connected: boolean; updatedAt?: string }> =
+      Object.fromEntries(
+        SUPPORTED_PROVIDERS.map((provider) => [provider, { connected: false }])
+      );
 
     for (const key of keys) {
       providers[key.provider] = {
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
     }
 
     // dataforseo: login + password (Basic Auth style credentials).
-    // google_pagespeed: a single key string - no login concept.
+    // google_pagespeed, bing: a single key string - no login concept.
     let encryptedLogin: string | null;
     let encryptedPassword: string;
 
@@ -124,14 +126,28 @@ export async function DELETE(req: Request) {
       return Response.json({ error: "Unsupported provider" }, { status: 400 });
     }
 
-    await db.apiKey.delete({
-      where: {
-        userId_provider: {
-          userId: session.user.id,
-          provider: body.provider,
-        },
-      },
+    const userId = session.user.id;
+    const deleteKey = db.apiKey.delete({
+      where: { userId_provider: { userId, provider: body.provider } },
     });
+    if (body.provider === "bing") {
+      // Without a key no property can sync, and a key from another account
+      // will not see these properties: disconnect them with the key. The
+      // Site update goes first so its row locks wait for a sync in flight
+      // (bing-sync.ts holds the Site row while it writes) and the wipe sees
+      // the rows that sync committed.
+      await db.$transaction([
+        db.site.updateMany({
+          where: { userId, bingSite: { not: null } },
+          data: { bingSite: null },
+        }),
+        db.bingSearchWeekly.deleteMany({ where: { site: { userId } } }),
+        db.bingDaily.deleteMany({ where: { site: { userId } } }),
+        deleteKey,
+      ]);
+    } else {
+      await deleteKey;
+    }
 
     return Response.json({ success: true });
   } catch (error) {

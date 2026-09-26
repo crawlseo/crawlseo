@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { DeleteSiteButton } from "@/components/sites/delete-site-button";
 import { ApiKeysSection } from "@/components/settings/api-keys-section";
+import { BingSiteSection } from "@/components/settings/bing-site-section";
 
 interface Props {
   params: Promise<{ siteId: string }>;
@@ -19,6 +20,7 @@ export default async function SettingsPage({ params }: Props) {
       userId: true,
       domain: true,
       gscProperty: true,
+      bingSite: true,
       createdAt: true,
       _count: {
         select: {
@@ -42,6 +44,7 @@ export default async function SettingsPage({ params }: Props) {
   const apiKeyStatus: Record<string, { connected: boolean; updatedAt?: string }> = {
     dataforseo: { connected: false },
     google_pagespeed: { connected: false },
+    bing: { connected: false },
   };
   for (const key of apiKeys) {
     apiKeyStatus[key.provider] = {
@@ -76,6 +79,12 @@ export default async function SettingsPage({ params }: Props) {
               </dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-muted-foreground">Bing property</dt>
+              <dd className="font-medium text-foreground">
+                {site.bingSite || "Not connected"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
               <dt className="text-muted-foreground">Added</dt>
               <dd className="font-medium text-foreground">
                 {new Date(site.createdAt).toLocaleDateString(undefined, {
@@ -90,6 +99,13 @@ export default async function SettingsPage({ params }: Props) {
 
         {/* External API Keys */}
         <ApiKeysSection initialStatus={apiKeyStatus} />
+
+        {/* Bing Webmaster property */}
+        <BingSiteSection
+          siteId={siteId}
+          bingSite={site.bingSite}
+          keyConnected={apiKeyStatus.bing.connected}
+        />
 
         {/* Data summary */}
         <div className="panel p-5">
