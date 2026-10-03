@@ -64,13 +64,44 @@ describe("decrypt error handling", () => {
 });
 
 describe("key derivation", () => {
-  it("throws when NEXTAUTH_SECRET is missing", () => {
-    const saved = process.env.NEXTAUTH_SECRET;
-    delete process.env.NEXTAUTH_SECRET;
-    try {
-      expect(() => encrypt("test")).toThrow("NEXTAUTH_SECRET is required");
-    } finally {
-      process.env.NEXTAUTH_SECRET = saved;
+  function withEnv(env: Record<string, string | undefined>, run: () => void) {
+    const saved = {
+      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+      AUTH_SECRET: process.env.AUTH_SECRET,
+    };
+    for (const [name, value] of Object.entries(env)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
     }
+    try {
+      run();
+    } finally {
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
+
+  it("throws when neither secret is set", () => {
+    withEnv({ NEXTAUTH_SECRET: undefined, AUTH_SECRET: undefined }, () => {
+      expect(() => encrypt("test")).toThrow("NEXTAUTH_SECRET (or AUTH_SECRET) is required");
+    });
+  });
+
+  it("works with only AUTH_SECRET, the Auth.js v5 name", () => {
+    withEnv({ NEXTAUTH_SECRET: undefined, AUTH_SECRET: "auth-secret-only" }, () => {
+      expect(decrypt(encrypt("test"))).toBe("test");
+    });
+  });
+
+  it("prefers NEXTAUTH_SECRET when both are set, as Auth.js does here", () => {
+    let sealed = "";
+    withEnv({ NEXTAUTH_SECRET: "next", AUTH_SECRET: undefined }, () => {
+      sealed = encrypt("test");
+    });
+    withEnv({ NEXTAUTH_SECRET: "next", AUTH_SECRET: "other" }, () => {
+      expect(decrypt(sealed)).toBe("test");
+    });
   });
 });

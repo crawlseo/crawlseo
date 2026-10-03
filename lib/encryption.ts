@@ -5,8 +5,12 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
 function getKey(): Buffer {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) throw new Error("NEXTAUTH_SECRET is required for encryption");
+  // Same precedence as Auth.js in lib/auth.ts: NEXTAUTH_SECRET, then
+  // AUTH_SECRET. Changing the value makes every stored API key unreadable.
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error("NEXTAUTH_SECRET (or AUTH_SECRET) is required for encryption");
+  }
   return createHash("sha256").update(secret).digest();
 }
 
