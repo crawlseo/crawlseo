@@ -59,7 +59,7 @@ describe("syncBingDataForSite", () => {
     // The lock is what makes a concurrent property change wait for these
     // writes, so its wipe sees them (see the PUT route and the key DELETE).
     const [sql] = tx.$queryRaw.mock.calls[0];
-    expect(sql.join("?")).toMatch(/FOR UPDATE/);
+    expect(sql.join("?")).toMatch(/FOR NO KEY UPDATE/);
     expect(tx.bingDaily.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: { clicks: 1, impressions: null } })
     );

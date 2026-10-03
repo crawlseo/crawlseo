@@ -156,7 +156,7 @@ export async function PUT(
           // update (say a duplicate domain) rolls the wipe back with it.
           await db.$transaction(async (tx) => {
             const [current] = await tx.$queryRaw<{ bingSite: string | null }[]>`
-              SELECT "bingSite" FROM "Site" WHERE "id" = ${siteId} FOR UPDATE
+              SELECT "bingSite" FROM "Site" WHERE "id" = ${siteId} FOR NO KEY UPDATE
             `;
             if (nextBingSite !== (current?.bingSite ?? null)) {
               await tx.bingSearchWeekly.deleteMany({ where: { siteId } });

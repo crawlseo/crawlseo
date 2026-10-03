@@ -130,11 +130,14 @@ export async function syncBingDataForSite(
     // the Site row, so the writes hold that row: whichever side commits
     // first, the other sees every row it must wipe or must not write.
     // Without the lock a change landing between a check and the last upsert
-    // leaves the old property's rows under the new one.
+    // leaves the old property's rows under the new one. NO KEY: the lock
+    // still serialises with the PUT and other syncs, but not with the
+    // foreign-key checks on Keyword/Page inserts, which would wait out the
+    // whole transaction under a plain FOR UPDATE.
     const written = await db.$transaction(
       async (tx) => {
         const [locked] = await tx.$queryRaw<{ bingSite: string | null }[]>`
-          SELECT "bingSite" FROM "Site" WHERE "id" = ${siteId} FOR UPDATE
+          SELECT "bingSite" FROM "Site" WHERE "id" = ${siteId} FOR NO KEY UPDATE
         `;
         if (locked?.bingSite !== site.bingSite) {
           throw new Error("Bing property changed during the sync; nothing written");

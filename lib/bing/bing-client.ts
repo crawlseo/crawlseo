@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
 import {
   aggregateWeekly,
+  count,
   parseBingDate,
   type BingSearchWeek,
   type RawQueryStats,
@@ -60,15 +61,6 @@ export async function getBingApiKey(userId: string): Promise<string> {
   });
   if (!apiKey) throw new BingKeyMissingError();
   return decrypt(apiKey.encryptedPassword);
-}
-
-/**
- * A counter Bing left out of a row stays null. The columns are nullable so
- * "not measured" and "measured zero" stay distinct, the same way a failed
- * endpoint leaves its columns untouched.
- */
-function count(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 // ---------------------------------------------------------------------------
