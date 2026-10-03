@@ -160,4 +160,25 @@ describe("collapseWeeks", () => {
     expect(row.impressions).toBe(15);
     expect(row.ctr).toBeNull();
   });
+
+  it("sorts an unmeasured total after a measured zero", () => {
+    const rows = collapseWeeks([
+      {
+        key: "unmeasured",
+        weekEnding: "2026-08-21",
+        clicks: null,
+        impressions: null,
+        avgImpressionPosition: null,
+      },
+      {
+        key: "measured zero",
+        weekEnding: "2026-08-21",
+        clicks: 0,
+        impressions: 0,
+        avgImpressionPosition: null,
+      },
+    ]);
+
+    expect(rows.map((row) => row.key)).toEqual(["measured zero", "unmeasured"]);
+  });
 });
