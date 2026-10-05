@@ -242,12 +242,23 @@ export async function getAllOpportunities(siteId: string) {
   };
 }
 
+/**
+ * Quotes a text cell for CSV. Queries and URLs come from third parties (anyone
+ * can search for `=HYPERLINK(...)`), and Excel, Sheets and LibreOffice run a
+ * cell that starts with = + - @, tab or carriage return as a formula. The
+ * leading apostrophe makes it text (OWASP "CSV Injection").
+ */
+export function csvTextCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
 export async function exportKeywordsCsv(siteId: string): Promise<string> {
   const rows = await getTopKeywords(siteId, 28, 500);
   const header = "query,position,clicks,impressions,ctr";
   const lines = rows.map(
     (r) =>
-      `"${r.query.replace(/"/g, '""')}",${r.position.toFixed(2)},${r.clicks},${r.impressions},${(r.ctr * 100).toFixed(3)}%`
+      `${csvTextCell(r.query)},${r.position.toFixed(2)},${r.clicks},${r.impressions},${(r.ctr * 100).toFixed(3)}%`
   );
   return [header, ...lines].join("\n");
 }
@@ -257,7 +268,7 @@ export async function exportPagesCsv(siteId: string): Promise<string> {
   const header = "url,position,clicks,impressions,ctr";
   const lines = rows.map(
     (r) =>
-      `"${r.url.replace(/"/g, '""')}",${r.position.toFixed(2)},${r.clicks},${r.impressions},${(r.ctr * 100).toFixed(3)}%`
+      `${csvTextCell(r.url)},${r.position.toFixed(2)},${r.clicks},${r.impressions},${(r.ctr * 100).toFixed(3)}%`
   );
   return [header, ...lines].join("\n");
 }

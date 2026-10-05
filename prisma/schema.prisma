@@ -177,8 +177,8 @@ model BingSearchWeekly {
   kind                  String   // "query" | "page"
   key                   String   // the search query, or the page URL
   weekEnding            DateTime
-  clicks                Int      @default(0)
-  impressions           Int      @default(0)
+  clicks                Int?     // null when Bing left the counter out
+  impressions           Int?
   avgImpressionPosition Float?
 
   site                  Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)

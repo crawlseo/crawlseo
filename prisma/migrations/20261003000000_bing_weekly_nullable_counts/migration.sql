@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "BingSearchWeekly" ALTER COLUMN "clicks" DROP NOT NULL,
+ALTER COLUMN "clicks" DROP DEFAULT,
+ALTER COLUMN "impressions" DROP NOT NULL,
+ALTER COLUMN "impressions" DROP DEFAULT;
