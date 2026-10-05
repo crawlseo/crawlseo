@@ -77,6 +77,25 @@ describe("aggregateWeekly", () => {
 
     expect(rows).toHaveLength(2);
   });
+
+  it("keeps a counter Bing left out as null, not zero", () => {
+    const [row] = aggregateWeekly([
+      { Query: "widgets", Date: "/Date(1747983600000-0700)/", Impressions: 4 },
+    ]);
+
+    expect(row.clicks).toBeNull();
+    expect(row.impressions).toBe(4);
+  });
+
+  it("leaves a bucket's total unmeasured when one of its rows is", () => {
+    const [row] = aggregateWeekly([
+      { Query: "widgets", Date: "/Date(1747983600000-0700)/", Clicks: 2, Impressions: 4 },
+      { Query: "widgets", Date: "/Date(1747983600000-0700)/", Impressions: 6 },
+    ]);
+
+    expect(row.clicks).toBeNull();
+    expect(row.impressions).toBe(10);
+  });
 });
 
 describe("collapseWeeks", () => {
@@ -117,5 +136,49 @@ describe("collapseWeeks", () => {
 
     expect(row.position).toBeNull();
     expect(row.ctr).toBe(0);
+  });
+
+  it("carries an unmeasured week through as an unmeasured total", () => {
+    const [row] = collapseWeeks([
+      {
+        key: "widgets",
+        weekEnding: "2026-08-14",
+        clicks: 1,
+        impressions: 10,
+        avgImpressionPosition: 3,
+      },
+      {
+        key: "widgets",
+        weekEnding: "2026-08-21",
+        clicks: null,
+        impressions: 5,
+        avgImpressionPosition: 3,
+      },
+    ]);
+
+    expect(row.clicks).toBeNull();
+    expect(row.impressions).toBe(15);
+    expect(row.ctr).toBeNull();
+  });
+
+  it("sorts an unmeasured total after a measured zero", () => {
+    const rows = collapseWeeks([
+      {
+        key: "unmeasured",
+        weekEnding: "2026-08-21",
+        clicks: null,
+        impressions: null,
+        avgImpressionPosition: null,
+      },
+      {
+        key: "measured zero",
+        weekEnding: "2026-08-21",
+        clicks: 0,
+        impressions: 0,
+        avgImpressionPosition: null,
+      },
+    ]);
+
+    expect(rows.map((row) => row.key)).toEqual(["measured zero", "unmeasured"]);
   });
 });

@@ -10,17 +10,31 @@
 export interface BingSearchWeek {
   key: string;
   weekEnding: string; // YYYY-MM-DD (a Friday)
-  clicks: number;
-  impressions: number;
+  clicks: number | null;
+  impressions: number | null;
   avgImpressionPosition: number | null;
 }
 
 export interface RawQueryStats {
   Query: string;
   Date: string;
-  Clicks: number;
-  Impressions: number;
+  Clicks?: number;
+  Impressions?: number;
   AvgImpressionPosition?: number;
+}
+
+/**
+ * A counter Bing left out of a row stays null. The columns are nullable so
+ * "not measured" and "measured zero" stay distinct, the same way a failed
+ * endpoint leaves its columns untouched.
+ */
+export function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** A total with an unmeasured part is itself unmeasured, never a partial sum. */
+function sum(a: number | null, b: number | null): number | null {
+  return a === null || b === null ? null : a + b;
 }
 
 /**
@@ -69,8 +83,8 @@ export function aggregateWeekly(rows: RawQueryStats[]): BingSearchWeek[] {
     if (!row?.Query || !row?.Date) continue;
     const weekEnding = parseBingDate(row.Date);
     const id = `${row.Query} ${weekEnding}`;
-    const clicks = row.Clicks ?? 0;
-    const impressions = row.Impressions ?? 0;
+    const clicks = count(row.Clicks);
+    const impressions = count(row.Impressions);
     const impPos = normalisePosition(row.AvgImpressionPosition);
 
     const entry = byKey.get(id) ?? {
@@ -82,10 +96,10 @@ export function aggregateWeekly(rows: RawQueryStats[]): BingSearchWeek[] {
       impWeight: 0,
     };
 
-    entry.clicks += clicks;
-    entry.impressions += impressions;
+    entry.clicks = sum(entry.clicks, clicks);
+    entry.impressions = sum(entry.impressions, impressions);
     if (impPos !== null) {
-      const weight = Math.max(impressions, 1);
+      const weight = Math.max(impressions ?? 0, 1);
       entry.avgImpressionPosition =
         (entry.avgImpressionPosition ?? 0) + impPos * weight;
       entry.impWeight += weight;
@@ -115,14 +129,19 @@ export function collapseWeeks(
   rows: BingSearchWeek[]
 ): Array<{
   key: string;
-  clicks: number;
-  impressions: number;
+  clicks: number | null;
+  impressions: number | null;
   position: number | null;
-  ctr: number;
+  ctr: number | null;
 }> {
   const byKey = new Map<
     string,
-    { clicks: number; impressions: number; weighted: number; weight: number }
+    {
+      clicks: number | null;
+      impressions: number | null;
+      weighted: number;
+      weight: number;
+    }
   >();
 
   for (const row of rows) {
@@ -132,10 +151,10 @@ export function collapseWeeks(
       weighted: 0,
       weight: 0,
     };
-    entry.clicks += row.clicks;
-    entry.impressions += row.impressions;
+    entry.clicks = sum(entry.clicks, row.clicks);
+    entry.impressions = sum(entry.impressions, row.impressions);
     if (row.avgImpressionPosition !== null) {
-      const weight = Math.max(row.impressions, 1);
+      const weight = Math.max(row.impressions ?? 0, 1);
       entry.weighted += row.avgImpressionPosition * weight;
       entry.weight += weight;
     }
@@ -149,7 +168,17 @@ export function collapseWeeks(
       impressions: entry.impressions,
       position:
         entry.weight > 0 ? Number((entry.weighted / entry.weight).toFixed(1)) : null,
-      ctr: entry.impressions > 0 ? entry.clicks / entry.impressions : 0,
+      ctr:
+        entry.clicks === null || entry.impressions === null
+          ? null
+          : entry.impressions > 0
+            ? entry.clicks / entry.impressions
+            : 0,
     }))
-    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
+    // Unmeasured totals sort after every measured one, including zero.
+    .sort(
+      (a, b) =>
+        (b.clicks ?? -1) - (a.clicks ?? -1) ||
+        (b.impressions ?? -1) - (a.impressions ?? -1)
+    );
 }

@@ -138,7 +138,7 @@ describe("PUT /api/sites/[siteId] with a Bing property", () => {
     expect((await res.json()).bingSite).toBe("https://new.example/");
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     const [sql] = tx.$queryRaw.mock.calls[0];
-    expect(sql.join("?")).toMatch(/FOR UPDATE/);
+    expect(sql.join("?")).toMatch(/FOR NO KEY UPDATE/);
     expect(tx.bingDaily.deleteMany).toHaveBeenCalledWith({ where: { siteId: "site-1" } });
     expect(tx.bingSearchWeekly.deleteMany).toHaveBeenCalledWith({ where: { siteId: "site-1" } });
     expect(tx.bingDaily.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
