@@ -7,6 +7,11 @@
 - If a pre-push or build step needs env vars, use dummy placeholder values in the shell. Never use `--no-verify`. Never copy real secrets into a worktree.
 - Never start dev servers or preview tools in the main checkout; it has the real env. Use the worktree.
 
+## Local resources
+- This runs on Mike's MacBook. Never run more than 2 test processes in parallel.
+- In repeated test runs (flake loops), limit Vitest workers: `npx vitest run --pool=forks --maxWorkers=1 <files>`.
+- Stop every throwaway server, container, browser and background loop you started as soon as you are done with it, and say what you stopped. Never touch `crawlseo-db-1` or servers from other projects.
+
 ## Merge protocol
 - Merge with `gh pr merge <N> --squash --match-head-commit <FULL 40-char SHA>`. Short SHAs fail.
 - Before merging: all CI checks green and actually run (not cancelled in the queue), branch up to date with main, no conflicts, no AI attribution in the PR body or commits.

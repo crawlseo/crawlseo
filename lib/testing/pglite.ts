@@ -29,10 +29,29 @@ export async function createTestDb(): Promise<TestDb> {
     db,
     close: async () => {
       await db.$disconnect();
+      await connectionsClosed(server);
       await server.stop();
       await pg.close();
     },
   };
+}
+
+/**
+ * Resolves once the socket server has dropped every client connection.
+ *
+ * pglite-socket handles a closed connection on a later turn of the event
+ * loop, and that handler reads PGlite (it checks for an open transaction).
+ * If PGlite is closed first, the handler throws an unhandled TypeError after
+ * all tests passed, and Vitest fails the run. The server drops the connection
+ * from its count in that same handler, right before the read, so a count of 0
+ * means the read has happened.
+ */
+async function connectionsClosed(server: PGLiteSocketServer, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (server.getStats().activeConnections > 0) {
+    if (Date.now() > deadline) throw new Error("test database: client connections did not close");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 /**

@@ -1,9 +1,6 @@
-import { readdirSync, readFileSync } from "fs";
-import { join } from "path";
-import { PGlite } from "@electric-sql/pglite";
-import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
-import { Prisma, PrismaClient, type IssueSeverity, type IssueType } from "@prisma/client";
+import { Prisma, type PrismaClient, type IssueSeverity, type IssueType } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createTestDb, type TestDb } from "@/lib/testing/pglite";
 import {
   countVisibleIssues,
   getVisibleIssues,
@@ -11,15 +8,11 @@ import {
   visibleIssueFilter,
 } from "./issue-filter";
 
-// Runs the real Prisma client against Postgres semantics: PGlite (in-process
-// Postgres) behind a local socket, with the full migration chain applied.
-// Mocks would hide the bug in #55, which lives in how Postgres treats a
-// comparison with a missing JSON key.
+// Runs the real Prisma client against Postgres semantics (PGlite, see
+// lib/testing/pglite.ts). Mocks would hide the bug in #55, which lives in how
+// Postgres treats a comparison with a missing JSON key.
 
-const MIGRATIONS = join(__dirname, "../../prisma/migrations");
-
-let pg: PGlite;
-let server: PGLiteSocketServer;
+let t: TestDb;
 let db: PrismaClient;
 
 type Row = [id: string, severity: IssueSeverity, details: Prisma.InputJsonValue | typeof Prisma.DbNull];
@@ -53,18 +46,8 @@ async function addIssue(crawlId: string, id: string, severity: IssueSeverity, de
 }
 
 beforeAll(async () => {
-  pg = await PGlite.create();
-  const names = readdirSync(MIGRATIONS, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name)
-    .sort();
-  for (const name of names) await pg.exec(readFileSync(join(MIGRATIONS, name, "migration.sql"), "utf8"));
-
-  server = new PGLiteSocketServer({ db: pg, host: "127.0.0.1", port: 0 });
-  await server.start();
-  db = new PrismaClient({
-    datasourceUrl: `postgresql://postgres:postgres@${server.getServerConn()}/postgres?connection_limit=1&sslmode=disable`,
-  });
+  t = await createTestDb();
+  db = t.db;
 
   await db.user.create({ data: { id: "u1", email: "demo@quilltab.app" } });
   await db.site.create({ data: { id: "s1", userId: "u1", domain: "quilltab.app" } });
@@ -75,9 +58,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await db?.$disconnect();
-  await server?.stop();
-  await pg?.close();
+  await t?.close();
 });
 
 describe("visible crawl issues (#55)", () => {
