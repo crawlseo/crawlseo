@@ -282,14 +282,15 @@ async function seed() {
   }
   console.log(`Created ${savedQueries.length} saved keywords`);
 
-  // 5. Crawl + audit pages + issues
+  // 5. Crawl + audit pages + issues. pagesFound is set once the rows exist,
+  // from their count, as the crawler does (one AuditPage row per crawled page).
   const crawl = await db.crawl.create({
     data: {
       siteId: site.id,
       status: "COMPLETED",
       startedAt: daysAgo(1),
       finishedAt: new Date(daysAgo(1).getTime() + 47_000), // 47 seconds
-      pagesFound: 42,
+      pagesFound: 0,
       issuesFound: CRAWL_ISSUES.length,
       healthScore: 72,
       maxPages: 200,
@@ -363,7 +364,10 @@ async function seed() {
   }
 
   // The crawler's own bookkeeping rows (details.kind crawl_summary and
-  // content_score). The app never lists or counts them as issues.
+  // content_score). The app never lists or counts them as issues. The summary
+  // totals match the rows above.
+  const contentAvg = await db.auditPage.aggregate({ where: { crawlId: crawl.id }, _avg: { contentScore: true } });
+  const countKind = (kind: "orphan" | "not_in_sitemap") => CRAWL_ISSUES.filter((i) => i.kind === kind).length;
   await db.crawlIssue.create({
     data: {
       crawlId: crawl.id,
@@ -371,7 +375,13 @@ async function seed() {
       type: "MISSING_SCHEMA",
       severity: "INFO",
       message: "Crawl summary",
-      details: { kind: "crawl_summary", sitemapUrls: 21, missingFromSitemap: 1, orphans: 1, avgContentScore: 71 },
+      details: {
+        kind: "crawl_summary",
+        sitemapUrls: 21,
+        missingFromSitemap: countKind("not_in_sitemap"),
+        orphans: countKind("orphan"),
+        avgContentScore: Math.round(contentAvg._avg.contentScore ?? 0),
+      },
     },
   });
   for (const path of ["/blog", "/about", "/blog/vat-for-freelancers"]) {
@@ -386,7 +396,9 @@ async function seed() {
       },
     });
   }
-  console.log(`Created crawl (health: 72/100) with ${PAGES.length + 4} audit pages, ${CRAWL_ISSUES.length} issues and 4 internal rows`);
+  const pagesFound = await db.auditPage.count({ where: { crawlId: crawl.id } });
+  await db.crawl.update({ where: { id: crawl.id }, data: { pagesFound } });
+  console.log(`Created crawl (health: 72/100) with ${pagesFound} audit pages, ${CRAWL_ISSUES.length} issues and 4 internal rows`);
 
   // 6. Some audit links
   const linkPairs = [

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
 import { getVisibleIssues } from "@/lib/crawler/issue-filter";
 import { getCrawlActivity } from "@/lib/crawler/lifecycle";
+import { crawledPageColumns, getCrawlPageStats } from "@/lib/crawler/page-stats";
 
 const ISSUE_ROWS = 200;
 
@@ -47,20 +48,20 @@ export default async function CrawlPage({ params }: Props) {
     ? await getVisibleIssues(db, latest.id, ISSUE_ROWS)
     : { issues: [], total: 0, bySeverity: { CRITICAL: 0, WARNING: 0, INFO: 0 } };
 
-  // Get AuditPage data for the latest crawl
-  const auditPages = latest
-    ? await db.auditPage.findMany({
-        where: { crawlId: latest.id },
-        orderBy: { contentScore: "desc" },
-        take: 200,
-      })
-    : [];
-
-  const avgContentScore = auditPages.length > 0
-    ? Math.round(auditPages.reduce((s, p) => s + p.contentScore, 0) / auditPages.length)
-    : null;
-
-  const orphanCount = auditPages.filter((p) => p.internalLinks === 0 && p.url !== "/").length;
+  // Page counts come from the database over every stored page, and the table
+  // gets every row (a crawl stores at most 2000), so no count depends on a
+  // capped list (#56).
+  const [pageStats, auditPages] = latest
+    ? await Promise.all([
+        getCrawlPageStats(db, latest.id),
+        db.auditPage.findMany({
+          where: { crawlId: latest.id },
+          orderBy: [{ contentScore: "desc" }, { url: "asc" }],
+          select: crawledPageColumns,
+        }),
+      ])
+    : [{ pages: 0, avgContentScore: null, orphans: 0 }, []];
+  const { avgContentScore, orphans: orphanCount } = pageStats;
 
   const crawledAt = latest?.finishedAt ? formatDay(latest.finishedAt, { time: true }) : null;
 
@@ -70,7 +71,7 @@ export default async function CrawlPage({ params }: Props) {
         title="Crawl / Audit"
         meta={
           latest
-            ? `Crawl ${crawledAt} · ${latest.pagesFound} pages crawled · ${auditPages.length} stored`
+            ? `Crawl ${crawledAt} · ${plural(pageStats.pages, "page")} crawled`
             : "No crawl yet"
         }
         actions={<CrawlButton siteId={siteId} />}
@@ -116,7 +117,7 @@ export default async function CrawlPage({ params }: Props) {
               <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 pb-1.5">
                 <h2 className="text-[15px] leading-5 font-semibold">Issues</h2>
                 <span className="mono-label text-[11px] text-muted-foreground">
-                  {issueTotal} {issueTotal === 1 ? "issue" : "issues"}
+                  {plural(issueTotal, "issue")}
                 </span>
               </div>
               {issueTotal === 0 ? (
@@ -187,34 +188,25 @@ export default async function CrawlPage({ params }: Props) {
           </div>
 
           {/* Crawled pages table (from AuditPage model) */}
-          {auditPages.length > 0 && (
+          {pageStats.pages > 0 && (
             <section id="crawled-pages" className="scroll-mt-6">
               <div className="flex flex-col gap-1 px-1 pb-3">
                 <h2 className="text-[15px] leading-5 font-semibold">Crawled pages</h2>
                 <p className="text-[13px] text-muted-foreground">
-                  {auditPages.length} pages stored with full metadata
+                  {plural(pageStats.pages, "page")}, each stored with full metadata
                 </p>
               </div>
-              <CrawledPagesTable
-                rows={auditPages.slice(0, 100).map((p) => ({
-                  id: p.id,
-                  url: p.url,
-                  statusCode: p.statusCode,
-                  contentScore: p.contentScore,
-                  wordCount: p.wordCount,
-                  h1Count: p.h1Count,
-                  imageCount: p.imageCount,
-                  imagesMissingAlt: p.imagesMissingAlt,
-                  internalLinks: p.internalLinks,
-                  responseTimeMs: p.responseTimeMs,
-                }))}
-              />
+              <CrawledPagesTable rows={auditPages} />
             </section>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function plural(n: number, noun: string) {
+  return `${n} ${n === 1 ? noun : `${noun}s`}`;
 }
 
 const th = "mono-label px-4 py-2.5 text-left text-[11px] font-normal text-muted-foreground";

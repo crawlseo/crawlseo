@@ -43,11 +43,16 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   const latestCrawl = await db.crawl.findFirst({
     where: { siteId, status: "COMPLETED" },
     orderBy: { finishedAt: "desc" },
-    select: { id: true, healthScore: true, pagesFound: true, finishedAt: true },
+    select: { id: true, healthScore: true, finishedAt: true },
   });
-  // Counted live with the Crawl / Audit page's rule, so both screens agree,
+  // Counted live with the Crawl / Audit page's rules, so both screens agree,
   // also for crawls stored before issuesFound left out the internal rows.
-  const latestIssueCount = latestCrawl ? await countVisibleIssues(db, latestCrawl.id) : 0;
+  const [latestIssueCount, latestPageCount] = latestCrawl
+    ? await Promise.all([
+        countVisibleIssues(db, latestCrawl.id),
+        db.auditPage.count({ where: { crawlId: latestCrawl.id } }),
+      ])
+    : [0, 0];
   // A crawl in progress, or the failure of the last attempt since latestCrawl (#57).
   const crawlActivity = await getCrawlActivity(db, siteId, latestCrawl?.finishedAt ?? null);
 
@@ -102,7 +107,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
                 label="Crawl"
                 value={
                   latestCrawl
-                    ? `${latestCrawl.pagesFound} pages · ${latestIssueCount} issues`
+                    ? `${latestPageCount} pages · ${latestIssueCount} issues`
                     : "Not run yet"
                 }
               />
