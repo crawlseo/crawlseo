@@ -541,6 +541,11 @@ async function fetchPublic(
   let priorMs = 0;
 
   for (let redirects = 0; ; redirects++) {
+    // A URL that is not http(s), or whose host does not resolve or is
+    // private, fails here as a fetch error (a broken link), before robots.txt
+    // is consulted: there is no robots.txt to read for it.
+    if (!isHttpUrl(currentUrl)) throw new Error(`Unsupported URL: ${currentUrl}`);
+    await assertPublicUrl(currentUrl);
     await hooks.guard?.(currentUrl);
     const release = (await hooks.pace?.(currentUrl)) ?? (() => {});
     const controller = new AbortController();
@@ -553,7 +558,6 @@ async function fetchPublic(
 
     let res: Response;
     try {
-      await assertPublicUrl(currentUrl);
       res = await fetch(currentUrl, { headers, signal: controller.signal, redirect: "manual" });
     } catch (err) {
       done();
@@ -638,9 +642,16 @@ export async function fetchText(url: string, hooks: HopHooks = {}): Promise<stri
  * ROBOTS_MAX_BYTES parsed. robots.txt itself is never subject to robots.txt.
  */
 async function fetchRobotsTxt(origin: string): Promise<RobotsFetch> {
+  const url = `${origin}/robots.txt`;
+  try {
+    await assertPublicUrl(url);
+  } catch (err) {
+    // No host to ask: not a robots.txt answer. The URLs fail as broken links.
+    return { kind: "no-host", error: err instanceof Error ? err.message : String(err) };
+  }
   let r: PublicResponse;
   try {
-    r = await fetchPublic(`${origin}/robots.txt`, { "User-Agent": USER_AGENT });
+    r = await fetchPublic(url, { "User-Agent": USER_AGENT });
   } catch (err) {
     if (err instanceof TooManyRedirectsError) return { kind: "too-many-redirects" };
     if (err instanceof FetchTimeoutError) return { kind: "error", reason: "timeout" };
@@ -942,14 +953,18 @@ async function executeCrawl(
   /** True when robots.txt lets the crawler fetch `url`; counts it otherwise. */
   const allowed = async (url: string) => {
     const verdict = await robots.check(url);
-    if (verdict === "allowed") return true;
+    // "no-host": fetched anyway, so the failed lookup is reported as a broken link.
+    if (verdict === "allowed" || verdict === "no-host") return true;
     await robots.skip(url, verdict);
     return false;
   };
 
   const robotsUrl = `${origin}/robots.txt`;
   const seedRobots = await robots.originFor(seedUrl);
-  if (seedRobots.outcome === "missing" || seedRobots.outcome === "unreachable") {
+  if (
+    !seedRobots.hostError &&
+    (seedRobots.outcome === "missing" || seedRobots.outcome === "unreachable")
+  ) {
     issues.push({
       url: robotsUrl,
       type: "MISSING_ROBOTS",

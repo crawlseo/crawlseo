@@ -12,7 +12,10 @@ const store = vi.hoisted(() => ({
   progress: [] as number[],
 }));
 const { lookup } = vi.hoisted(() => ({
-  lookup: vi.fn(async () => ({ address: "93.184.216.34", family: 4 })),
+  lookup: vi.fn<(host: string) => Promise<{ address: string; family: number }>>(async () => ({
+    address: "93.184.216.34",
+    family: 4,
+  })),
 }));
 
 vi.mock("dns/promises", () => ({ lookup, default: { lookup } }));
@@ -159,6 +162,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  lookup.mockImplementation(async () => ({ address: "93.184.216.34", family: 4 }));
   vi.useRealTimers();
   vi.unstubAllGlobals();
   delete process.env.CRAWL_MAX_MINUTES;
@@ -316,6 +320,27 @@ describe("redirects and robots.txt", () => {
     });
   });
 
+  it("reports a redirect to a host that does not resolve as a broken link, not as a robots.txt skip", async () => {
+    lookup.mockImplementation(async (host: string) => {
+      if (host === "dead.invalid") throw new Error(`getaddrinfo ENOTFOUND ${host}`);
+      return { address: "93.184.216.34", family: 4 };
+    });
+    routes = {
+      "https://example.com/robots.txt": text("User-agent: *\nAllow: /\n"),
+      "https://example.com/": page("Home", ["/gone", "/ftp"]),
+      "https://example.com/gone": redirect("https://dead.invalid/page"),
+      "https://example.com/ftp": redirect("ftp://example.com/file"),
+    };
+
+    await crawl();
+
+    const broken = store.issues.filter((i) => i.type === "BROKEN_LINK").map((i) => i.url);
+    expect(broken).toEqual(expect.arrayContaining(["https://example.com/gone", "https://example.com/ftp"]));
+    expect(fetched("https://dead.invalid/robots.txt")).toBe(false);
+    expect(report()?.skipped).toBe(0);
+    expect(report()?.origins.map((o) => o.origin)).toEqual(["https://example.com"]);
+  });
+
   it("follows exactly 5 redirects for a page", async () => {
     routes = {
       "https://example.com/robots.txt": text("User-agent: *\nAllow: /\n"),
@@ -416,6 +441,27 @@ describe("robots.txt answers", () => {
       message: "robots.txt unreachable (500), host skipped",
     });
     expect(report()?.skipped).toBe(1);
+  });
+
+  it("reports URLs on a host that does not resolve as broken links", async () => {
+    lookup.mockImplementation(async (host: string) => {
+      if (host === "www.example.com") throw new Error(`getaddrinfo ENOTFOUND ${host}`);
+      return { address: "93.184.216.34", family: 4 };
+    });
+    routes = {
+      "https://example.com/robots.txt": text("User-agent: *\nAllow: /\n"),
+      "https://example.com/": page("Home", ["https://www.example.com/a"]),
+    };
+
+    await crawl();
+
+    expect(store.issues.find((i) => i.url === "https://www.example.com/a")).toMatchObject({
+      type: "BROKEN_LINK",
+      severity: "CRITICAL",
+      message: "getaddrinfo ENOTFOUND www.example.com",
+    });
+    expect(report()?.skipped).toBe(0);
+    expect(originReport("https://www.example.com")).toBeUndefined();
   });
 
   it("skips the host when robots.txt times out", async () => {

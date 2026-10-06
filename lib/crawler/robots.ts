@@ -26,7 +26,9 @@ const HEARTBEAT_MS = 5_000;
 export type RobotsFetch =
   | { kind: "response"; status: number; text: string }
   | { kind: "too-many-redirects" }
-  | { kind: "error"; reason: "timeout" | "network error" };
+  | { kind: "error"; reason: "timeout" | "network error" }
+  /** The host does not resolve or is private: nothing to ask, nothing to fetch. */
+  | { kind: "no-host"; error: string };
 
 export type OriginOutcome =
   /** robots.txt was read and its rules apply. */
@@ -66,11 +68,16 @@ export type RobotsReport = {
   stopMessage: string | null;
 };
 
-export type Verdict = "allowed" | "disallowed" | "host-skipped";
+/**
+ * "no-host": the origin's host does not resolve or is private. That is not a
+ * robots.txt answer; its URLs fail as broken links, without a request.
+ */
+export type Verdict = "allowed" | "disallowed" | "host-skipped" | "no-host";
+export type SkipReason = "disallowed" | "host-skipped";
 
 /** Thrown from a redirect hop whose target robots.txt does not allow. */
 export class RobotsBlockedError extends Error {
-  constructor(readonly url: string, readonly verdict: Exclude<Verdict, "allowed">) {
+  constructor(readonly url: string, readonly verdict: SkipReason) {
     super(`Blocked by robots.txt: ${url}`);
   }
 }
@@ -86,6 +93,8 @@ type Robot = ReturnType<typeof robotsParser>;
 
 type OriginState = OriginReport & {
   robot: Robot | null;
+  /** Set when the host does not resolve or is private; not in the report. */
+  hostError: string | null;
   sitemaps: string[];
   requests: number;
   /** End of the last request on this origin, for Crawl-delay. */
@@ -110,7 +119,10 @@ export function resolveRobots(
   fetched: RobotsFetch,
   userAgent: string
 ): Omit<OriginState, "lastDone" | "lane" | "requests"> {
-  const base = { origin, robot: null, sitemaps: [], skipped: 0, crawlDelay: null };
+  const base = { origin, robot: null, hostError: null, sitemaps: [], skipped: 0, crawlDelay: null };
+  if (fetched.kind === "no-host") {
+    return { ...base, hostError: fetched.error, outcome: "missing", robotsStatus: null, message: null };
+  }
   if (fetched.kind === "too-many-redirects") {
     return {
       ...base,
@@ -207,6 +219,7 @@ export class RobotsPolicy {
 
   async check(url: string): Promise<Verdict> {
     const s = await this.originFor(url);
+    if (s.hostError) return "no-host";
     if (s.outcome === "unreachable" || s.outcome === "delay-too-long" || s.outcome === "stopped-early") {
       return "host-skipped";
     }
@@ -215,14 +228,18 @@ export class RobotsPolicy {
     return s.robot?.isAllowed(url, this.opts.userAgent) === false ? "disallowed" : "allowed";
   }
 
-  /** For a redirect hop: throws unless robots.txt allows the target. */
+  /** Before every request: throws unless robots.txt allows the URL. */
   async guard(url: string): Promise<void> {
     const verdict = await this.check(url);
-    if (verdict !== "allowed") throw new RobotsBlockedError(url, verdict);
+    if (verdict === "allowed") return;
+    // The host resolved for the request but not for robots.txt: never fetch
+    // without having read robots.txt, report it like the failed lookup.
+    if (verdict === "no-host") throw new Error((await this.originFor(url)).hostError!);
+    throw new RobotsBlockedError(url, verdict);
   }
 
   /** Counts a URL that was not fetched because of robots.txt. */
-  async skip(url: string, verdict: Exclude<Verdict, "allowed">, redirectedTo?: string): Promise<void> {
+  async skip(url: string, verdict: SkipReason, redirectedTo?: string): Promise<void> {
     const target = redirectedTo ?? url;
     const s = await this.originFor(target);
     s.skipped++;
@@ -306,7 +323,7 @@ export class RobotsPolicy {
   }
 
   report(): RobotsReport {
-    const origins = this.resolved.map((s) => ({
+    const origins = this.resolved.filter((s) => !s.hostError).map((s) => ({
       origin: s.origin,
       outcome: s.outcome,
       robotsStatus: s.robotsStatus,
