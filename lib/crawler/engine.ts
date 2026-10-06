@@ -3,9 +3,16 @@ import { lookup } from "dns/promises";
 import { BlockList, isIPv4, isIPv6 } from "net";
 import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
-import robotsParser from "robots-parser";
 import { REMEDIATION } from "./remediation";
 import { countVisibleIssues } from "./issue-filter";
+import {
+  CrawlDelayStopError,
+  ROBOTS_MAX_BYTES,
+  RobotsBlockedError,
+  RobotsPolicy,
+  type RobotsFetch,
+  type RobotsReport,
+} from "./robots";
 
 const ABSOLUTE_MAX_PAGES = 2000;
 const BATCH_SIZE = 15;
@@ -16,6 +23,9 @@ const FETCH_TIMEOUT_MS = 12_000;
 const PROGRESS_EVERY_MS = 5_000;
 const MAX_REDIRECTS = 5;
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
+// A crawl stops after this many minutes (CRAWL_MAX_MINUTES overrides it).
+// Mostly reached on sites that set a Crawl-delay.
+const DEFAULT_CRAWL_MAX_MINUTES = 30;
 export const USER_AGENT = "CrawlSEOBot/1.0 (+https://crawlseo.cloud)";
 
 /* ------------------------------------------------------------------ */
@@ -113,6 +123,15 @@ function normalizeUrl(raw: string, base: string): string | null {
     return u.toString();
   } catch {
     return null;
+  }
+}
+
+function isHttpUrl(raw: string): boolean {
+  try {
+    const { protocol } = new URL(raw);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
   }
 }
 
@@ -445,7 +464,11 @@ export function parseHtml(
 /*  Fetch helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-async function readBodyCapped(res: Response): Promise<ArrayBuffer> {
+async function readBodyCapped(
+  res: Response,
+  limit = MAX_RESPONSE_BYTES,
+  truncate = false
+): Promise<ArrayBuffer> {
   if (!res.body) return new ArrayBuffer(0);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -453,11 +476,14 @@ async function readBodyCapped(res: Response): Promise<ArrayBuffer> {
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    total += value.byteLength;
-    if (total > MAX_RESPONSE_BYTES) {
+    if (total + value.byteLength > limit) {
       await reader.cancel();
-      throw new Error(`Response exceeded ${MAX_RESPONSE_BYTES} bytes`);
+      if (!truncate) throw new Error(`Response exceeded ${limit} bytes`);
+      chunks.push(value.subarray(0, limit - total));
+      total = limit;
+      break;
     }
+    total += value.byteLength;
     chunks.push(value);
   }
   const buf = new Uint8Array(total);
@@ -469,37 +495,94 @@ async function readBodyCapped(res: Response): Promise<ArrayBuffer> {
   return buf.buffer;
 }
 
+class FetchTimeoutError extends Error {
+  constructor(url: string) {
+    super(`Timed out after ${FETCH_TIMEOUT_MS / 1000} s: ${url}`);
+  }
+}
+
+class TooManyRedirectsError extends Error {
+  constructor() {
+    super(`Too many redirects (>${MAX_REDIRECTS})`);
+  }
+}
+
+/** Runs around every request of fetchPublic, redirect hops included. */
+type HopHooks = {
+  /** Throws to stop before the request, e.g. when robots.txt disallows it. */
+  guard?: (url: string) => Promise<void>;
+  /** Waits until the origin accepts a request; returns the function that marks it done. */
+  pace?: (url: string) => Promise<() => void>;
+};
+
+type PublicResponse = {
+  res: Response;
+  finalUrl: string;
+  /** Time spent on requests so far, without Crawl-delay waits. */
+  activeMs: () => number;
+  /** True once the request timed out, also while the body is read. */
+  timedOut: () => boolean;
+  /** Call once the body is read: clears the timeout and frees the origin. */
+  done: () => void;
+};
+
 /**
- * fetch() that follows redirects itself so every hop, not just the first
- * URL, is checked against private/reserved IPs.
+ * fetch() that follows redirects itself, up to MAX_REDIRECTS, so every hop,
+ * not just the first URL, is checked against private/reserved IPs and against
+ * the hooks. Each request has its own FETCH_TIMEOUT_MS, started after any
+ * Crawl-delay wait.
  */
 async function fetchPublic(
   url: string,
-  init: { signal: AbortSignal; headers: Record<string, string> }
-): Promise<{ res: Response; finalUrl: string }> {
+  headers: Record<string, string>,
+  hooks: HopHooks = {}
+): Promise<PublicResponse> {
   let currentUrl = url;
-  let res: Response | null = null;
+  let priorMs = 0;
 
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await assertPublicUrl(currentUrl);
-    res = await fetch(currentUrl, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get("location");
-      if (!location) break;
-      currentUrl = new URL(location, currentUrl).toString();
-      if (hop === MAX_REDIRECTS - 1) {
-        throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
-      }
-      continue;
+  for (let redirects = 0; ; redirects++) {
+    await hooks.guard?.(currentUrl);
+    const release = (await hooks.pace?.(currentUrl)) ?? (() => {});
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const started = Date.now();
+    const done = () => {
+      clearTimeout(timer);
+      release();
+    };
+
+    let res: Response;
+    try {
+      await assertPublicUrl(currentUrl);
+      res = await fetch(currentUrl, { headers, signal: controller.signal, redirect: "manual" });
+    } catch (err) {
+      done();
+      throw controller.signal.aborted ? new FetchTimeoutError(currentUrl) : err;
     }
-    break;
-  }
 
-  if (!res) throw new Error("No response");
-  return { res, finalUrl: currentUrl };
+    const location =
+      res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (!location) {
+      const base = priorMs;
+      return {
+        res,
+        finalUrl: currentUrl,
+        activeMs: () => base + Date.now() - started,
+        timedOut: () => controller.signal.aborted,
+        done,
+      };
+    }
+
+    priorMs += Date.now() - started;
+    await res.body?.cancel().catch(() => {});
+    done();
+    // `redirects` have been followed; this one would make redirects + 1.
+    if (redirects === MAX_REDIRECTS) throw new TooManyRedirectsError();
+    currentUrl = new URL(location, currentUrl).toString();
+  }
 }
 
-async function fetchPage(url: string): Promise<{
+async function fetchPage(url: string, hooks: HopHooks): Promise<{
   statusCode: number;
   html: string;
   finalUrl: string;
@@ -507,55 +590,74 @@ async function fetchPage(url: string): Promise<{
   bytes: number;
   contentType: string;
 }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  const started = Date.now();
+  const r = await fetchPublic(
+    url,
+    { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
+    hooks
+  );
   try {
-    const { res, finalUrl } = await fetchPublic(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
-
-    const buf = await readBodyCapped(res);
+    const buf = await readBodyCapped(r.res);
     const bytes = buf.byteLength;
-    const contentType = res.headers.get("content-type") || "";
+    const contentType = r.res.headers.get("content-type") || "";
     const html =
       contentType.includes("html") || contentType.includes("xml")
         ? new TextDecoder("utf-8", { fatal: false }).decode(buf)
         : "";
     return {
-      statusCode: res.status,
+      statusCode: r.res.status,
       html,
-      finalUrl,
-      loadMs: Date.now() - started,
+      finalUrl: r.finalUrl,
+      loadMs: r.activeMs(),
       bytes,
       contentType,
     };
+  } catch (err) {
+    throw r.timedOut() ? new FetchTimeoutError(r.finalUrl) : err;
   } finally {
-    clearTimeout(timer);
+    r.done();
   }
 }
 
-/** robots.txt / sitemap body, or null on any failure or blocked hop. */
-export async function fetchText(url: string): Promise<string | null> {
+/** Sitemap (or any text) body, or null on any failure or blocked hop. */
+export async function fetchText(url: string, hooks: HopHooks = {}): Promise<string | null> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const r = await fetchPublic(url, { "User-Agent": USER_AGENT }, hooks);
     try {
-      const { res } = await fetchPublic(url, {
-        signal: controller.signal,
-        headers: { "User-Agent": USER_AGENT },
-      });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!r.res.ok) return null;
+      return await r.res.text();
     } finally {
-      clearTimeout(timer);
+      r.done();
     }
   } catch {
     return null;
+  }
+}
+
+/**
+ * One origin's robots.txt: up to MAX_REDIRECTS redirects, at most
+ * ROBOTS_MAX_BYTES parsed. robots.txt itself is never subject to robots.txt.
+ */
+async function fetchRobotsTxt(origin: string): Promise<RobotsFetch> {
+  let r: PublicResponse;
+  try {
+    r = await fetchPublic(`${origin}/robots.txt`, { "User-Agent": USER_AGENT });
+  } catch (err) {
+    if (err instanceof TooManyRedirectsError) return { kind: "too-many-redirects" };
+    if (err instanceof FetchTimeoutError) return { kind: "error", reason: "timeout" };
+    return { kind: "error", reason: "network error" };
+  }
+  try {
+    if (!r.res.ok) {
+      await r.res.body?.cancel().catch(() => {});
+      return { kind: "response", status: r.res.status, text: "" };
+    }
+    const buf = await readBodyCapped(r.res, ROBOTS_MAX_BYTES, true);
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    return { kind: "response", status: r.res.status, text };
+  } catch {
+    return { kind: "error", reason: r.timedOut() ? "timeout" : "network error" };
+  } finally {
+    r.done();
   }
 }
 
@@ -729,7 +831,14 @@ export type CrawlResult = {
   missingFromSitemap: number;
   orphanCandidates: number;
   avgContentScore: number;
+  robots: RobotsReport;
 };
+
+/** CRAWL_MAX_MINUTES, or DEFAULT_CRAWL_MAX_MINUTES when unset or invalid. */
+function crawlMaxMinutes(): number {
+  const n = Number(process.env.CRAWL_MAX_MINUTES);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_CRAWL_MAX_MINUTES;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Main crawl function                                               */
@@ -816,44 +925,63 @@ async function executeCrawl(
   const visited = new Set<string>();
   const queue: string[] = [seedUrl];
 
-  /* ---- robots.txt ---- */
-  const robotsUrl = `${origin}/robots.txt`;
-  const robotsText = await fetchText(robotsUrl);
+  /* ---- robots.txt, per origin ---- */
+  const limitMinutes = crawlMaxMinutes();
+  const deadline = Date.now() + limitMinutes * 60_000;
+  const robots = new RobotsPolicy({
+    fetchRobots: fetchRobotsTxt,
+    userAgent: USER_AGENT,
+    deadline,
+    limitMinutes,
+    heartbeat: () => recordProgress(pages.length),
+  });
+  const hooks: HopHooks = {
+    guard: (url) => robots.guard(url),
+    pace: (url) => robots.pace(url),
+  };
+  /** True when robots.txt lets the crawler fetch `url`; counts it otherwise. */
+  const allowed = async (url: string) => {
+    const verdict = await robots.check(url);
+    if (verdict === "allowed") return true;
+    await robots.skip(url, verdict);
+    return false;
+  };
 
-  let robotsChecker: ReturnType<typeof robotsParser> | null = null;
-  if (!robotsText) {
+  const robotsUrl = `${origin}/robots.txt`;
+  const seedRobots = await robots.originFor(seedUrl);
+  if (seedRobots.outcome === "missing" || seedRobots.outcome === "unreachable") {
     issues.push({
       url: robotsUrl,
       type: "MISSING_ROBOTS",
       severity: "WARNING",
-      message: "robots.txt not found or unreachable",
+      message:
+        seedRobots.message ??
+        `robots.txt not found${seedRobots.robotsStatus ? ` (${seedRobots.robotsStatus})` : ""}`,
       details: REMEDIATION.MISSING_ROBOTS
         ? { howToFix: REMEDIATION.MISSING_ROBOTS.howToFix }
         : {},
     });
-  } else {
-    robotsChecker = robotsParser(robotsUrl, robotsText);
   }
 
   /* ---- Sitemap discovery ---- */
   let sitemapUrls: string[] = [];
   const sitemapCandidates = [
+    // Sitemap: lines are free text; a malformed one is ignored, not fatal.
+    ...seedRobots.sitemaps.filter(isHttpUrl),
     `${origin}/sitemap.xml`,
     `${origin}/sitemap_index.xml`,
   ];
-  if (robotsText) {
-    const sm = robotsText.match(/Sitemap:\s*(\S+)/i);
-    if (sm?.[1]) sitemapCandidates.unshift(sm[1]);
-  }
 
   for (const smUrl of sitemapCandidates) {
-    const xml = await fetchText(smUrl);
+    if (!(await allowed(smUrl))) continue;
+    const xml = await fetchText(smUrl, hooks);
     await recordProgress(0);
     if (!xml) continue;
     if (xml.includes("<sitemapindex")) {
       const childSitemaps = parseSitemapUrls(xml, origin).slice(0, 5);
       for (const child of childSitemaps) {
-        const childXml = await fetchText(child);
+        if (!(await allowed(child))) continue;
+        const childXml = await fetchText(child, hooks);
         await recordProgress(0);
         if (childXml) sitemapUrls.push(...parseSitemapUrls(childXml, origin));
       }
@@ -883,6 +1011,16 @@ async function executeCrawl(
 
   /* ---- Crawl loop with batch concurrency ---- */
   while (queue.length > 0 && pages.length < maxPages) {
+    if (Date.now() >= deadline) {
+      const remaining = new Set<string>();
+      for (const u of queue) {
+        const n = normalizeUrl(u, origin);
+        if (n && !visited.has(n) && sameHost(n, seedUrl)) remaining.add(n);
+      }
+      await robots.timeLimitReached([...remaining]);
+      break;
+    }
+
     // Collect the next batch of unvisited URLs
     const batch: string[] = [];
     while (batch.length < BATCH_SIZE && queue.length > 0 && pages.length + batch.length < maxPages) {
@@ -891,17 +1029,10 @@ async function executeCrawl(
       if (!normalized || visited.has(normalized)) continue;
       if (!sameHost(normalized, seedUrl)) continue;
 
-      // Check robots.txt. isAllowed() returns `undefined` (not `false`) when
-      // the URL's host differs from the one robots.txt was fetched from —
-      // e.g. an apex domain that redirects to www. sameHost() above already
-      // confirms it's the same site, so only an explicit `false` (a real
-      // Disallow match) should block the crawl here.
-      if (robotsChecker && robotsChecker.isAllowed(normalized, USER_AGENT) === false) {
-        visited.add(normalized);
-        continue;
-      }
-
+      // Checked against the robots.txt of the URL's own origin: the bare
+      // domain and www each have their own.
       visited.add(normalized);
+      if (!(await allowed(normalized))) continue;
       batch.push(normalized);
     }
 
@@ -911,7 +1042,7 @@ async function executeCrawl(
     const results = await Promise.allSettled(
       batch.map(async (url) => {
         try {
-          const res = await fetchPage(url);
+          const res = await fetchPage(url, hooks);
           return { url, res, error: null };
         } catch (err) {
           return { url, res: null, error: err };
@@ -922,6 +1053,16 @@ async function executeCrawl(
     for (const result of results) {
       if (result.status === "rejected") continue;
       const { url, res, error } = result.value;
+
+      // Not fetched because of robots.txt: information, not an error.
+      if (error instanceof RobotsBlockedError) {
+        await robots.skip(url, error.verdict, error.url !== url ? error.url : undefined);
+        continue;
+      }
+      if (error instanceof CrawlDelayStopError) {
+        await robots.skip(url, "host-skipped");
+        continue;
+      }
 
       if (error || !res) {
         const infra = matchManagedInfra(url);
@@ -1103,6 +1244,8 @@ async function executeCrawl(
     });
   }
 
+  const robotsReport = robots.report();
+
   /* ---- Compute scores ---- */
   const healthScore = computeHealthScore(issues, pages.length);
   const avgContentScore =
@@ -1230,6 +1373,7 @@ async function executeCrawl(
         missingFromSitemap: missingFromSitemap.length,
         orphans: orphans.length,
         avgContentScore,
+        robots: robotsReport,
       },
     },
   });
@@ -1261,5 +1405,6 @@ async function executeCrawl(
     missingFromSitemap: missingFromSitemap.length,
     orphanCandidates: orphans.length,
     avgContentScore,
+    robots: robotsReport,
   };
 }

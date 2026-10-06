@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import type { RobotsReport } from "./robots";
 
 type Db = Pick<PrismaClient, "auditPage" | "crawlIssue" | "$queryRaw">;
 
@@ -49,6 +50,22 @@ async function countOrphans(db: Db, crawlId: string): Promise<number> {
   return db.crawlIssue.count({
     where: { crawlId, details: { path: ["kind"], equals: "orphan" } },
   });
+}
+
+/**
+ * What robots.txt kept the crawler from fetching, from the crawl summary row
+ * (without loading its page list). Null for crawls from before v0.2.2.
+ */
+export async function getCrawlRobotsReport(
+  db: Pick<PrismaClient, "$queryRaw">,
+  crawlId: string
+): Promise<RobotsReport | null> {
+  const rows = await db.$queryRaw<{ robots: RobotsReport | null }[]>`
+    SELECT "details"->'robots' AS "robots"
+    FROM "CrawlIssue"
+    WHERE "crawlId" = ${crawlId} AND "details"->>'kind' = 'crawl_summary'
+    LIMIT 1`;
+  return rows[0]?.robots ?? null;
 }
 
 /** Columns the Crawled pages table shows. */

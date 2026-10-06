@@ -14,9 +14,10 @@ export const ACTIVE_CRAWL_STATUSES: CrawlStatus[] = ["PENDING", "RUNNING"];
 
 /**
  * The engine records progress at most every 5 s and at least once per batch of
- * fetches, per sitemap fetch and per chunk of results it stores. A batch takes
- * at most one 12 s fetch timeout plus DNS lookups, so a live crawl goes quiet
- * for well under a minute. Five minutes without progress means it is gone.
+ * fetches, per sitemap fetch, per chunk of results it stores and every 5 s of a
+ * Crawl-delay wait. A request takes at most a 12 s timeout per redirect hop
+ * (six hops at most) plus DNS lookups, so a live crawl goes quiet for well
+ * under five minutes. Five minutes without progress means it is gone.
  */
 export const STALE_AFTER_MS = 5 * 60_000;
 

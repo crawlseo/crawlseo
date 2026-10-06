@@ -58,6 +58,8 @@ Keywords, pages, clicks, impressions, position tracking with 28-day comparison a
 
 Crawl up to 2,000 pages with concurrent fetching. Health score, 16 issue types, content scoring, and remediation guidance.
 
+The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud)`) follows robots.txt per RFC 9309: each host (the bare domain and www included) is checked against its own robots.txt, redirect targets are checked before they are followed, a robots.txt that answers 5xx or times out skips that host, and Crawl-delay is honoured. The crawl page lists what robots.txt kept it from.
+
 <p align="center">
   <img src="docs/screenshots/audit.png" alt="Crawl / Audit" width="800" />
   <br />
@@ -225,6 +227,7 @@ npm start
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
 | `NEXTAUTH_URL` | No | Base URL (auto-detected in most environments) |
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
+| `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
 
 ### The crawlseo.cloud card
 

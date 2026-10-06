@@ -7,11 +7,12 @@ import { CrawlButton } from "@/components/sites/action-buttons";
 import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
 import { CrawlFailedNotice } from "@/components/sites/crawl-failed-notice";
 import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
+import { RobotsPanel } from "@/components/sites/robots-panel";
 import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
 import { getVisibleIssues } from "@/lib/crawler/issue-filter";
 import { getCrawlActivity } from "@/lib/crawler/lifecycle";
-import { crawledPageColumns, getCrawlPageStats } from "@/lib/crawler/page-stats";
+import { crawledPageColumns, getCrawlPageStats, getCrawlRobotsReport } from "@/lib/crawler/page-stats";
 
 const ISSUE_ROWS = 200;
 
@@ -51,7 +52,7 @@ export default async function CrawlPage({ params }: Props) {
   // Page counts come from the database over every stored page, and the table
   // gets every row (a crawl stores at most 2000), so no count depends on a
   // capped list (#56).
-  const [pageStats, auditPages] = latest
+  const [pageStats, auditPages, robotsReport] = latest
     ? await Promise.all([
         getCrawlPageStats(db, latest.id),
         db.auditPage.findMany({
@@ -59,8 +60,9 @@ export default async function CrawlPage({ params }: Props) {
           orderBy: [{ contentScore: "desc" }, { url: "asc" }],
           select: crawledPageColumns,
         }),
+        getCrawlRobotsReport(db, latest.id),
       ])
-    : [{ pages: 0, avgContentScore: null, orphans: 0 }, []];
+    : [{ pages: 0, avgContentScore: null, orphans: 0 }, [], null];
   const { avgContentScore, orphans: orphanCount } = pageStats;
 
   const crawledAt = latest?.finishedAt ? formatDay(latest.finishedAt, { time: true }) : null;
@@ -186,6 +188,8 @@ export default async function CrawlPage({ params }: Props) {
               </a>
             </section>
           </div>
+
+          {robotsReport && <RobotsPanel report={robotsReport} />}
 
           {/* Crawled pages table (from AuditPage model) */}
           {pageStats.pages > 0 && (
