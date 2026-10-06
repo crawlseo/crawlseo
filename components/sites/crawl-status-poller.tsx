@@ -38,9 +38,13 @@ export function CrawlStatusPoller({ siteId, crawlId }: CrawlStatusPollerProps) {
   }, [siteId, crawlId, router]);
 
   useEffect(() => {
-    poll();
+    // First poll right away (from a timer, so no state is set during the effect), then every 3 s.
+    const first = setTimeout(poll, 0);
     const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(first);
+      clearInterval(interval);
+    };
   }, [poll]);
 
   const isRunning = !status || status.status === "RUNNING" || status.status === "PENDING";

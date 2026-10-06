@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -21,28 +21,44 @@ type AppShellProps = {
   showCloudPromo: boolean;
 };
 
+const COLLAPSED_KEY = "crawlseo-sidebar-collapsed";
+
+function subscribeCollapsed(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(COLLAPSED_KEY, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(COLLAPSED_KEY, onChange);
+  };
+}
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function AppShell({ email, name, children, sites, showCloudPromo }: AppShellProps) {
   const displayName = name || email?.split("@")[0] || "User";
   const pathname = usePathname();
 
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // The mobile drawer is open only on the path it was opened on, so a route change closes it.
+  const [openOnPath, setOpenOnPath] = useState<string | null>(null);
+  const mobileOpen = openOnPath === pathname;
+  const setMobileOpen = (open: boolean) => setOpenOnPath(open ? pathname : null);
 
-  // Close mobile drawer on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  // Load collapsed state from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("crawlseo-sidebar-collapsed");
-    if (saved === "true") setCollapsed(true);
-  }, []);
+  // Collapsed sidebar, remembered in localStorage (expanded on the server and when storage is blocked).
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
 
   function toggleCollapsed() {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem("crawlseo-sidebar-collapsed", String(next));
+    try {
+      localStorage.setItem(COLLAPSED_KEY, String(!collapsed));
+    } catch {
+      // Storage blocked: the toggle cannot be remembered.
+    }
+    window.dispatchEvent(new Event(COLLAPSED_KEY));
   }
 
   // Status block: the open site's latest GSC day, or the latest across all sites.
@@ -102,6 +118,8 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
             <span className="truncate text-muted-foreground" title={email ?? displayName}>
               {email ?? displayName}
             </span>
+            {/* An Auth.js API route, not a page: it needs a full page load, which next/link would skip. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/api/auth/signout" className="text-link shrink-0">
               Log out
             </a>
