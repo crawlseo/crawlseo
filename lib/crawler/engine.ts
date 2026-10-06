@@ -16,8 +16,7 @@ const FETCH_TIMEOUT_MS = 12_000;
 const PROGRESS_EVERY_MS = 5_000;
 const MAX_REDIRECTS = 5;
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
-const USER_AGENT =
-  "CrawlSEOBot/1.0 (+https://crawlseo.dev; self-hosted SEO audit)";
+export const USER_AGENT = "CrawlSEOBot/1.0 (+https://crawlseo.cloud)";
 
 /* ------------------------------------------------------------------ */
 /*  Known managed-infrastructure path patterns                        */

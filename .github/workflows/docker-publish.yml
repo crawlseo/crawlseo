@@ -187,10 +187,15 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # main pushes publish :edge and :sha-<short>. Version tags (v1.2.3)
+          # publish :1.2.3, :1.2 and :sha-<short>, plus :latest, so :latest is
+          # always the last release. With the default flavor latest=auto,
+          # metadata-action adds :latest for semver tags only, and not for a
+          # prerelease such as v1.3.0-rc.1.
+          flavor: |
+            latest=auto
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=ref,event=pr
+            type=edge,branch=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha

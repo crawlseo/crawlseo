@@ -22,7 +22,7 @@
 
 ## Smoke checks
 - CI green on main.
-- Docker publish finished and `docker buildx imagetools inspect ghcr.io/crawlseo/crawlseo:latest` lists linux/amd64 and linux/arm64.
+- Docker publish finished and `docker buildx imagetools inspect ghcr.io/crawlseo/crawlseo:edge` lists linux/amd64 and linux/arm64. A main merge moves `:edge`, not `:latest`; `:latest` moves only on a version tag (check `:X.Y.Z` and `:latest` after a release).
 
 ## Standing rules
 - No AI attribution anywhere.

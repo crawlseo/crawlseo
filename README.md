@@ -155,7 +155,7 @@ Works with Claude Code, Claude Desktop, and Cursor. See [`mcp/README.md`](mcp/RE
 | **ORM** | [Prisma](https://www.prisma.io/) |
 | **Auth** | [NextAuth.js v5](https://authjs.dev/) |
 | **UI** | [shadcn/ui](https://ui.shadcn.com/) + [Tailwind CSS v4](https://tailwindcss.com/) |
-| **Charts** | [Recharts](https://recharts.org/) |
+| **Charts** | Plain React + Tailwind (no chart library) |
 | **Icons** | [Lucide React](https://lucide.dev/) |
 | **MCP** | [@modelcontextprotocol/sdk](https://modelcontextprotocol.io/) |
 | **Deployment** | Docker Compose |
@@ -178,9 +178,17 @@ credentials are only needed at runtime. Images support `linux/amd64` and
 `linux/arm64`, and database migrations run automatically when the container
 starts.
 
-Version tags are also published as immutable image tags (for example, `0.2.0`)
-and minor-version tags (for example, `0.2`). To use a pinned release or an image
-from a fork, set `CRAWLSEO_IMAGE` in `.env`:
+Image tags:
+
+| Tag | What it is |
+|---|---|
+| `latest` | The latest release. Moves only when a version is tagged. |
+| `0.2.0`, `0.2` | A release, and the newest patch of a minor version. |
+| `edge` | The latest build of `main`, ahead of the last release. |
+| `sha-<commit>` | One exact build, for main pushes and releases. |
+
+To pin a release, follow `main`, or use an image from a fork, set
+`CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
 CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.0

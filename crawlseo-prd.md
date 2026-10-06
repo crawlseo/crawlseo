@@ -11,7 +11,7 @@ CrawlSEO is an open-source, self-hosted SEO monitoring tool that combines Google
 **One-liner:** Open-source alternative to $140/mo SEO tools. GSC data + site crawler + Core Web Vitals in one dashboard.
 
 **Repository:** github.com/crawlseo/crawlseo
-**Domain:** crawlseo.dev or crawlseo.pro
+**Domain:** crawlseo.cloud
 **License:** MIT
 **Author:** Mike / Brandson Digital
 
@@ -362,7 +362,7 @@ GOOGLE_CLIENT_SECRET=
 # SMTP_PORT=587
 # SMTP_USER=
 # SMTP_PASS=
-# SMTP_FROM=alerts@crawlseo.dev
+# SMTP_FROM=alerts@crawlseo.cloud
 ```
 
 ---
@@ -821,7 +821,7 @@ Tasks:
 - [ ] .env.example with documentation
 - [ ] README with screenshots, comparison table, quick start
 - [ ] Deploy buttons for Railway, Render
-- [ ] Static landing page on crawlseo.dev/pro
+- [ ] Static landing page on crawlseo.cloud
 - [ ] Launch on GitHub, Hacker News, Reddit, Twitter
 
 ---
@@ -849,7 +849,7 @@ Follow Plausible's proven formula:
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
-  <a href="https://demo.crawlseo.dev">Live Demo</a> •
+  <a href="https://crawlseo.cloud">Website</a> •
   <a href="#docs">Docs</a>
 </p>
 

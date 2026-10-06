@@ -4,6 +4,7 @@ import {
   issuesFromPage,
   computeHealthScore,
   parseHtml,
+  USER_AGENT,
   type PageSnapshot,
   type IssueInput,
 } from "./engine";
@@ -41,6 +42,12 @@ function makePage(overrides: Partial<PageSnapshot> & { url: string }): PageSnaps
 /* ------------------------------------------------------------------ */
 /*  matchManagedInfra                                                  */
 /* ------------------------------------------------------------------ */
+
+describe("USER_AGENT", () => {
+  it("names the bot and points site owners to crawlseo.cloud", () => {
+    expect(USER_AGENT).toBe("CrawlSEOBot/1.0 (+https://crawlseo.cloud)");
+  });
+});
 
 describe("matchManagedInfra", () => {
   it("matches /cdn-cgi/l/email-protection as Cloudflare", () => {
