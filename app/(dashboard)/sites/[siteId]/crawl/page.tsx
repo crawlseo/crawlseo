@@ -5,10 +5,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CrawlButton } from "@/components/sites/action-buttons";
 import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
+import { CrawlFailedNotice } from "@/components/sites/crawl-failed-notice";
 import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
 import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
 import { getVisibleIssues } from "@/lib/crawler/issue-filter";
+import { getCrawlActivity } from "@/lib/crawler/lifecycle";
 
 const ISSUE_ROWS = 200;
 
@@ -26,16 +28,18 @@ export default async function CrawlPage({ params }: Props) {
   });
   if (!site || site.userId !== session?.user?.id) redirect("/sites");
 
-  // Check for running crawl
-  const runningCrawl = await db.crawl.findFirst({
-    where: { siteId, status: "RUNNING" },
-    select: { id: true, pagesFound: true, startedAt: true },
-  });
-
   const latest = await db.crawl.findFirst({
     where: { siteId, status: "COMPLETED" },
     orderBy: { finishedAt: "desc" },
   });
+
+  // A crawl in progress, or the failure of the last attempt since `latest`.
+  // A crawl whose process died shows as failed, not in progress (#57).
+  const { active: runningCrawl, failed: failedCrawl } = await getCrawlActivity(
+    db,
+    siteId,
+    latest?.finishedAt ?? null
+  );
 
   // Issues a user sees (no crawl summary or content score rows). The table
   // lists up to ISSUE_ROWS of them; the counts cover all of them.
@@ -75,10 +79,12 @@ export default async function CrawlPage({ params }: Props) {
       {/* Running crawl indicator */}
       {runningCrawl && (
         <CrawlStatusPoller
+          key={runningCrawl.id}
           siteId={siteId}
           crawlId={runningCrawl.id}
         />
       )}
+      {failedCrawl && <CrawlFailedNotice error={failedCrawl.error} finishedAt={failedCrawl.finishedAt} />}
 
       {!latest ? (
         <EmptyState

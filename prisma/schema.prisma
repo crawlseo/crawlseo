@@ -233,6 +233,10 @@ model Crawl {
   issuesFound Int         @default(0)
   healthScore Int?        // 0-100
   maxPages    Int         @default(200)
+  // Set when the crawl is created and each time it makes progress. A RUNNING
+  // crawl that stops updating it was interrupted (#57).
+  lastProgressAt DateTime?
+  error       String?     // why a FAILED crawl failed
 
   site        Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
   issues      CrawlIssue[]

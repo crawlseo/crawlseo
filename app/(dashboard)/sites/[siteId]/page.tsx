@@ -15,6 +15,8 @@ import {
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { countVisibleIssues } from "@/lib/crawler/issue-filter";
+import { getCrawlActivity } from "@/lib/crawler/lifecycle";
+import { cn } from "@/lib/utils";
 
 interface SitePageProps {
   params: Promise<{ siteId: string }>;
@@ -46,6 +48,8 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   // Counted live with the Crawl / Audit page's rule, so both screens agree,
   // also for crawls stored before issuesFound left out the internal rows.
   const latestIssueCount = latestCrawl ? await countVisibleIssues(db, latestCrawl.id) : 0;
+  // A crawl in progress, or the failure of the last attempt since latestCrawl (#57).
+  const crawlActivity = await getCrawlActivity(db, siteId, latestCrawl?.finishedAt ?? null);
 
   const latestVital = await db.vitalsReport.findFirst({
     where: { siteId },
@@ -102,6 +106,15 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
                     : "Not run yet"
                 }
               />
+              {crawlActivity.active && <CheckRow label="Last crawl" value="Running" />}
+              {crawlActivity.failed && (
+                <div className="flex flex-col gap-0.5">
+                  <CheckRow label="Last crawl" value="Failed" tone="danger" />
+                  <p className="text-[12px] leading-4 text-muted-foreground">
+                    {crawlActivity.failed.error ?? "No reason was recorded."}
+                  </p>
+                </div>
+              )}
               <CheckRow label="Opportunities" value={String(opportunities?.feed.length ?? 0)} />
               <CheckRow
                 label="Latest perf score"
@@ -139,17 +152,16 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   );
 }
 
-function CheckRow({ label, value }: { label: string; value: string }) {
+function CheckRow({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[13px] leading-5">
       <span className="text-text">{label}</span>
       {/* Numbers in mono; words only in mono uppercase. */}
       <span
-        className={
-          /^[\d.,/%]+$/.test(value)
-            ? "font-data text-text-strong"
-            : "mono-label text-[12px] text-text-strong"
-        }
+        className={cn(
+          /^[\d.,/%]+$/.test(value) ? "font-data" : "mono-label text-[12px]",
+          tone === "danger" ? "text-danger" : "text-text-strong"
+        )}
       >
         {value}
       </span>

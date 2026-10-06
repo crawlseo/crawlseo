@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { runSiteCrawl } from "@/lib/crawler/engine";
+import { startSiteCrawl } from "@/lib/crawler/lifecycle";
 import { visibleIssueFilter } from "@/lib/crawler/issue-filter";
 
 export async function POST(
@@ -23,17 +23,6 @@ export async function POST(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Prevent concurrent crawls
-    const running = await db.crawl.findFirst({
-      where: { siteId, status: "RUNNING" },
-    });
-    if (running) {
-      return Response.json(
-        { error: "A crawl is already running", crawlId: running.id },
-        { status: 409 }
-      );
-    }
-
     // Accept optional maxPages from request body
     let maxPages: number | undefined;
     try {
@@ -42,25 +31,21 @@ export async function POST(
         maxPages = body.maxPages;
       }
     } catch {
-      // No body or invalid JSON — use defaults
+      // No body or invalid JSON: use defaults
     }
 
-    // Create the crawl record upfront so we can return its ID immediately
-    const crawl = await db.crawl.create({
-      data: {
-        siteId,
-        status: "PENDING",
-        ...(maxPages && { maxPages }),
-      },
-    });
-
-    // Fire-and-forget: run crawl in background using the pre-created record
-    runSiteCrawl(siteId, site.domain, maxPages, crawl.id).catch((error) => {
-      console.error(`Background crawl failed for site ${siteId}:`, error);
-    });
+    // One crawl per site at a time. A crawl whose process died does not count:
+    // startSiteCrawl marks it FAILED first (#57).
+    const result = await startSiteCrawl(db, { id: siteId, domain: site.domain }, maxPages);
+    if (!result.started) {
+      return Response.json(
+        { error: "A crawl is already running", crawlId: result.runningCrawlId },
+        { status: 409 }
+      );
+    }
 
     return Response.json(
-      { crawlId: crawl.id, status: "RUNNING" },
+      { crawlId: result.crawlId, status: "RUNNING" },
       { status: 202 }
     );
   } catch (error) {

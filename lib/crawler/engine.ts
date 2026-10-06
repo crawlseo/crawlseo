@@ -11,6 +11,9 @@ const ABSOLUTE_MAX_PAGES = 2000;
 const BATCH_SIZE = 15;
 const BATCH_DELAY_MS = 100;
 const FETCH_TIMEOUT_MS = 12_000;
+// How often a running crawl records progress at most (lastProgressAt, pagesFound).
+// lib/crawler/lifecycle.ts treats a crawl that stops recording it as interrupted.
+const PROGRESS_EVERY_MS = 5_000;
 const MAX_REDIRECTS = 5;
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 const USER_AGENT =
@@ -748,16 +751,18 @@ export async function runSiteCrawl(
   const seedUrl = normalizeUrl(seed, seed) || seed;
   const origin = originOf(seedUrl);
 
+  const now = new Date();
   const crawl = existingCrawlId
     ? await db.crawl.update({
         where: { id: existingCrawlId },
-        data: { status: "RUNNING", startedAt: new Date() },
+        data: { status: "RUNNING", startedAt: now, lastProgressAt: now },
       })
     : await db.crawl.create({
         data: {
           siteId,
           status: "RUNNING",
-          startedAt: new Date(),
+          startedAt: now,
+          lastProgressAt: now,
         },
       });
 
@@ -771,11 +776,31 @@ export async function runSiteCrawl(
         data: {
           status: "FAILED",
           finishedAt: new Date(),
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 500),
         },
       })
       .catch(() => {}); // swallow DB errors during cleanup
     throw err;
   }
+}
+
+/**
+ * Records that the crawl is alive, at most every PROGRESS_EVERY_MS. A failed
+ * write does not stop the crawl; the next one catches up.
+ */
+function progressRecorder(crawlId: string) {
+  let last = Date.now(); // runSiteCrawl just set lastProgressAt
+  return async (pagesFound: number) => {
+    const now = Date.now();
+    if (now - last < PROGRESS_EVERY_MS) return;
+    last = now;
+    await db.crawl
+      .update({
+        where: { id: crawlId },
+        data: { lastProgressAt: new Date(now), pagesFound },
+      })
+      .catch(() => {});
+  };
 }
 
 async function executeCrawl(
@@ -785,6 +810,7 @@ async function executeCrawl(
   origin: string,
   maxPages: number
 ): Promise<CrawlResult> {
+  const recordProgress = progressRecorder(crawlId);
   const issues: IssueInput[] = [];
   const pages: PageSnapshot[] = [];
   const allLinks: LinkInfo[] = [];
@@ -823,11 +849,13 @@ async function executeCrawl(
 
   for (const smUrl of sitemapCandidates) {
     const xml = await fetchText(smUrl);
+    await recordProgress(0);
     if (!xml) continue;
     if (xml.includes("<sitemapindex")) {
       const childSitemaps = parseSitemapUrls(xml, origin).slice(0, 5);
       for (const child of childSitemaps) {
         const childXml = await fetchText(child);
+        await recordProgress(0);
         if (childXml) sitemapUrls.push(...parseSitemapUrls(childXml, origin));
       }
     } else {
@@ -977,6 +1005,8 @@ async function executeCrawl(
       }
     }
 
+    await recordProgress(pages.length);
+
     // Small delay between batches to avoid hammering the target
     if (queue.length > 0 && pages.length < maxPages) {
       await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
@@ -1089,6 +1119,7 @@ async function executeCrawl(
     const PAGE_BATCH = 100;
     for (let i = 0; i < pages.length; i += PAGE_BATCH) {
       const chunk = pages.slice(i, i + PAGE_BATCH);
+      await recordProgress(pages.length);
       await db.auditPage.createMany({
         data: chunk.map((p) => ({
           crawlId,
@@ -1125,6 +1156,7 @@ async function executeCrawl(
     const linksToStore = allLinks.slice(0, 10000);
     for (let i = 0; i < linksToStore.length; i += LINK_BATCH) {
       const chunk = linksToStore.slice(i, i + LINK_BATCH);
+      await recordProgress(pages.length);
       await db.auditLink.createMany({
         data: chunk.map((l) => ({
           crawlId,
@@ -1212,6 +1244,9 @@ async function executeCrawl(
     data: {
       status: "COMPLETED",
       finishedAt: new Date(),
+      lastProgressAt: new Date(),
+      // A crawl marked interrupted that was alive after all still completes.
+      error: null,
       pagesFound: pages.length,
       issuesFound: finalIssues,
       healthScore,

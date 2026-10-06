@@ -21,9 +21,10 @@ import {
   getDailyTraffic,
 } from "../lib/seo-metrics";
 import { getAllOpportunities } from "../lib/seo-opportunities";
-import { runSiteCrawl } from "../lib/crawler/engine";
+import { recoverCrawlsOnStartup, recoverStaleCrawls } from "../lib/crawler/lifecycle";
 import { version } from "../package.json";
 import { listVisibleIssues } from "../lib/crawler/issue-filter";
+import { crawlStatus, runCrawl } from "./crawl";
 import type { IssueSeverity } from "@prisma/client";
 
 import {
@@ -103,6 +104,9 @@ server.tool(
       return { content: [{ type: "text", text: `Site not found: ${siteId}` }] };
     }
 
+    // A crawl whose process died reads as FAILED, not RUNNING (#57).
+    await recoverStaleCrawls(db, { siteId });
+
     const [metrics, latestCrawl, latestVitals] = await Promise.all([
       getSitePeriodMetrics(siteId, 28),
       db.crawl.findFirst({
@@ -115,6 +119,7 @@ server.tool(
           pagesFound: true,
           issuesFound: true,
           finishedAt: true,
+          error: true,
         },
       }),
       db.vitalsReport.findFirst({
@@ -193,48 +198,7 @@ server.tool(
     maxPages: z.number().optional().default(200).describe("Maximum pages to crawl (default 200)"),
   },
   async ({ siteId, maxPages }) => {
-    const site = await db.site.findUnique({
-      where: { id: siteId },
-      select: { id: true, domain: true },
-    });
-
-    if (!site) {
-      return { content: [{ type: "text", text: `Site not found: ${siteId}` }] };
-    }
-
-    // Update default max pages if specified
-    if (maxPages && maxPages !== 200) {
-      await db.crawl.updateMany({
-        where: { siteId, status: "PENDING" },
-        data: { maxPages },
-      });
-    }
-
-    // Fire and forget — the crawl runs in the background
-    const crawlPromise = runSiteCrawl(siteId, site.domain);
-    crawlPromise.catch((err) => {
-      console.error(`Crawl failed for site ${siteId}:`, err);
-    });
-
-    // Give it a moment to create the crawl record
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const crawl = await db.crawl.findFirst({
-      where: { siteId },
-      orderBy: { startedAt: "desc" },
-      select: { id: true, status: true },
-    });
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: crawl
-            ? `Crawl started.\nCrawl ID: ${crawl.id}\nStatus: ${crawl.status}\n\nUse get_crawl_status to check progress.`
-            : `Crawl initiated for ${site.domain}. Check back shortly.`,
-        },
-      ],
-    };
+    return { content: [{ type: "text", text: await runCrawl(db, { siteId, maxPages }) }] };
   }
 );
 
@@ -247,35 +211,7 @@ server.tool(
   "Check the status of a crawl by its ID.",
   { crawlId: z.string().describe("The crawl ID to check") },
   async ({ crawlId }) => {
-    const crawl = await db.crawl.findUnique({
-      where: { id: crawlId },
-      select: {
-        id: true,
-        status: true,
-        startedAt: true,
-        finishedAt: true,
-        pagesFound: true,
-        issuesFound: true,
-        healthScore: true,
-        maxPages: true,
-      },
-    });
-
-    if (!crawl) {
-      return { content: [{ type: "text", text: `Crawl not found: ${crawlId}` }] };
-    }
-
-    const lines = [
-      `Crawl: ${crawl.id}`,
-      `Status: ${crawl.status}`,
-      `Pages found: ${crawl.pagesFound} / ${crawl.maxPages} max`,
-      `Issues found: ${crawl.issuesFound}`,
-      `Health score: ${crawl.healthScore ?? "pending"}/100`,
-      `Started: ${crawl.startedAt?.toISOString().slice(0, 16) ?? "-"}`,
-      `Finished: ${crawl.finishedAt?.toISOString().slice(0, 16) ?? "-"}`,
-    ];
-
-    return { content: [{ type: "text", text: lines.join("\n") }] };
+    return { content: [{ type: "text", text: await crawlStatus(db, crawlId) }] };
   }
 );
 
@@ -358,6 +294,10 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("CrawlSEO MCP server running on stdio");
+
+  // Crawls left RUNNING by a process that is gone (#57). Not awaited: a slow
+  // database must not hold up the server.
+  void recoverCrawlsOnStartup(db);
 }
 
 main().catch((err) => {

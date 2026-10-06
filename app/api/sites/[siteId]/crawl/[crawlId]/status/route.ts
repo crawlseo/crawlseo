@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recoverStaleCrawls } from "@/lib/crawler/lifecycle";
 
 export async function GET(
   _req: Request,
@@ -21,6 +22,9 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
+    // A crawl whose process died reads as FAILED, so the banner stops (#57).
+    await recoverStaleCrawls(db, { siteId, crawlId });
+
     const crawl = await db.crawl.findUnique({
       where: { id: crawlId },
       select: {
@@ -32,6 +36,7 @@ export async function GET(
         healthScore: true,
         startedAt: true,
         finishedAt: true,
+        error: true,
       },
     });
 
@@ -47,6 +52,7 @@ export async function GET(
       healthScore: crawl.healthScore,
       startedAt: crawl.startedAt,
       finishedAt: crawl.finishedAt,
+      error: crawl.error,
     });
   } catch (error) {
     console.error("Crawl status error:", error);
