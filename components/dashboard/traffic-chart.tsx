@@ -1,15 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import { formatDay } from "@/lib/format";
 
 interface TrafficChartProps {
   siteId: string;
@@ -22,15 +14,36 @@ interface ChartData {
   impressions: number;
 }
 
-function formatAxisDate(value: string) {
-  const d = new Date(`${value}T00:00:00Z`);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+type Day = { date: string; clicks: number | null; impressions: number | null };
+
+
+/** Every calendar day from the first synced day to today; days GSC has not reported stay null. */
+function fillDays(data: ChartData[]): Day[] {
+  if (data.length === 0) return [];
+  const byDate = new Map(data.map((d) => [d.date, d]));
+  const out: Day[] = [];
+  const end = new Date().toISOString().slice(0, 10);
+  for (
+    let t = Date.parse(`${data[0].date}T00:00:00Z`);
+    new Date(t).toISOString().slice(0, 10) <= end;
+    t += 86_400_000
+  ) {
+    const date = new Date(t).toISOString().slice(0, 10);
+    const row = byDate.get(date);
+    out.push({ date, clicks: row?.clicks ?? null, impressions: row?.impressions ?? null });
+  }
+  return out;
 }
 
+/**
+ * Clicks per day as bars, as on the Overview board. A day Search Console has
+ * not reported yet is an empty dashed bar, never a zero.
+ */
 export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,9 +71,13 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
     };
   }, [siteId, days]);
 
+  const series = useMemo(() => fillDays(data), [data]);
+  const max = Math.max(1, ...series.map((d) => d.clicks ?? 0));
+  const missing = series.filter((d) => d.clicks === null).length;
+
   if (loading) {
     return (
-      <div className="panel flex h-80 items-center justify-center">
+      <div className="panel flex h-[262px] items-center justify-center">
         <p className="text-atom-body text-muted-foreground">Loading traffic…</p>
       </div>
     );
@@ -68,18 +85,16 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
 
   if (error) {
     return (
-      <div className="panel flex h-80 items-center justify-center">
+      <div className="panel flex h-[262px] items-center justify-center">
         <p className="text-atom-body text-danger">{error}</p>
       </div>
     );
   }
 
-  if (data.length === 0) {
+  if (series.length === 0) {
     return (
-      <div className="panel flex h-80 flex-col items-center justify-center gap-2">
-        <p className="font-heading text-atom-subheader font-medium text-foreground">
-          No traffic yet
-        </p>
+      <div className="panel flex h-[262px] flex-col items-center justify-center gap-2">
+        <p className="text-atom-subheader font-medium text-text-strong">No traffic yet</p>
         <p className="text-atom-body text-muted-foreground">
           Sync GSC data to populate the last {days} days.
         </p>
@@ -87,107 +102,68 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
     );
   }
 
-  const info = "#A78BFA";
-  const success = "#34D399";
-  const axis = "#71717A";
-  const grid = "rgba(255,255,255,0.06)";
+  const shown = hover !== null ? series[hover] : null;
+  const ticks = [0, Math.floor((series.length - 1) / 2), series.length - 1];
 
   return (
-    <div className="panel p-5 sm:p-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h3 className="font-heading text-atom-subheader font-semibold text-foreground">
-            Search traffic
-          </h3>
-          <p className="text-atom-caption text-muted-foreground">
-            Daily clicks & impressions · last {days} days
-          </p>
-        </div>
-        <div className="flex gap-4 text-atom-caption">
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span className="size-2 rounded-full" style={{ background: info }} /> Clicks
+    <section className="panel flex flex-col gap-4 px-[22px] py-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-[15px] leading-5 font-semibold">Clicks per day</h2>
+        <div className="flex flex-wrap gap-[18px] text-[12px] leading-4 text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-1" />
+            Synced
           </span>
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span className="size-2 rounded-full" style={{ background: success }} /> Impressions
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="size-2.5 rounded-[2px] border border-dashed border-text-soft" />
+            Not in GSC yet, not a zero
           </span>
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={320}>
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="clicksFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={info} stopOpacity={0.28} />
-              <stop offset="100%" stopColor={info} stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="imprFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={success} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={success} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke={grid} strokeDasharray="4 6" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatAxisDate}
-            tick={{ fill: axis, fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            minTickGap={28}
-          />
-          <YAxis
-            yAxisId="clicks"
-            tick={{ fill: axis, fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            width={40}
-          />
-          <YAxis
-            yAxisId="impressions"
-            orientation="right"
-            tick={{ fill: axis, fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            width={48}
-          />
-          <Tooltip
-            contentStyle={{
-              background: "#161618",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 14,
-              fontSize: 12,
-              boxShadow: "0 16px 40px rgba(0,0,0,0.55)",
-              color: "#F4F4F5",
-            }}
-            labelFormatter={(label) => formatAxisDate(String(label))}
-            formatter={(value, name) => [
-              typeof value === "number" ? value.toLocaleString() : value,
-              name === "clicks" ? "Clicks" : "Impressions",
-            ]}
-          />
-          <Area
-            yAxisId="impressions"
-            type="monotone"
-            dataKey="impressions"
-            stroke={success}
-            fill="url(#imprFill)"
-            strokeWidth={2}
-            isAnimationActive={false}
-          />
-          <Area
-            yAxisId="clicks"
-            type="monotone"
-            dataKey="clicks"
-            stroke={info}
-            fill="url(#clicksFill)"
-            strokeWidth={2}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div
+        role="img"
+        aria-label={`Clicks per day, ${formatDay(series[0].date)} to ${formatDay(series[series.length - 1].date)}. Highest day ${max.toLocaleString()} clicks. ${missing} days not reported by Search Console yet.`}
+        className="flex h-[170px] items-end gap-[3px] border-b border-border sm:gap-1.5"
+        onMouseLeave={() => setHover(null)}
+      >
+        {series.map((d, i) => (
+          <div
+            key={d.date}
+            className="flex h-full min-w-0 flex-1 items-end justify-center"
+            onMouseEnter={() => setHover(i)}
+          >
+            {d.clicks === null ? (
+              <div className="h-[160px] w-full max-w-2.5 rounded-t-[2px] border border-b-0 border-dashed border-text-soft" />
+            ) : (
+              <div
+                className="w-full max-w-2.5 rounded-t-[2px] bg-chart-1 transition-opacity"
+                style={{
+                  height: `${Math.max(1, Math.round((d.clicks / max) * 160))}px`,
+                  opacity: hover === null || hover === i ? 1 : 0.55,
+                }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
 
-      <p className="mt-3 text-atom-caption text-muted-foreground">
-        Google reports with a ~3 day delay; the most recent days are not shown yet.
-      </p>
-    </div>
+      <div className="flex items-center justify-between gap-3 text-[11px] leading-4 text-muted-foreground">
+        {shown ? (
+          <span className="mono-label">
+            {formatDay(shown.date)} ·{" "}
+            {shown.clicks === null
+              ? "not in GSC yet"
+              : `${shown.clicks.toLocaleString()} clicks · ${shown.impressions?.toLocaleString()} impressions`}
+          </span>
+        ) : (
+          ticks.map((i) => (
+            <span key={i} className="mono-label">
+              {formatDay(series[i].date)}
+            </span>
+          ))
+        )}
+      </div>
+    </section>
   );
 }

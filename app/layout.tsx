@@ -1,43 +1,41 @@
-import type { Metadata } from "next";
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
+// Inter (variable) for all UI and text.
 const inter = Inter({
-  variable: "--font-sans",
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
 });
 
-const interHeading = Inter({
-  variable: "--font-heading",
+// Geist Mono for uppercase labels (400), button labels (500) and numbers.
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
-  display: "swap",
-  weight: ["500", "600", "700"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "CrawlSEO",
-    template: "%s · CrawlSEO",
+    default: "crawlseo",
+    template: "%s · crawlseo",
   },
-  description:
-    "Self-hosted SEO monitoring — GSC, crawl health, Core Web Vitals",
-  icons: {
-    icon: [
-      {
-        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23A78BFA'/><path d='M22 68 L50 22 L78 68 Z' fill='none' stroke='%230C0C0E' stroke-width='8' stroke-linejoin='round'/><circle cx='50' cy='58' r='6' fill='%230C0C0E'/></svg>",
-        type: "image/svg+xml",
-      },
-    ],
-  },
+  description: "Self-hosted SEO monitoring: GSC, crawl health, Core Web Vitals",
+  applicationName: "crawlseo",
 };
+
+// Light only: tells the browser not to darken form controls and scrollbars.
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#ffffff",
+};
+
+// Earlier versions stored a theme choice under this key. The app is light only
+// now, so the value is dropped before first paint. Storage can throw (private
+// mode, blocked site data); nothing depends on it, so errors are ignored.
+const clearStaleTheme = `try{localStorage.removeItem("crawlseo-theme")}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -45,27 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${interHeading.variable} ${plexMono.variable} dark h-full`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={`${inter.variable} ${geistMono.variable} h-full`}>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('crawlseo-theme')||'dark';var d=m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.classList.toggle('light',!d);}catch(e){}})();`,
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: clearStaleTheme }} />
       </head>
-      <body
-        className="h-full font-sans"
-        style={{
-          fontFamily:
-            'var(--font-sans), "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        }}
-      >
-        {children}
-      </body>
+      <body className="h-full font-sans">{children}</body>
     </html>
   );
 }

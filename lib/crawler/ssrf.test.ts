@@ -49,8 +49,8 @@ describe("isPrivateIp", () => {
 
 describe("fetchText (robots.txt / sitemap)", () => {
   const DNS: Record<string, string> = {
-    "acme.com": "93.184.216.34",
-    "cdn.acme.com": "93.184.216.35",
+    "quilltab.app": "93.184.216.34",
+    "cdn.quilltab.app": "93.184.216.35",
     "internal.example": "10.0.0.5",
   };
   const fetchMock = vi.fn();
@@ -72,7 +72,7 @@ describe("fetchText (robots.txt / sitemap)", () => {
   it("does not follow a redirect to a private address", async () => {
     fetchMock.mockResolvedValueOnce(redirect("http://internal.example/admin"));
 
-    expect(await fetchText("https://acme.com/robots.txt")).toBeNull();
+    expect(await fetchText("https://quilltab.app/robots.txt")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(lookup).toHaveBeenLastCalledWith("internal.example");
   });
@@ -80,32 +80,32 @@ describe("fetchText (robots.txt / sitemap)", () => {
   it("does not follow a redirect to the metadata IP literal", async () => {
     fetchMock.mockResolvedValueOnce(redirect("http://169.254.169.254/latest/meta-data/"));
 
-    expect(await fetchText("https://acme.com/sitemap.xml")).toBeNull();
+    expect(await fetchText("https://quilltab.app/sitemap.xml")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(lookup).toHaveBeenLastCalledWith("169.254.169.254");
   });
 
   it("checks every hop, not just the first two", async () => {
     fetchMock
-      .mockResolvedValueOnce(redirect("https://cdn.acme.com/a"))
-      .mockResolvedValueOnce(redirect("https://cdn.acme.com/b"))
+      .mockResolvedValueOnce(redirect("https://cdn.quilltab.app/a"))
+      .mockResolvedValueOnce(redirect("https://cdn.quilltab.app/b"))
       .mockResolvedValueOnce(redirect("http://internal.example/c"));
 
-    expect(await fetchText("https://acme.com/sitemap.xml")).toBeNull();
+    expect(await fetchText("https://quilltab.app/sitemap.xml")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("follows public redirects and returns the body", async () => {
     fetchMock
       .mockResolvedValueOnce(redirect("/sitemap_index.xml"))
-      .mockResolvedValueOnce(redirect("https://cdn.acme.com/sitemap.xml"))
+      .mockResolvedValueOnce(redirect("https://cdn.quilltab.app/sitemap.xml"))
       .mockResolvedValueOnce(new Response("<urlset/>", { status: 200 }));
 
-    expect(await fetchText("https://acme.com/sitemap.xml")).toBe("<urlset/>");
+    expect(await fetchText("https://quilltab.app/sitemap.xml")).toBe("<urlset/>");
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "https://acme.com/sitemap.xml",
-      "https://acme.com/sitemap_index.xml",
-      "https://cdn.acme.com/sitemap.xml",
+      "https://quilltab.app/sitemap.xml",
+      "https://quilltab.app/sitemap_index.xml",
+      "https://cdn.quilltab.app/sitemap.xml",
     ]);
     for (const [, init] of fetchMock.mock.calls) expect(init.redirect).toBe("manual");
   });
@@ -116,15 +116,15 @@ describe("fetchText (robots.txt / sitemap)", () => {
   });
 
   it("gives up on endless redirects", async () => {
-    fetchMock.mockImplementation(async () => redirect("https://acme.com/loop"));
+    fetchMock.mockImplementation(async () => redirect("https://quilltab.app/loop"));
 
-    expect(await fetchText("https://acme.com/robots.txt")).toBeNull();
+    expect(await fetchText("https://quilltab.app/robots.txt")).toBeNull();
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(6);
   });
 
   it("returns null for a non-2xx answer", async () => {
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 404 }));
 
-    expect(await fetchText("https://acme.com/robots.txt")).toBeNull();
+    expect(await fetchText("https://quilltab.app/robots.txt")).toBeNull();
   });
 });

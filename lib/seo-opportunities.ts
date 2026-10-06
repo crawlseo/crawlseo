@@ -199,7 +199,7 @@ export async function getAllOpportunities(siteId: string) {
     items.push({
       type: "low_ctr",
       title: k.query,
-      detail: `CTR ${(k.ctr * 100).toFixed(1)}% vs ~${(k.expectedCtr * 100).toFixed(0)}% expected at pos ${k.position.toFixed(1)} — rewrite title/meta`,
+      detail: `CTR ${(k.ctr * 100).toFixed(1)}% vs ~${(k.expectedCtr * 100).toFixed(0)}% expected at pos ${k.position.toFixed(1)}: rewrite title/meta`,
       query: k.query,
       metric: k.impressions,
       severity: k.ctrGap > 0.05 ? "high" : "medium",

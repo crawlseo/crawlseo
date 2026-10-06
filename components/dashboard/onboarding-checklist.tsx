@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Globe,
   Link2,
@@ -86,50 +87,49 @@ export function OnboardingChecklist({
 
   return (
     <div className="panel relative mb-6 overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
 
       <div className="flex items-start justify-between px-5 pt-5">
         <div>
-          <h3 className="font-heading text-lg font-semibold text-foreground">
+          <h2 className="text-[15px] leading-5 font-semibold">
             Get started
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          </h2>
+          <p className="mono-label mt-1 text-[11px] text-muted-foreground">
             {completedCount}/{steps.length} steps completed
           </p>
         </div>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="rounded-full p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          title="Dismiss"
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-bg-section hover:text-text-strong"
+          aria-label="Dismiss"
         >
           <X className="size-4" />
         </button>
       </div>
 
       {/* Progress bar */}
-      <div className="mx-5 mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+      <div className="mx-5 mt-3 h-0.5 overflow-hidden bg-bg-section">
         <div
-          className="h-full rounded-full bg-primary transition-all duration-300"
+          className="h-full bg-brand-500 transition-all duration-300"
           style={{ width: `${(completedCount / steps.length) * 100}%` }}
         />
       </div>
 
-      <div className="divide-y divide-border/40 px-2 pb-2 pt-4">
+      <div className="divide-y divide-border-soft px-2 pb-2 pt-4">
         {steps.map((step) => (
           <div
             key={step.id}
             className={cn(
-              "flex items-center gap-4 rounded-xl px-3 py-3 transition",
-              step.done ? "opacity-60" : "hover:bg-muted/30"
+              "flex items-center gap-4 rounded-md px-3 py-3 transition-colors",
+              !step.done && "hover:bg-bg-soft"
             )}
           >
             <div
               className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-full",
+                "flex size-8 shrink-0 items-center justify-center rounded-md border",
                 step.done
-                  ? "bg-signal/15 text-signal"
-                  : "bg-primary/10 text-primary"
+                  ? "border-success/30 bg-success-bg text-success"
+                  : "border-border bg-bg-soft text-text-strong"
               )}
             >
               {step.done ? <Check className="size-4" /> : step.icon}
@@ -138,24 +138,24 @@ export function OnboardingChecklist({
             <div className="min-w-0 flex-1">
               <p
                 className={cn(
-                  "text-sm font-medium",
+                  "text-[14px] font-medium",
                   step.done
                     ? "text-muted-foreground line-through"
-                    : "text-foreground"
+                    : "text-text-strong"
                 )}
               >
                 {step.label}
               </p>
-              <p className="text-xs text-muted-foreground">{step.description}</p>
+              <p className="text-[13px] leading-5 text-muted-foreground">{step.description}</p>
             </div>
 
             {!step.done && (
               <Link
                 href={step.href}
-                className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/20"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 {step.actionLabel}
-                <ChevronRight className="size-3" />
+                <ChevronRight className="size-3" aria-hidden />
               </Link>
             )}
           </div>

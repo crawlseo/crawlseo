@@ -5,7 +5,6 @@ import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
-import { DataLagBadge } from "@/components/ui/data-lag-badge";
 import { PositionBadge, NumCell, CtrCell } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 
@@ -27,9 +26,8 @@ export default async function OpportunitiesPage({ params }: Props) {
     return (
       <div>
         <PageHeader
-          eyebrow={site.domain}
           title="Opportunities"
-          description="Quick wins from your GSC data"
+          description="Quick wins from your GSC data."
         />
         <EmptyState
           title="Sync GSC first"
@@ -46,12 +44,10 @@ export default async function OpportunitiesPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
         title="Opportunities"
-        description="Striking distance, low CTR, content decay, and keyword cannibalization"
+        description="Striking distance, low CTR, content decay and keyword cannibalization."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <DataLagBadge />
             <CsvExportButton siteId={siteId} type="keywords" />
             <CsvExportButton siteId={siteId} type="pages" />
           </div>
@@ -67,28 +63,28 @@ export default async function OpportunitiesPage({ params }: Props) {
 
       {data.feed.length > 0 && (
         <div className="panel mb-6 p-5">
-          <h3 className="font-heading text-lg font-semibold">Priority feed</h3>
+          <h2 className="text-[15px] leading-5 font-semibold">Priority feed</h2>
           <ul className="mt-4 space-y-3">
             {data.feed.map((item, i) => (
               <li
                 key={`${item.type}-${item.title}-${i}`}
-                className="flex flex-col gap-1 border-b border-border/40 pb-3 last:border-0 sm:flex-row sm:items-start sm:justify-between"
+                className="flex flex-col gap-1 border-b border-border pb-3 last:border-0 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <TypeBadge type={item.type} />
                     <span
                       className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
-                        item.severity === "high" && "bg-danger/15 text-danger",
-                        item.severity === "medium" && "bg-warning/15 text-warning",
-                        item.severity === "low" && "bg-muted text-muted-foreground"
+                        "mono-label rounded-md border px-2 py-0.5 text-[11px]",
+                        item.severity === "high" && "border-danger/30 bg-danger-bg text-danger",
+                        item.severity === "medium" && "border-warning/30 bg-warning-bg text-warning",
+                        item.severity === "low" && "border-border text-text"
                       )}
                     >
                       {item.severity}
                     </span>
                   </div>
-                  <p className="mt-1 font-medium text-foreground break-all">{item.title}</p>
+                  <p className="mt-1 font-medium text-text-strong break-all">{item.title}</p>
                   <p className="text-sm text-muted-foreground">{item.detail}</p>
                 </div>
               </li>
@@ -104,14 +100,14 @@ export default async function OpportunitiesPage({ params }: Props) {
           ) : (
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <tr className="mono-label text-[11px] text-muted-foreground">
                   <th className="py-2 text-left">Query</th>
                   <th className="py-2 text-right">Pos</th>
                   <th className="py-2 text-right">Impr.</th>
                   <th className="py-2 text-right">Clicks</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border-soft">
                 {data.striking.map((k) => (
                   <tr key={k.query}>
                     <td className="py-2 font-medium">{k.query}</td>
@@ -137,14 +133,14 @@ export default async function OpportunitiesPage({ params }: Props) {
           ) : (
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <tr className="mono-label text-[11px] text-muted-foreground">
                   <th className="py-2 text-left">Query</th>
                   <th className="py-2 text-right">Pos</th>
                   <th className="py-2 text-right">CTR</th>
                   <th className="py-2 text-right">Expected</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border-soft">
                 {data.lowCtr.map((k) => (
                   <tr key={k.query}>
                     <td className="py-2 font-medium">{k.query}</td>
@@ -188,7 +184,7 @@ export default async function OpportunitiesPage({ params }: Props) {
             <ul className="space-y-4">
               {data.cannibal.map((c) => (
                 <li key={c.query}>
-                  <p className="font-medium text-foreground">{c.query}</p>
+                  <p className="font-medium text-text-strong">{c.query}</p>
                   <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
                     {c.pages.map((p) => (
                       <li key={p.url} className="flex justify-between gap-2">
@@ -212,10 +208,10 @@ export default async function OpportunitiesPage({ params }: Props) {
 function Mini({ label, value }: { label: string; value: number }) {
   return (
     <div className="panel p-4">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+      <p className="mono-label text-[11px] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 font-heading text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-2xl font-semibold text-text-strong">{value}</p>
     </div>
   );
 }
@@ -229,7 +225,7 @@ function Section({
 }) {
   return (
     <div className="panel overflow-x-auto p-5">
-      <h3 className="mb-4 font-heading text-lg font-semibold">{title}</h3>
+      <h3 className="mb-4 text-[15px] leading-5 font-semibold">{title}</h3>
       {children}
     </div>
   );
@@ -243,7 +239,7 @@ function TypeBadge({ type }: { type: string }) {
     cannibalization: "Cannibal",
   };
   return (
-    <span className="rounded-md bg-signal-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-signal">
+    <span className="mono-label rounded-md border border-border bg-bg-section px-2 py-0.5 text-[11px] text-text-strong">
       {labels[type] || type}
     </span>
   );

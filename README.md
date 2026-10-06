@@ -1,13 +1,15 @@
 <div align="center">
 
-<!-- Logo placeholder — replace with actual logo when available -->
-<!-- <img src="docs/screenshots/logo.png" alt="CrawlSEO" width="80" /> -->
-
-# CrawlSEO
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/crawlseo-lockup-on-dark.svg" />
+    <img src="docs/brand/crawlseo-lockup.svg" alt="crawlseo" height="44" />
+  </picture>
+</h1>
 
 ### Open-source SEO monitoring for founders, not SEO specialists
 
-Google Search Console + Site Crawler + Core Web Vitals + MCP Server — all in one self-hosted dashboard. Free forever.
+Google Search Console, a site crawler, Core Web Vitals and an MCP server in one self-hosted dashboard. Free forever.
 
 [![GitHub stars](https://img.shields.io/github/stars/crawlseo/crawlseo?style=flat-square)](https://github.com/crawlseo/crawlseo/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -19,12 +21,12 @@ Google Search Console + Site Crawler + Core Web Vitals + MCP Server — all in o
 ---
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="CrawlSEO Dashboard" width="800" />
+  <img src="docs/screenshots/dashboard.png" alt="crawlseo overview with Quilltab sample data" width="800" />
 </p>
 
-## Why CrawlSEO?
+## Why crawlseo?
 
-| | CrawlSEO | OpenSEO | Ahrefs | Semrush | Moz |
+| | crawlseo | OpenSEO | Ahrefs | Semrush | Moz |
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Price** | **Free** | $10/mo | €119/mo | $139/mo | $49/mo |
 | **Self-hosted** | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -47,7 +49,7 @@ Google Search Console + Site Crawler + Core Web Vitals + MCP Server — all in o
 Keywords, pages, clicks, impressions, position tracking with 28-day comparison and delta indicators.
 
 <p align="center">
-  <img src="docs/screenshots/keywords.png" alt="Keywords — GSC Analytics" width="800" />
+  <img src="docs/screenshots/keywords.png" alt="Keywords: GSC analytics" width="800" />
   <br />
   <em>Top keywords with position badges, clicks, impressions, and CTR</em>
 </p>
@@ -62,7 +64,7 @@ Crawl up to 2,000 pages with concurrent fetching. Health score, 16 issue types, 
   <em>Crawl results with health score, issue breakdown, and per-page audit data</em>
 </p>
 
-### 🤖 MCP Server — AI Agent Integration
+### 🤖 MCP server: AI agent integration
 
 10 tools for Claude Code, Claude Desktop, and Cursor. Query your SEO data, run crawls, and find opportunities without leaving the terminal.
 
@@ -81,9 +83,8 @@ Crawl up to 2,000 pages with concurrent fetching. Health score, 16 issue types, 
 | 🔗 | **Backlinks** | Backlink profile, referring domains, anchor text, dofollow/nofollow analysis |
 | 📊 | **Rank Tracking** | Historical position snapshots with saved keywords and notes |
 | 💡 | **SEO Opportunities** | Striking distance keywords, low CTR, content decay, cannibalization detection |
-| 🔔 | **Alerts** | Traffic drops, position changes, new 404s, vitals degradation — via email, Slack, Telegram, webhook |
+| 🔔 | **Alerts** | Traffic drops, position changes, new 404s, vitals degradation, by email, Slack, Telegram or webhook |
 | 📥 | **CSV Export** | Export keywords and pages data for offline analysis |
-| 🌗 | **Dark / Light theme** | Custom design system with smooth theme toggle |
 
 ## Quick Start
 
@@ -115,9 +116,9 @@ Required scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/
 
 </details>
 
-## MCP Server — AI Agent Integration
+## MCP server: AI agent integration
 
-CrawlSEO includes a Model Context Protocol server so AI agents can query your SEO data directly.
+crawlseo includes a Model Context Protocol server so AI agents can query your SEO data directly.
 
 Add to your Claude Code settings (`.claude/settings.json`):
 
@@ -215,6 +216,11 @@ npm start
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
 | `NEXTAUTH_URL` | No | Base URL (auto-detected in most environments) |
+| `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
+
+### The crawlseo.cloud card
+
+The sidebar shows one card about [crawlseo.cloud](https://crawlseo.cloud), the hosted AI visibility product from the same team. It is a plain link to the crawlseo.cloud home page (with `utm_source=oss` in the URL): the app makes no request for it, loads no image and sends no analytics. Each user can hide it with the × button (remembered in that browser), and `CRAWLSEO_HIDE_CLOUD_PROMO=true` removes it for everyone on the instance.
 
 ## Contributing
 
@@ -231,7 +237,7 @@ git push origin feature/your-feature
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 

@@ -68,7 +68,7 @@ export function SavedKeywordsTable({
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-foreground">No saved keywords match</p>
+          <p className="font-medium text-text-strong">No saved keywords match</p>
           <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
         </div>
       ) : (
@@ -79,22 +79,22 @@ export function SavedKeywordsTable({
           footer={`Showing ${filtered.length} of ${rows.length} saved keywords · last 28 days aggregated · sorted by ${sortLabel(HEADERS, sort)}`}
         >
           {filtered.map((kw) => (
-            <tr key={kw.id} className="transition-colors hover:bg-muted/25">
-              <td className="px-4 py-3 font-medium text-foreground">{kw.query}</td>
+            <tr key={kw.id} className="transition-colors hover:bg-bg-soft">
+              <td className="px-4 py-3 font-medium text-text-strong">{kw.query}</td>
               <td className="max-w-xs truncate px-4 py-3 text-muted-foreground">
-                {kw.notes || "—"}
+                {kw.notes || "n/a"}
               </td>
               <td className="px-4 py-3 text-right">
-                {kw.position != null ? <PositionBadge position={kw.position} /> : "—"}
+                {kw.position != null ? <PositionBadge position={kw.position} /> : "n/a"}
               </td>
               <td className="px-4 py-3 text-right">
-                {kw.clicks != null ? <NumCell value={kw.clicks} /> : "—"}
+                {kw.clicks != null ? <NumCell value={kw.clicks} /> : "n/a"}
               </td>
               <td className="px-4 py-3 text-right">
-                {kw.impressions != null ? <NumCell value={kw.impressions} /> : "—"}
+                {kw.impressions != null ? <NumCell value={kw.impressions} /> : "n/a"}
               </td>
               <td className="px-4 py-3 text-right">
-                {kw.ctr != null ? <CtrCell ctr={kw.ctr} /> : "—"}
+                {kw.ctr != null ? <CtrCell ctr={kw.ctr} /> : "n/a"}
               </td>
               <td className="px-4 py-3 text-right">
                 <DeleteKeywordButton siteId={siteId} query={kw.query} />

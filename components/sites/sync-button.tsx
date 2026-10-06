@@ -70,19 +70,18 @@ export function SyncButton({
         onClick={handleSync}
         disabled={loading}
         className={cn(fullWidth && "w-full", className)}
-        size="sm"
       >
         {loading ? "Syncing…" : "Sync GSC"}
       </Button>
       {reauthRequired && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg p-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="text-muted-foreground">
               Your Google connection expired.{" "}
               <button
                 onClick={() => signIn("google")}
-                className="font-medium text-primary underline underline-offset-2"
+                className="text-link font-medium"
               >
                 Reconnect &rarr;
               </button>
@@ -94,7 +93,7 @@ export function SyncButton({
         <p
           className={cn(
             "text-atom-caption",
-            error ? "text-danger" : "text-signal",
+            error ? "text-danger" : "text-success",
             fullWidth && "text-center"
           )}
         >

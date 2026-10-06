@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import type { KeywordRow } from "@/lib/seo-metrics";
 import {
   PositionBadge,
@@ -106,7 +107,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         />
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Position
           </span>
           <select
@@ -123,7 +124,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Min clicks
           </span>
           <input
@@ -137,7 +138,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Min impressions
           </span>
           <input
@@ -151,7 +152,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Sort by
           </span>
           <select
@@ -174,7 +175,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           <button
             type="button"
             onClick={clearFilters}
-            className="h-9 rounded-lg border border-border px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            className={buttonVariants({ variant: "ghost" })}
           >
             Clear
           </button>
@@ -183,7 +184,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-foreground">No keywords match</p>
+          <p className="font-medium text-text-strong">No keywords match</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Loosen position, clicks, or impressions filters.
           </p>
@@ -198,23 +199,23 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           {filtered.map((keyword) => (
             <tr
               key={keyword.query}
-              className="transition-colors hover:bg-muted/25"
+              className="transition-colors hover:bg-bg-soft"
             >
-              <td className="max-w-md px-4 py-3">
-                <span className="font-medium text-foreground">
+              <td className="max-w-md px-4 py-[11px]">
+                <span className="text-text-strong">
                   {keyword.query}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-[11px] text-right">
                 <PositionBadge position={keyword.position} />
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-[11px] text-right">
                 <NumCell value={keyword.clicks} />
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-[11px] text-right">
                 <NumCell value={keyword.impressions} />
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-[11px] text-right">
                 <CtrCell ctr={keyword.ctr} />
               </td>
             </tr>

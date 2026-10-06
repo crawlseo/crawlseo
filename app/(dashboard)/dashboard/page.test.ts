@@ -45,7 +45,6 @@ vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 // Client components under test (the dashboard is what we render, but these
 // children pull in browser-only hooks / modals we do not want in a node test).
 vi.mock("@/components/sites/add-site-modal", () => ({ AddSiteModal: () => null }));
-vi.mock("@/components/ui/data-lag-badge", () => ({ DataLagBadge: () => null }));
 
 import DashboardPage from "./page";
 

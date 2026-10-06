@@ -4,8 +4,8 @@ const { db, tx, lookup, row } = vi.hoisted(() => {
   const row = {
     id: "site-1",
     userId: "user-1",
-    domain: "acme.com",
-    gscProperty: "sc-domain:acme.com",
+    domain: "quilltab.app",
+    gscProperty: "sc-domain:quilltab.app",
     bingSite: "https://old.example/" as string | null,
   };
   const update = vi.fn(async ({ data }: { data: Partial<typeof row> }) => {
@@ -60,8 +60,8 @@ function put(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(row, {
-    domain: "acme.com",
-    gscProperty: "sc-domain:acme.com",
+    domain: "quilltab.app",
+    gscProperty: "sc-domain:quilltab.app",
     bingSite: "https://old.example/",
   });
   tx.$queryRaw.mockImplementation(async () => [{ bingSite: row.bingSite }]);
@@ -80,7 +80,7 @@ describe("PUT /api/sites/[siteId] domain", () => {
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: "Domain must resolve to a public IP address" });
       expect(db.site.update).not.toHaveBeenCalled();
-      expect(row.domain).toBe("acme.com");
+      expect(row.domain).toBe("quilltab.app");
     }
   );
 
@@ -91,7 +91,7 @@ describe("PUT /api/sites/[siteId] domain", () => {
 
     expect(res.status).toBe(400);
     expect(db.site.update).not.toHaveBeenCalled();
-    expect(row.domain).toBe("acme.com");
+    expect(row.domain).toBe("quilltab.app");
   });
 
   it("accepts a domain that resolves to a public IP", async () => {
@@ -107,7 +107,7 @@ describe("PUT /api/sites/[siteId] domain", () => {
 
     expect(blocked.status).toBe(400);
     expect(lookup).toHaveBeenCalledWith("internal.example");
-    expect(row.domain).toBe("acme.com");
+    expect(row.domain).toBe("quilltab.app");
 
     const allowed = await put({ domain: "https://new-site.com/blog/" });
 
@@ -117,11 +117,11 @@ describe("PUT /api/sites/[siteId] domain", () => {
   });
 
   it("does not resolve anything when only gscProperty changes", async () => {
-    const res = await put({ gscProperty: "sc-domain:acme.com" });
+    const res = await put({ gscProperty: "sc-domain:quilltab.app" });
 
     expect(res.status).toBe(200);
     expect(lookup).not.toHaveBeenCalled();
-    expect(row.domain).toBe("acme.com");
+    expect(row.domain).toBe("quilltab.app");
   });
 });
 

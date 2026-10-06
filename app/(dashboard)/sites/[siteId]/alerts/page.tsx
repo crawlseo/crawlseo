@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 import { PageHeader } from "@/components/ui/page-header";
 import { EvaluateAlertsButton } from "@/components/sites/evaluate-alerts-button";
+import { formatDay } from "@/lib/format";
 
 interface Props {
   params: Promise<{ siteId: string }>;
@@ -29,26 +30,25 @@ export default async function AlertsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
         title="Alerts"
-        description="Rules for traffic drops, position changes, crawl health, and vitals"
+        description="Rules for traffic drops, position changes, crawl health and vitals."
         actions={<EvaluateAlertsButton />}
       />
 
-      <div className="panel divide-y divide-border/50">
+      <div className="panel divide-y divide-border-soft">
         {alerts.map((a) => (
           <div
             key={a.id}
             className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="font-medium text-foreground">
+              <p className="mono-label text-[12px] text-text-strong">
                 {a.type.replaceAll("_", " ")}
               </p>
               <p className="text-xs text-muted-foreground">
                 Channel: {a.channel}
                 {a.lastFired
-                  ? ` · last fired ${new Date(a.lastFired).toLocaleString()}`
+                  ? ` · last fired ${formatDay(a.lastFired, { year: true, time: true })}`
                   : " · never fired"}
               </p>
               <p className="mt-1 font-data text-[11px] text-muted-foreground">
@@ -58,8 +58,8 @@ export default async function AlertsPage({ params }: Props) {
             <span
               className={
                 a.enabled
-                  ? "rounded-md bg-signal-muted px-2 py-1 text-xs font-semibold text-signal"
-                  : "rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                  ? "mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success"
+                  : "mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
               }
             >
               {a.enabled ? "Enabled" : "Off"}

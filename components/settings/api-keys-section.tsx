@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, FlaskConical, Save, Trash2 } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { formatDay } from "@/lib/format";
 
 type ApiKeyStatus = Record<string, { connected: boolean; updatedAt?: string }>;
 
@@ -24,8 +26,8 @@ export function ApiKeysSection({
 
   return (
     <div id="api-keys" className="panel scroll-mt-6 p-5">
-      <h3 className="font-heading text-lg font-semibold text-foreground">
-        External API Keys
+      <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
+        External API keys
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
         Connect third-party APIs for advanced SEO data like keyword volume,
@@ -193,17 +195,17 @@ function ProviderCard({
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h4 className="font-medium text-foreground">{name}</h4>
+          <h4 className="font-medium text-text-strong">{name}</h4>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">
           {isConnected ? (
-            <span className="flex items-center gap-1.5 rounded-full bg-signal/10 px-2.5 py-1 text-xs font-medium text-signal">
+            <span className="flex items-center gap-1.5 mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success">
               <CheckCircle2 className="size-3.5" />
               Connected
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+            <span className="flex items-center gap-1.5 mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
               <XCircle className="size-3.5" />
               Not configured
             </span>
@@ -216,14 +218,14 @@ function ProviderCard({
           <p className="text-xs text-muted-foreground">
             Last updated:{" "}
             {status?.updatedAt
-              ? new Date(status.updatedAt).toLocaleDateString()
-              : "—"}
+              ? formatDay(status.updatedAt, { year: true })
+              : "n/a"}
           </p>
           <button
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="flex items-center gap-1.5 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger/10 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-bg disabled:opacity-50"
           >
             {deleting ? (
               <Loader2 className="size-3 animate-spin" />
@@ -244,7 +246,7 @@ function ProviderCard({
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               placeholder={loginPlaceholder}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
             />
           </div>
 
@@ -258,7 +260,7 @@ function ProviderCard({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={passwordPlaceholder}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
               />
             </div>
           )}
@@ -266,7 +268,7 @@ function ProviderCard({
           {error && <p className="text-xs text-danger">{error}</p>}
 
           {testResult === true && (
-            <p className="flex items-center gap-1.5 text-xs text-signal">
+            <p className="flex items-center gap-1.5 text-xs text-success">
               <CheckCircle2 className="size-3.5" />
               Connection successful
             </p>
@@ -278,21 +280,21 @@ function ProviderCard({
                 type="button"
                 onClick={handleTest}
                 disabled={!complete || testing}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-strong transition hover:bg-muted disabled:opacity-50"
               >
                 {testing ? (
                   <Loader2 className="size-3 animate-spin" />
                 ) : (
                   <FlaskConical className="size-3" />
                 )}
-                Test Connection
+                Test connection
               </button>
             )}
             <button
               type="button"
               onClick={handleSave}
               disabled={!complete || saving}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+              className={buttonVariants({ size: "sm" })}
             >
               {saving ? (
                 <Loader2 className="size-3 animate-spin" />

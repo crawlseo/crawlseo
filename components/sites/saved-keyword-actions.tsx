@@ -52,7 +52,7 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="e.g. seo tools"
-          className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:outline-none"
           autoFocus
         />
       </div>
@@ -63,7 +63,7 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Target page, intent..."
-          className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:outline-none"
         />
       </div>
       <Button size="sm" type="submit" disabled={loading || !query.trim()}>
@@ -101,7 +101,7 @@ export function DeleteKeywordButton({ siteId, query }: { siteId: string; query: 
       type="button"
       onClick={handleDelete}
       disabled={loading}
-      className="rounded-full p-1.5 text-muted-foreground transition hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+      className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"
       title="Remove saved keyword"
     >
       <Trash2 className="size-3.5" />

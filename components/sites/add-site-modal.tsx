@@ -131,13 +131,13 @@ export function AddSiteModal({
 
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <div className="rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="rounded-lg border border-signal/30 bg-signal-muted px-3 py-2 text-sm text-signal">
+            <div className="rounded-lg border border-success/30 bg-success-bg px-3 py-2 text-sm text-success">
               Site connected. Opening workspace…
             </div>
           )}

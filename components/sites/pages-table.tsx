@@ -68,7 +68,7 @@ export function PagesTable({
         <SearchField value={search} onChange={setSearch} placeholder="Filter by URL..." />
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Position
           </span>
           <select
@@ -85,7 +85,7 @@ export function PagesTable({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Min clicks
           </span>
           <input
@@ -99,7 +99,7 @@ export function PagesTable({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="mono-label text-[11px] text-muted-foreground">
             Min impressions
           </span>
           <input
@@ -115,7 +115,7 @@ export function PagesTable({
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-foreground">No pages match</p>
+          <p className="font-medium text-text-strong">No pages match</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Loosen the search or filters.
           </p>
@@ -133,27 +133,27 @@ export function PagesTable({
               : `https://${domain}${page.url.startsWith("/") ? "" : "/"}${page.url}`;
 
             return (
-              <tr key={page.url} className="transition-colors hover:bg-muted/25">
-                <td className="max-w-xl px-4 py-3">
+              <tr key={page.url} className="transition-colors hover:bg-bg-soft">
+                <td className="max-w-xl px-4 py-[11px]">
                   <a
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="break-all font-medium text-signal hover:underline"
+                    className="text-link break-all font-data text-[12px]"
                   >
                     {page.url}
                   </a>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-[11px] text-right">
                   <PositionBadge position={page.position} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-[11px] text-right">
                   <NumCell value={page.clicks} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-[11px] text-right">
                   <NumCell value={page.impressions} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-[11px] text-right">
                   <CtrCell ctr={page.ctr} />
                 </td>
               </tr>

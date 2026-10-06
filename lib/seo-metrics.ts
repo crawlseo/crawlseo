@@ -311,7 +311,7 @@ export async function getDailyTraffic(
 }
 
 export function formatPosition(position: number): string {
-  if (!Number.isFinite(position) || position <= 0) return "—";
+  if (!Number.isFinite(position) || position <= 0) return "n/a";
   return position.toFixed(1);
 }
 

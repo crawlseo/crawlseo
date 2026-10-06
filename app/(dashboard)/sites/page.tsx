@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { SyncButton } from "@/components/sites/sync-button";
 import { formatCompact } from "@/lib/seo-metrics";
+import { formatDay } from "@/lib/format";
 
 export default async function SitesPage() {
   const session = await auth();
@@ -31,7 +32,6 @@ export default async function SitesPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Properties"
         title="Sites"
         description="Connect and sync Google Search Console properties."
         actions={<AddSiteModal />}
@@ -41,7 +41,7 @@ export default async function SitesPage() {
         <EmptyState
           icon="⊕"
           title="Connect your first property"
-          description="Choose a domain or URL-prefix property from Search Console. CrawlSEO stores your metrics locally."
+          description="Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -50,7 +50,7 @@ export default async function SitesPage() {
               <Link href={`/sites/${site.id}`} className="group block min-w-0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="truncate font-heading text-lg font-semibold text-foreground group-hover:text-signal">
+                    <h2 className="truncate font-data text-[17px] leading-6 font-medium text-text-strong decoration-brand-500 underline-offset-4 group-hover:underline">
                       {site.domain}
                     </h2>
                     <p className="mt-1 truncate font-data text-xs text-muted-foreground">
@@ -59,7 +59,7 @@ export default async function SitesPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border/50 pt-4">
+                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4">
                   <MiniStat
                     label="Keyword rows"
                     value={formatCompact(site._count.keywords)}
@@ -76,15 +76,11 @@ export default async function SitesPage() {
 
                 <p className="mt-4 text-xs text-muted-foreground">
                   Added{" "}
-                  {new Date(site.createdAt).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {formatDay(site.createdAt, { year: true })}
                 </p>
               </Link>
 
-              <div className="mt-4 border-t border-border/50 pt-4">
+              <div className="mt-4 border-t border-border pt-4">
                 <SyncButton siteId={site.id} fullWidth />
               </div>
             </div>
@@ -98,10 +94,10 @@ export default async function SitesPage() {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+      <p className="mono-label text-[11px] text-muted-foreground">
         {label}
       </p>
-      <p className="font-data mt-0.5 text-sm font-semibold text-foreground">
+      <p className="font-data mt-0.5 text-[14px] font-medium text-text-strong">
         {value}
       </p>
     </div>

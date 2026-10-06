@@ -21,9 +21,8 @@ export default async function McpPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
         title="AI & MCP"
-        description="Connect your AI agent to CrawlSEO via the Model Context Protocol"
+        description="Connect your AI agent to crawlseo through the Model Context Protocol."
       />
       <McpPageContent />
     </div>

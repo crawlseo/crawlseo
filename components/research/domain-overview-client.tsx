@@ -9,6 +9,7 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 
 type DomainData = {
   source: string;
@@ -86,17 +87,17 @@ export function DomainOverviewClient({
   return (
     <div className="space-y-6">
       {!hasDataForSEO && (
-        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4">
+        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-bg p-4">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
-            <p className="font-medium text-foreground">
-              Limited data — GSC metrics only
+            <p className="font-medium text-text-strong">
+              Limited data: GSC metrics only
             </p>
             <p className="mt-0.5 text-muted-foreground">
               Add a DataForSEO API key in{" "}
               <Link
                 href={`/sites/${siteId}/settings`}
-                className="text-primary underline underline-offset-2"
+                className="text-link"
               >
                 Settings
               </Link>{" "}
@@ -112,7 +113,7 @@ export function DomainOverviewClient({
           type="button"
           onClick={loadOwnDomain}
           disabled={loadingOwn}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+          className={buttonVariants()}
         >
           {loadingOwn ? (
             <Loader2 className="size-4 animate-spin" />
@@ -131,13 +132,13 @@ export function DomainOverviewClient({
                 value={competitorDomain}
                 onChange={(e) => setCompetitorDomain(e.target.value)}
                 placeholder="Enter competitor domain..."
-                className="w-full rounded-lg border border-border bg-background py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-lg border border-border bg-background py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
               />
             </div>
             <button
               type="submit"
               disabled={!competitorDomain.trim() || loadingCompetitor}
-              className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-text-strong transition hover:bg-muted disabled:opacity-50"
             >
               {loadingCompetitor ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -154,7 +155,7 @@ export function DomainOverviewClient({
       {(ownData || competitorData) && (
         <div className="grid gap-4 sm:grid-cols-2">
           {ownData && (
-            <DomainCard data={ownData} label="Your Domain" />
+            <DomainCard data={ownData} label="Your domain" />
           )}
           {competitorData && (
             <DomainCard data={competitorData} label="Competitor" />
@@ -170,14 +171,14 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
     <div className="panel p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          <p className="eyebrow text-[12px]">
             {label}
           </p>
-          <h3 className="font-heading text-lg font-semibold text-foreground">
+          <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
             {data.domain}
           </h3>
         </div>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+        <span className="mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
           {data.source}
         </span>
       </div>
@@ -185,16 +186,16 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
       {data.overview ? (
         <div className="grid grid-cols-2 gap-3">
           <MetricCard
-            label="Organic Keywords"
+            label="Organic keywords"
             value={data.overview.organicKeywords.toLocaleString()}
           />
           <MetricCard
-            label="Organic Traffic"
+            label="Organic traffic"
             value={data.overview.organicTraffic.toLocaleString()}
           />
           {data.overview.organicCost != null && (
             <MetricCard
-              label="Traffic Cost"
+              label="Traffic cost"
               value={`$${data.overview.organicCost.toLocaleString()}`}
             />
           )}
@@ -206,14 +207,14 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
           )}
           {data.overview.referringDomains != null && (
             <MetricCard
-              label="Referring Domains"
+              label="Referring domains"
               value={data.overview.referringDomains.toLocaleString()}
             />
           )}
         </div>
       ) : (
         <div className="flex flex-col items-center py-8 text-center">
-          <Globe className="size-8 text-muted-foreground/30" />
+          <Globe className="size-8 text-text-faint" />
           <p className="mt-2 text-sm text-muted-foreground">
             No data available for this domain
           </p>
@@ -222,16 +223,16 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
 
       {data.backlinks && (
         <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="mb-2 mono-label text-[12px] text-muted-foreground">
             Backlink Summary
           </p>
           <div className="grid grid-cols-2 gap-3">
             <MetricCard
-              label="Total Backlinks"
+              label="Total backlinks"
               value={data.backlinks.totalBacklinks.toLocaleString()}
             />
             <MetricCard
-              label="Referring Domains"
+              label="Referring domains"
               value={data.backlinks.referringDomains.toLocaleString()}
             />
             <MetricCard
@@ -251,11 +252,11 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border/50 bg-panel/80 px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+    <div className="rounded-lg border border-border bg-bg px-3 py-2.5">
+      <p className="mono-label text-[11px] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 font-data text-lg font-semibold text-foreground">
+      <p className="mt-1 font-data text-lg font-medium text-text-strong">
         {value}
       </p>
     </div>

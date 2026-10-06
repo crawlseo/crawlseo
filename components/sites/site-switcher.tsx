@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -40,38 +42,38 @@ export function SiteSwitcher({ sites }: { sites: Site[] }) {
     router.push(`/sites/${siteId}`);
   }
 
+  // A bordered button in mono with a chevron, as on the sidebar board. The domain keeps its own case.
+  const box =
+    "flex h-[38px] w-full items-center justify-between gap-2 rounded-md border border-border bg-bg px-2.5 font-data text-[13px] text-text-strong";
+
+  // One site: the button leads to the sites list, where another site is added.
   if (sites.length === 1) {
     return (
-      <div className="rounded-lg border border-border/60 bg-panel/60 px-3 py-2">
-        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          Site
-        </p>
-        <p className="truncate text-sm font-medium text-foreground">
-          {sites[0].domain}
-        </p>
-      </div>
+      <Link
+        href="/sites"
+        aria-label={`Site: ${sites[0].domain}. Switch or add a site`}
+        className={`${box} transition-colors hover:border-line-strong`}
+      >
+        <span className="truncate">{sites[0].domain}</span>
+        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
     );
   }
 
   const items = sites.map((site) => ({ value: site.id, label: site.domain }));
 
   return (
-    <div>
-      <p className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        Switch site
-      </p>
-      <Select value={selected} onValueChange={handleSiteChange} items={items}>
-        <SelectTrigger className="w-full border-border/70 bg-panel">
-          <SelectValue placeholder="Choose a site" />
-        </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
-          {items.map(({ value, label }) => (
-            <SelectItem key={value} value={value}>
-              {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={selected} onValueChange={handleSiteChange} items={items}>
+      <SelectTrigger aria-label="Switch site" className={`${box} py-0 pr-2 data-[size=default]:h-[38px]`}>
+        <SelectValue placeholder="Choose a site" />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        {items.map(({ value, label }) => (
+          <SelectItem key={value} value={value} className="font-data text-[13px]">
+            {label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

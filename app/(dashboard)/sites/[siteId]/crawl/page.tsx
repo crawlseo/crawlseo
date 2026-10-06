@@ -7,6 +7,7 @@ import { CrawlButton } from "@/components/sites/action-buttons";
 import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
 import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
 import { cn } from "@/lib/utils";
+import { formatDay } from "@/lib/format";
 
 interface Props {
   params: Promise<{ siteId: string }>;
@@ -70,12 +71,17 @@ export default async function CrawlPage({ params }: Props) {
 
   const orphanCount = auditPages.filter((p) => p.internalLinks === 0 && p.url !== "/").length;
 
+  const crawledAt = latest?.finishedAt ? formatDay(latest.finishedAt, { time: true }) : null;
+
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
-        title="Site crawl"
-        description="Technical SEO audit · meta, headings, schema, sitemap, orphans, content score"
+        title="Crawl / Audit"
+        meta={
+          latest
+            ? `Crawl ${crawledAt} · ${latest.pagesFound} pages crawled · ${auditPages.length} stored`
+            : "No crawl yet"
+        }
         actions={<CrawlButton siteId={siteId} />}
       />
 
@@ -94,34 +100,100 @@ export default async function CrawlPage({ params }: Props) {
           description="Run a crawl to check titles, H1s, canonicals, broken pages, sitemap coverage, and on-page content scores."
         />
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <ScoreCard
-              label="Health"
-              value={`${latest.healthScore ?? "—"}`}
-              hint="/100"
-              tone={(latest.healthScore ?? 0) >= 80 ? "good" : (latest.healthScore ?? 0) >= 60 ? "mid" : "bad"}
-            />
-            <ScoreCard label="Pages" value={String(latest.pagesFound)} hint="crawled" />
-            <ScoreCard label="Issues" value={String(realIssues.length)} hint={`${bySeverity.CRITICAL} critical`} />
-            <ScoreCard
-              label="Content avg"
-              value={String(avgContentScore ?? "—")}
-              hint="/100"
-            />
-            <ScoreCard
-              label="Orphans"
-              value={String(orphanCount)}
-              hint="no inlinks"
-            />
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+            <div className="panel col-span-2 flex flex-col gap-2.5 px-5 py-[18px] lg:col-span-1">
+              <span className="text-[13px] leading-5 text-muted-foreground">Health</span>
+              <span className="font-data text-[40px] leading-[44px] font-medium tracking-[-0.03em] text-text-strong">
+                {latest.healthScore ?? "n/a"}
+                <span className="ml-1 text-[15px] tracking-normal text-muted-foreground">/100</span>
+              </span>
+              <span className="mono-label text-[11px] leading-[1.5] text-muted-foreground">
+                Latest completed crawl · content avg {avgContentScore ?? "n/a"}/100
+              </span>
+            </div>
+            <CountCard label="Critical" n={bySeverity.CRITICAL} note="Blocks indexing or users" tone="danger" />
+            <CountCard label="Warning" n={bySeverity.WARNING} note="Hurts ranking" tone="warning" />
+            <CountCard label="Info" n={bySeverity.INFO} note="Worth knowing" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[2.3fr_1fr]">
+            {/* Issues list with remediation */}
+            <section className="panel overflow-hidden">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 pb-1.5">
+                <h2 className="text-[15px] leading-5 font-semibold">Issues</h2>
+                <span className="mono-label text-[11px] text-muted-foreground">
+                  {realIssues.length} issues
+                </span>
+              </div>
+              {realIssues.length === 0 ? (
+                <p className="px-4 pt-2 pb-6 text-[13px] text-muted-foreground">No issues found</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-[13px]">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className={th}>Severity</th>
+                        <th className={th}>Issue</th>
+                        <th className={th}>Page</th>
+                        <th className={th}>Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-soft">
+                      {realIssues.slice(0, 100).map((issue) => {
+                        const details = issue.details as { howToFix?: string; kind?: string } | null;
+                        return (
+                          <tr key={issue.id} className="align-top">
+                            <td className="px-4 py-3">
+                              <SeverityChip severity={issue.severity} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-text-strong">{issue.message}</p>
+                              {details?.howToFix && (
+                                <p className="mt-1 text-[12px] leading-[18px] text-muted-foreground">
+                                  <span className="font-medium text-text">Fix: </span>
+                                  {details.howToFix}
+                                </p>
+                              )}
+                            </td>
+                            <td className="max-w-[260px] truncate px-4 py-3 font-data text-[12px]" title={issue.url}>
+                              {pathOf(issue.url)}
+                            </td>
+                            <td className="px-4 py-3 mono-label text-[11px] whitespace-nowrap text-muted-foreground">
+                              {issue.type.replace(/_/g, " ")}
+                              {details?.kind === "orphan" ? " · orphan" : ""}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="panel flex flex-col gap-2.5 self-start px-5 py-[18px]">
+              <h2 className="text-[15px] leading-5 font-semibold">Internal links</h2>
+              <div className="flex justify-between gap-3 text-[13px]">
+                <span>Orphans (no inbound link)</span>
+                <span className="font-data text-text-strong">{orphanCount}</span>
+              </div>
+              <div className="flex justify-between gap-3 text-[13px]">
+                <span>Content score, average</span>
+                <span className="font-data text-text-strong">{avgContentScore ?? "n/a"}</span>
+              </div>
+              <a href="#crawled-pages" className="text-link text-[13px]">
+                See them in Crawled pages
+              </a>
+            </section>
           </div>
 
           {/* Crawled pages table (from AuditPage model) */}
           {auditPages.length > 0 && (
-            <div>
-              <div className="px-1 pb-3">
-                <h3 className="font-heading text-lg font-semibold">Crawled pages</h3>
-                <p className="text-sm text-muted-foreground">
+            <section id="crawled-pages" className="scroll-mt-6">
+              <div className="flex flex-col gap-1 px-1 pb-3">
+                <h2 className="text-[15px] leading-5 font-semibold">Crawled pages</h2>
+                <p className="text-[13px] text-muted-foreground">
                   {auditPages.length} pages stored with full metadata
                 </p>
               </div>
@@ -139,93 +211,63 @@ export default async function CrawlPage({ params }: Props) {
                   responseTimeMs: p.responseTimeMs,
                 }))}
               />
-            </div>
+            </section>
           )}
-
-          {/* Issues list with remediation */}
-          <div className="panel overflow-hidden">
-            <div className="border-b border-border/60 px-5 py-4">
-              <h3 className="font-heading text-lg font-semibold">Issues</h3>
-              <p className="text-sm text-muted-foreground">
-                Critical {bySeverity.CRITICAL} · Warning {bySeverity.WARNING} · Info{" "}
-                {bySeverity.INFO}
-              </p>
-            </div>
-            {realIssues.length === 0 ? (
-              <p className="px-5 py-8 text-sm text-muted-foreground">No issues found</p>
-            ) : (
-              <ul className="divide-y divide-border/40">
-                {realIssues.slice(0, 100).map((issue) => {
-                  const details = issue.details as { howToFix?: string; kind?: string } | null;
-                  return (
-                    <li key={issue.id} className="px-5 py-3">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{issue.message}</p>
-                          <p className="truncate text-xs text-muted-foreground">{issue.url}</p>
-                          <p className="mt-0.5 font-data text-[11px] text-muted-foreground">
-                            {issue.type.replace(/_/g, " ")}
-                            {details?.kind === "orphan" ? " · orphan" : ""}
-                          </p>
-                        </div>
-                        <span
-                          className={cn(
-                            "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                            issue.severity === "CRITICAL" && "bg-danger/15 text-danger",
-                            issue.severity === "WARNING" && "bg-warning/15 text-warning",
-                            issue.severity === "INFO" && "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {issue.severity}
-                        </span>
-                      </div>
-                      {details?.howToFix && (
-                        <p className="mt-1.5 rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                          <span className="font-semibold text-foreground/80">Fix: </span>
-                          {details.howToFix}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
         </div>
       )}
     </div>
   );
 }
 
-function ScoreCard({
+const th = "mono-label px-4 py-2.5 text-left text-[11px] font-normal text-muted-foreground";
+
+function pathOf(url: string) {
+  try {
+    const u = new URL(url);
+    return u.pathname + u.search;
+  } catch {
+    return url;
+  }
+}
+
+function SeverityChip({ severity }: { severity: string }) {
+  return (
+    <span
+      className={cn(
+        "mono-label inline-flex rounded-md border px-2 py-0.5 text-[11px] whitespace-nowrap",
+        severity === "CRITICAL" && "border-danger/30 bg-danger-bg text-danger",
+        severity === "WARNING" && "border-warning/30 bg-warning-bg text-warning",
+        severity === "INFO" && "border-border text-text"
+      )}
+    >
+      {severity.toLowerCase()}
+    </span>
+  );
+}
+
+function CountCard({
   label,
-  value,
-  hint,
+  n,
+  note,
   tone,
 }: {
   label: string;
-  value: string;
-  hint?: string;
-  tone?: "good" | "mid" | "bad";
+  n: number;
+  note: string;
+  tone?: "danger" | "warning";
 }) {
   return (
-    <div className="panel p-4">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
-      <p
+    <div className="panel flex flex-col gap-2.5 px-5 py-[18px]">
+      <span className="text-[13px] leading-5 text-muted-foreground">{label}</span>
+      <span
         className={cn(
-          "mt-2 font-heading text-2xl font-semibold",
-          tone === "good" && "text-signal",
-          tone === "mid" && "text-warning",
-          tone === "bad" && "text-danger"
+          "font-data text-[30px] leading-9 font-medium",
+          tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-text-strong"
         )}
       >
-        {value}
-        {hint && (
-          <span className="ml-1 text-sm font-normal text-muted-foreground">{hint}</span>
-        )}
-      </p>
+        {n}
+      </span>
+      <span className="text-[12px] leading-4 text-muted-foreground">{note}</span>
     </div>
   );
 }

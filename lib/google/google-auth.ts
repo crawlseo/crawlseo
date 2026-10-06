@@ -45,7 +45,7 @@ async function refreshAccessToken(
     }
     throw new Error(
       `Failed to refresh token: ${response.status} ${response.statusText}${
-        body ? ` — ${body.slice(0, 500)}` : ""
+        body ? `: ${body.slice(0, 500)}` : ""
       }`
     );
   }

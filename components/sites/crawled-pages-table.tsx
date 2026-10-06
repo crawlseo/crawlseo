@@ -55,7 +55,7 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-foreground">No pages match</p>
+          <p className="font-medium text-text-strong">No pages match</p>
           <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
         </div>
       ) : (
@@ -66,28 +66,28 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
           footer={`Showing ${filtered.length} of ${rows.length} pages · sorted by ${sortLabel(HEADERS, sort)}`}
         >
           {filtered.map((p) => (
-            <tr key={p.id} className="hover:bg-muted/20">
-              <td className="max-w-md truncate px-4 py-2.5 font-medium" title={p.url}>
+            <tr key={p.id} className="hover:bg-bg-soft">
+              <td className="max-w-md truncate px-4 py-[11px] font-data text-[12px] text-text-strong" title={p.url}>
                 {p.url}
               </td>
-              <td className="px-4 py-2.5 text-right font-data">
+              <td className="px-4 py-[11px] text-right font-data">
                 <span
                   className={cn(
                     p.statusCode >= 400
                       ? "text-danger"
                       : p.statusCode >= 300
                         ? "text-warning"
-                        : "text-signal"
+                        : "text-success"
                   )}
                 >
                   {p.statusCode}
                 </span>
               </td>
-              <td className="px-4 py-2.5 text-right font-data">
+              <td className="px-4 py-[11px] text-right font-data">
                 <span
                   className={cn(
                     p.contentScore >= 70
-                      ? "text-signal"
+                      ? "text-success"
                       : p.contentScore >= 50
                         ? "text-warning"
                         : "text-danger"
@@ -96,13 +96,13 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                   {p.contentScore}
                 </span>
               </td>
-              <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+              <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.wordCount}
               </td>
-              <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+              <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.h1Count}
               </td>
-              <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+              <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.imagesMissingAlt > 0 ? (
                   <span className="text-warning">
                     {p.imagesMissingAlt}/{p.imageCount}
@@ -111,10 +111,10 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                   p.imageCount
                 )}
               </td>
-              <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+              <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.internalLinks}
               </td>
-              <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+              <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.responseTimeMs}ms
               </td>
             </tr>

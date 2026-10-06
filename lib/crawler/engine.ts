@@ -588,7 +588,7 @@ export function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueIn
         url,
         type: "BROKEN_LINK",
         severity: "INFO",
-        message: `Managed infra endpoint (${infra.provider}) — expected, not a broken link`,
+        message: `Managed infra endpoint (${infra.provider}), expected, not a broken link`,
         details: {
           statusCode: page.statusCode,
           provider: infra.provider,
@@ -902,7 +902,7 @@ async function executeCrawl(
             url,
             type: "BROKEN_LINK",
             severity: "INFO",
-            message: `Managed infra endpoint (${infra.provider}) — expected, not a broken link`,
+            message: `Managed infra endpoint (${infra.provider}), expected, not a broken link`,
             details: {
               provider: infra.provider,
               ...REMEDIATION.MANAGED_INFRA

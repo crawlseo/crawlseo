@@ -83,9 +83,9 @@ model ApiKey {
 model Site {
   id          String   @id @default(cuid())
   userId      String
-  domain      String   // e.g. "brandson.digital"
-  gscProperty String?  // e.g. "sc-domain:brandson.digital"
-  bingSite    String?  // e.g. "https://brandson.digital/" (Bing's own URL form)
+  domain      String   // e.g. "quilltab.app"
+  gscProperty String?  // e.g. "sc-domain:quilltab.app"
+  bingSite    String?  // e.g. "https://quilltab.app/" (Bing's own URL form)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

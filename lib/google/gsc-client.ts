@@ -43,7 +43,7 @@ export async function listGSCProperties(
     const body = await response.text().catch(() => "");
     throw new Error(
       `Failed to list GSC properties: ${response.status} ${response.statusText}${
-        body ? ` — ${body.slice(0, 500)}` : ""
+        body ? `: ${body.slice(0, 500)}` : ""
       }`
     );
   }

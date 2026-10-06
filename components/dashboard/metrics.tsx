@@ -1,5 +1,5 @@
 import { getSitePeriodMetrics, formatCompact, formatCtr } from "@/lib/seo-metrics";
-import { formatDeltaPercent, formatDeltaPosition } from "@/lib/format";
+import { signed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface MetricsProps {
@@ -7,81 +7,73 @@ interface MetricsProps {
   days?: number;
 }
 
+/**
+ * KPI card from the Overview board: label, mono value, and the change as a
+ * one-line mono uppercase value. The page meta line already says which two
+ * periods are compared, so the delta carries no words beyond its unit.
+ */
 function MetricCard({
   label,
   value,
   delta,
   deltaLabel,
-  hint,
 }: {
   label: string;
   value: string;
+  /** Positive is better. */
   delta: number;
   deltaLabel: string;
-  hint?: string;
 }) {
   const isFlat = !Number.isFinite(delta) || Math.abs(delta) < 0.05;
-  const good = delta > 0;
 
   return (
-    <div className="panel relative p-5">
-      <p className="text-atom-caption font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-        {label}
+    <div className="panel flex min-w-0 flex-col gap-2 px-5 py-[18px]">
+      <p className="text-[13px] leading-5 text-muted-foreground">{label}</p>
+      <p className="font-data text-[30px] leading-9 font-medium tracking-[-0.02em] text-text-strong">
+        {value}
       </p>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <p className="font-heading text-atom-display1 font-semibold tracking-tight text-foreground">
-          {value}
-        </p>
-        <div
-          className={cn(
-            "rounded-md px-2 py-1 font-data text-xs font-semibold",
-            isFlat && "bg-muted text-muted-foreground",
-            !isFlat && good && "bg-signal-muted text-signal",
-            !isFlat && !good && "bg-[var(--a-danger-300)] text-[var(--a-danger-900)]"
-          )}
-        >
-          {isFlat ? "—" : deltaLabel}
-        </div>
-      </div>
-      <p className="mt-2 text-atom-caption text-muted-foreground">
-        {hint ?? "vs previous period"}
+      <p
+        className={cn(
+          "mono-label truncate text-[12px] leading-4 whitespace-nowrap",
+          isFlat ? "text-muted-foreground" : delta > 0 ? "text-success" : "text-danger"
+        )}
+      >
+        {isFlat ? "No change" : deltaLabel}
       </p>
     </div>
   );
 }
 
 export async function DashboardMetrics({ siteId, days = 28 }: MetricsProps) {
-  const { current, deltas } = await getSitePeriodMetrics(siteId, days);
+  const { current, previous, deltas } = await getSitePeriodMetrics(siteId, days);
+  // CTR moves in percentage points, not as a percent of itself.
+  const ctrPoints = (current.avgCtr - previous.avgCtr) * 100;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard
         label="Clicks"
         value={formatCompact(current.clicks)}
         delta={deltas.clicks}
-        deltaLabel={formatDeltaPercent(deltas.clicks)}
-        hint={`Last ${days} days vs prior`}
+        deltaLabel={`${signed(deltas.clicks)}%`}
       />
       <MetricCard
         label="Impressions"
         value={formatCompact(current.impressions)}
         delta={deltas.impressions}
-        deltaLabel={formatDeltaPercent(deltas.impressions)}
-        hint={`Last ${days} days vs prior`}
+        deltaLabel={`${signed(deltas.impressions)}%`}
       />
       <MetricCard
-        label="Avg position"
-        value={current.avgPosition > 0 ? current.avgPosition.toFixed(1) : "—"}
+        label="Average position"
+        value={current.avgPosition > 0 ? current.avgPosition.toFixed(1) : "n/a"}
         delta={deltas.avgPosition}
-        deltaLabel={formatDeltaPosition(deltas.avgPosition)}
-        hint="Weighted by impressions · lower is better"
+        deltaLabel={`${signed(deltas.avgPosition)} places`}
       />
       <MetricCard
-        label="Avg CTR"
+        label="CTR"
         value={formatCtr(current.avgCtr)}
-        delta={deltas.avgCtr}
-        deltaLabel={formatDeltaPercent(deltas.avgCtr)}
-        hint={`${current.uniqueKeywords.toLocaleString()} keywords with data`}
+        delta={ctrPoints}
+        deltaLabel={`${signed(ctrPoints)} pt`}
       />
     </div>
   );

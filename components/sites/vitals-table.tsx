@@ -10,6 +10,7 @@ import {
   SearchField,
   type MetricHeader,
 } from "@/components/ui/data-table";
+import { formatDay } from "@/lib/format";
 
 const HEADERS: MetricHeader[] = [
   { label: "URL", sortKey: "url", defaultDir: "asc" },
@@ -29,7 +30,7 @@ export interface VitalsRowData {
   cls: number | null;
   inp: number | null;
   ttfb: number | null;
-  /** ISO string — serialized across the RSC boundary */
+  /** ISO string, serialized across the RSC boundary */
   date: string;
 }
 
@@ -53,7 +54,7 @@ export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-foreground">No reports match</p>
+          <p className="font-medium text-text-strong">No reports match</p>
           <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
         </div>
       ) : (
@@ -64,7 +65,7 @@ export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
           footer={`Showing ${filtered.length} of ${rows.length} reports · sorted by ${sortLabel(HEADERS, sort)}`}
         >
           {filtered.map((r) => (
-            <tr key={r.id} className="hover:bg-muted/20">
+            <tr key={r.id} className="hover:bg-bg-soft">
               <td className="max-w-xs truncate px-4 py-2.5 font-medium" title={r.url}>
                 {r.url}
               </td>
@@ -72,29 +73,29 @@ export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
                 <span
                   className={cn(
                     (r.perfScore ?? 0) >= 90
-                      ? "text-signal"
+                      ? "text-success"
                       : (r.perfScore ?? 0) >= 50
                         ? "text-warning"
                         : "text-danger"
                   )}
                 >
-                  {r.perfScore ?? "—"}
+                  {r.perfScore ?? "n/a"}
                 </span>
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.lcp != null ? `${r.lcp.toFixed(2)}s` : "—"}
+                {r.lcp != null ? `${r.lcp.toFixed(2)}s` : "n/a"}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.cls != null ? r.cls.toFixed(3) : "—"}
+                {r.cls != null ? r.cls.toFixed(3) : "n/a"}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.inp != null ? `${Math.round(r.inp)}ms` : "—"}
+                {r.inp != null ? `${Math.round(r.inp)}ms` : "n/a"}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.ttfb != null ? `${r.ttfb.toFixed(2)}s` : "—"}
+                {r.ttfb != null ? `${r.ttfb.toFixed(2)}s` : "n/a"}
               </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                {new Date(r.date).toLocaleString()}
+                {formatDay(r.date, { year: true, time: true })}
               </td>
             </tr>
           ))}

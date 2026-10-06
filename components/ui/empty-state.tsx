@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 
 export function EmptyState({
   title,
@@ -18,20 +19,16 @@ export function EmptyState({
 }) {
   return (
     <div className={cn("panel px-6 py-14 text-center", className)}>
-      <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-accent text-lg text-primary shadow-[var(--shadow-1)]">
+      <div
+        aria-hidden
+        className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl border border-border bg-bg-soft text-lg text-text-strong"
+      >
         {icon}
       </div>
-      <h3 className="font-heading text-atom-subheader font-semibold text-foreground">
-        {title}
-      </h3>
-      <p className="mx-auto mt-2 max-w-md text-atom-body text-muted-foreground">
-        {description}
-      </p>
+      <h3 className="text-atom-subheader font-medium text-text-strong">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-atom-body text-muted-foreground">{description}</p>
       {actionLabel && actionHref && (
-        <Link
-          href={actionHref}
-          className="mt-6 inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-[var(--shadow-1)] transition hover:bg-[var(--a-info-800)]"
-        >
+        <Link href={actionHref} className={cn(buttonVariants(), "mt-6")}>
           {actionLabel}
         </Link>
       )}

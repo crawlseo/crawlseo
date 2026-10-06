@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { buttonVariants } from "@/components/ui/button";
 
 interface BingSite {
   url: string;
@@ -110,7 +111,7 @@ export function BingSiteSection({
     <div className="panel p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-heading text-lg font-semibold text-foreground">
+          <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
             Bing Webmaster property
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -119,12 +120,12 @@ export function BingSiteSection({
           </p>
         </div>
         {bingSite ? (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-signal/10 px-2.5 py-1 text-xs font-medium text-signal">
+          <span className="flex shrink-0 items-center gap-1.5 mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success">
             <CheckCircle2 className="size-3.5" />
             Connected
           </span>
         ) : (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+          <span className="flex shrink-0 items-center gap-1.5 mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
             <XCircle className="size-3.5" />
             Not connected
           </span>
@@ -163,7 +164,7 @@ export function BingSiteSection({
               type="button"
               onClick={handleSave}
               disabled={!selected || selected === bingSite || saving || syncing}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+              className={buttonVariants({ size: "sm" })}
             >
               {saving ? (
                 <Loader2 className="size-3 animate-spin" />
@@ -177,7 +178,7 @@ export function BingSiteSection({
               type="button"
               onClick={handleSync}
               disabled={!bingSite || syncing}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-strong transition hover:bg-muted disabled:opacity-50"
             >
               {syncing ? (
                 <Loader2 className="size-3 animate-spin" />
@@ -188,7 +189,7 @@ export function BingSiteSection({
             </button>
           </div>
 
-          {message && <p className="text-xs text-signal">{message}</p>}
+          {message && <p className="text-xs text-success">{message}</p>}
           {error && <p className="text-xs text-danger">{error}</p>}
         </div>
       )}

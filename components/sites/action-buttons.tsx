@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -69,7 +69,7 @@ export function CrawlButton({ siteId }: { siteId: string }) {
           onValueChange={(v) => v && setLimitSelection(v)}
           items={PAGE_LIMIT_ITEMS}
         >
-          <SelectTrigger size="sm">
+          <SelectTrigger aria-label="Pages to crawl" className="h-[38px] bg-bg data-[size=default]:h-[38px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -88,11 +88,11 @@ export function CrawlButton({ siteId }: { siteId: string }) {
             placeholder="Pages"
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value.replace(/\D/g, ""))}
-            className="h-7 w-20 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-label="Pages to crawl"
+            className="h-[38px] w-20 rounded-md border border-border bg-bg-section px-2 font-data text-[13px] text-text-strong outline-none focus:border-brand-500 focus:bg-bg"
           />
         )}
         <Button
-          size="sm"
           variant="outline"
           disabled={loading || (isCustom && (!customValue || Number(customValue) < MIN_CUSTOM_PAGES))}
           onClick={run}
@@ -101,7 +101,7 @@ export function CrawlButton({ siteId }: { siteId: string }) {
         </Button>
       </div>
       {msg && (
-        <p className={cn("text-atom-caption", err ? "text-danger" : "text-signal")}>
+        <p className={cn("text-atom-caption", err ? "text-danger" : "text-success")}>
           {msg}
         </p>
       )}
@@ -127,7 +127,7 @@ export function VitalsStatusMessage({
         PageSpeed key in{" "}
         <Link
           href={`/sites/${siteId}/settings#api-keys`}
-          className="font-medium underline underline-offset-2"
+          className="text-link font-medium"
         >
           Settings → API keys
         </Link>{" "}
@@ -140,7 +140,7 @@ export function VitalsStatusMessage({
       role={status.kind === "error" ? "alert" : "status"}
       className={cn(
         "max-w-2xl break-words text-atom-caption",
-        status.kind === "error" ? "text-danger" : "text-signal"
+        status.kind === "error" ? "text-danger" : "text-success"
       )}
     >
       {status.text}
@@ -186,12 +186,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-1">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={loading}
-        onClick={run}
-      >
+      <Button variant="outline" disabled={loading} onClick={run}>
         {loading ? "Checking…" : "Check vitals"}
       </Button>
       {status && !setHeaderStatus && (
@@ -226,7 +221,7 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
     } catch (e) {
       setResults([
         {
-          url: "—",
+          url: "n/a",
           ok: false,
           error: e instanceof Error ? e.message : "Failed",
         },
@@ -247,14 +242,14 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
         {loading ? "Inspecting…" : "Check index status"}
       </Button>
       {reauthRequired && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg p-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="text-muted-foreground">
               Your Google connection expired.{" "}
               <button
                 onClick={() => signIn("google")}
-                className="font-medium text-primary underline underline-offset-2"
+                className="text-link font-medium"
               >
                 Reconnect &rarr;
               </button>
@@ -267,10 +262,10 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
           {results.map((r) => (
             <div
               key={r.url + (r.coverageState || r.error)}
-              className="rounded-lg border border-border bg-card px-3 py-2 text-atom-caption shadow-[var(--shadow-1)]"
+              className="rounded-md border border-border bg-card px-3 py-2 text-atom-caption"
             >
-              <p className="truncate font-medium text-foreground">{r.url}</p>
-              <p className={r.ok === false ? "text-danger" : "text-signal"}>
+              <p className="truncate font-data text-text-strong">{r.url}</p>
+              <p className={r.ok === false ? "text-danger" : "text-success"}>
                 {r.error || r.coverageState || "Unknown"}
               </p>
             </div>
@@ -286,13 +281,13 @@ export function ExportLinks({ siteId }: { siteId: string }) {
     <div className="flex flex-wrap gap-2">
       <a
         href={`/api/sites/${siteId}/export?type=keywords`}
-        className="inline-flex h-8 items-center rounded-lg border border-border bg-card px-3 text-atom-caption font-medium text-muted-foreground shadow-[var(--shadow-1)] transition hover:bg-muted hover:text-foreground"
+        className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         Export keywords CSV
       </a>
       <a
         href={`/api/sites/${siteId}/export?type=pages`}
-        className="inline-flex h-8 items-center rounded-lg border border-border bg-card px-3 text-atom-caption font-medium text-muted-foreground shadow-[var(--shadow-1)] transition hover:bg-muted hover:text-foreground"
+        className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         Export pages CSV
       </a>

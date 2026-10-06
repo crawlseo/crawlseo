@@ -28,7 +28,8 @@
     "seed:demo": "npx tsx scripts/seed-demo.ts",
     "seed:demo:clean": "npx tsx scripts/seed-demo.ts --clean",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
@@ -53,6 +54,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.55.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

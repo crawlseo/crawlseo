@@ -28,7 +28,8 @@ type NavItem = {
 };
 
 type NavGroup = {
-  label: string;
+  /** Shown above the items; the first group has none, its items speak for themselves. */
+  label?: string;
   items: NavItem[];
 };
 
@@ -45,7 +46,6 @@ export function SidebarNav({
     match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : undefined;
 
   const overviewNav: NavGroup = {
-    label: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/sites", label: "Sites", icon: Globe, exact: true },
@@ -58,7 +58,7 @@ export function SidebarNav({
         items: [
           { href: `/sites/${activeSiteId}`, label: "Overview", icon: LayoutDashboard, exact: true },
           { href: `/sites/${activeSiteId}/keywords`, label: "Keywords", icon: Search },
-          { href: `/sites/${activeSiteId}/saved-keywords`, label: "Saved Keywords", icon: Bookmark },
+          { href: `/sites/${activeSiteId}/saved-keywords`, label: "Saved keywords", icon: Bookmark },
           { href: `/sites/${activeSiteId}/pages`, label: "Pages", icon: FileText },
           { href: `/sites/${activeSiteId}/crawl`, label: "Crawl / Audit", icon: Bug },
           { href: `/sites/${activeSiteId}/vitals`, label: "Vitals", icon: Gauge },
@@ -72,8 +72,8 @@ export function SidebarNav({
     ? {
         label: "Research",
         items: [
-          { href: `/sites/${activeSiteId}/keyword-research`, label: "Keyword Research", icon: SearchCheck },
-          { href: `/sites/${activeSiteId}/domain-overview`, label: "Domain Overview", icon: Globe },
+          { href: `/sites/${activeSiteId}/keyword-research`, label: "Keyword research", icon: SearchCheck },
+          { href: `/sites/${activeSiteId}/domain-overview`, label: "Domain overview", icon: Globe },
           { href: `/sites/${activeSiteId}/backlinks`, label: "Backlinks", icon: LinkIcon },
         ],
       }
@@ -94,27 +94,24 @@ export function SidebarNav({
   );
 
   return (
-    <nav className="flex-1 space-y-5 overflow-y-auto px-2 text-sm">
+    <nav aria-label="Main" className={cn("flex flex-col gap-[22px]", collapsed && "items-center")}>
       {groups.map((group) => (
-        <div key={group.label}>
-          {!collapsed && (
-            <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div key={group.label ?? "main"} className="flex flex-col gap-0.5">
+          {!collapsed && group.label && (
+            <p className="px-2.5 pb-1.5 text-[12px] leading-4 text-muted-foreground">
               {group.label}
             </p>
           )}
-          <div className="space-y-0.5">
-            {group.items.map((item) => (
-              <SidebarLink
-                key={item.href}
-                item={item}
-                pathname={pathname}
-                collapsed={collapsed}
-              />
-            ))}
-          </div>
+          {group.items.map((item) => (
+            <SidebarLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              collapsed={collapsed}
+            />
+          ))}
         </div>
       ))}
-
     </nav>
   );
 }
@@ -134,19 +131,22 @@ function SidebarLink({
 
   const Icon = item.icon;
 
+  // The active item is never coloured: a neutral background and weight only.
   if (collapsed) {
     return (
       <Link
         href={item.href}
         title={item.label}
+        aria-label={item.label}
+        aria-current={active ? "page" : undefined}
         className={cn(
-          "flex size-10 items-center justify-center rounded-xl transition",
+          "flex size-10 items-center justify-center rounded-md transition-colors",
           active
-            ? "bg-primary/15 text-primary"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            ? "bg-border-soft text-text-strong"
+            : "text-muted-foreground hover:bg-bg-section hover:text-text-strong"
         )}
       >
-        <Icon className="size-4" />
+        <Icon className="size-4" aria-hidden />
       </Link>
     );
   }
@@ -154,14 +154,14 @@ function SidebarLink({
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-200",
+        "flex h-[34px] items-center rounded-md px-2.5 text-[14px] transition-colors",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/75 hover:bg-muted hover:text-foreground"
+          ? "bg-border-soft font-medium text-text-strong"
+          : "text-text hover:bg-bg-section hover:text-text-strong"
       )}
     >
-      <Icon className="size-4 shrink-0" />
       {item.label}
     </Link>
   );

@@ -37,7 +37,7 @@ import { syncGSCDataForSite } from "@/lib/workers/gsc-sync";
 const GSC_DAY = "2026-09-14";
 const keywordRow = {
   query: "crm for startups",
-  page: "https://acme.com/crm",
+  page: "https://quilltab.app/pricing",
   date: GSC_DAY,
   device: "MOBILE",
   country: "usa",
@@ -47,7 +47,7 @@ const keywordRow = {
   position: 4.2,
 };
 const pageRow = {
-  page: "https://acme.com/crm",
+  page: "https://quilltab.app/pricing",
   date: GSC_DAY,
   clicks: 9,
   impressions: 150,
@@ -80,7 +80,7 @@ const originalTZ = process.env.TZ;
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
-  db.site.findUnique.mockResolvedValue({ userId: "user-1", gscProperty: "sc-domain:acme.com" });
+  db.site.findUnique.mockResolvedValue({ userId: "user-1", gscProperty: "sc-domain:quilltab.app" });
   fetchSearchAnalytics.mockResolvedValue([keywordRow]);
   fetchPageAnalytics.mockResolvedValue([pageRow]);
 });
@@ -98,7 +98,7 @@ describe.each(["Europe/Madrid", "America/New_York"])("GSC sync under TZ=%s", (tz
     const fromRoute = writtenDates();
 
     vi.clearAllMocks();
-    db.site.findUnique.mockResolvedValue({ userId: "user-1", gscProperty: "sc-domain:acme.com" });
+    db.site.findUnique.mockResolvedValue({ userId: "user-1", gscProperty: "sc-domain:quilltab.app" });
     fetchSearchAnalytics.mockResolvedValue([keywordRow]);
     fetchPageAnalytics.mockResolvedValue([pageRow]);
 
@@ -121,7 +121,7 @@ describe("POST /api/gsc/sync", () => {
   });
 
   it("still rejects a site owned by someone else without fetching", async () => {
-    db.site.findUnique.mockResolvedValue({ userId: "someone-else", gscProperty: "sc-domain:acme.com" });
+    db.site.findUnique.mockResolvedValue({ userId: "someone-else", gscProperty: "sc-domain:quilltab.app" });
 
     const res = await POST(syncRequest());
 

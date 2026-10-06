@@ -26,9 +26,8 @@ export default async function BacklinksPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
         title="Backlinks"
-        description="Analyze your backlink profile, referring domains, and anchor text"
+        description="Your backlink profile, referring domains and anchor text."
       />
       <BacklinksClient
         siteId={siteId}

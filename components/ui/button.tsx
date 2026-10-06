@@ -4,34 +4,34 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /**
- * Soft pill buttons — lavender primary
+ * Buttons: Geist Mono 500 uppercase labels, 6px radius. Primary is #E8330C
+ * with a white label (4.28:1, the one accepted exception), #C71F07 on hover.
  */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center border border-transparent text-sm font-medium whitespace-nowrap transition-all duration-200 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button mono-button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent whitespace-nowrap transition-colors duration-150 outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-1)] hover:bg-[var(--a-violet-400,#c4b5fd)]",
+          "bg-button-primary text-primary-foreground hover:bg-button-primary-hover disabled:bg-brand-200 disabled:opacity-100",
         outline:
-          "rounded-full border-border bg-secondary/60 text-foreground hover:bg-secondary",
+          "bg-button-secondary text-text-strong shadow-[inset_0_0_0_1px_var(--border-color)] hover:bg-button-secondary-hover",
         secondary:
-          "rounded-full bg-secondary text-secondary-foreground hover:bg-muted",
-        ghost:
-          "rounded-full text-foreground hover:bg-muted",
+          "bg-button-secondary text-text-strong shadow-[inset_0_0_0_1px_var(--border-color)] hover:bg-button-secondary-hover",
+        ghost: "text-text-strong hover:bg-bg-section",
         destructive:
-          "rounded-full bg-[var(--a-danger-300)] text-[var(--a-danger-900)] hover:opacity-90",
-        link: "rounded-none text-primary underline-offset-4 hover:underline",
+          "border-danger/40 bg-bg text-danger hover:bg-danger-bg",
+        link: "h-auto rounded-none px-0 font-sans font-normal normal-case tracking-normal text-link",
       },
       size: {
-        default: "h-9 gap-2 px-4",
-        xs: "h-6 gap-1 rounded-full px-2.5 text-xs [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-full px-3.5 text-[13px]",
-        lg: "h-11 gap-2 rounded-full px-6 text-[15px]",
-        icon: "size-9 rounded-full",
-        "icon-xs": "size-6 rounded-full [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8 rounded-full",
-        "icon-lg": "size-11 rounded-full",
+        default: "h-[38px] gap-2 px-4 text-[13px]",
+        xs: "h-7 gap-1 px-2.5 text-[11px] [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-8 gap-1.5 px-3 text-[12px]",
+        lg: "h-10 gap-2 px-5 text-[14px]",
+        icon: "size-[38px]",
+        "icon-xs": "size-7 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-8",
+        "icon-lg": "size-10",
       },
     },
     defaultVariants: {

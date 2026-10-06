@@ -9,7 +9,7 @@ export function PositionBadge({ position }: { position: number }) {
   return (
     <span
       className={cn(
-        "inline-flex min-w-12 items-center justify-center rounded-md px-2 py-0.5 font-data text-xs font-semibold",
+        "inline-flex min-w-12 items-center justify-center rounded-md px-2 py-0.5 font-data text-[12px]",
         band === "top3" && "rank-top3",
         band === "top10" && "rank-top10",
         band === "top20" && "rank-top20",
@@ -85,9 +85,9 @@ export function MetricTable({
   return (
     <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[640px] text-[13px]">
           <thead>
-            <tr className="border-b border-border/70 bg-muted/30">
+            <tr className="border-b border-border">
               {headers.map((h) => {
                 const sortable = h.sortKey != null && onSort != null;
                 const active = sortable && sort?.key === h.sortKey;
@@ -98,7 +98,7 @@ export function MetricTable({
                       active ? (sort!.dir === "asc" ? "ascending" : "descending") : undefined
                     }
                     className={cn(
-                      "px-4 py-3 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground",
+                      "mono-label px-4 py-2.5 text-[11px] font-normal text-muted-foreground",
                       h.align === "right" ? "text-right" : "text-left"
                     )}
                   >
@@ -107,13 +107,13 @@ export function MetricTable({
                         type="button"
                         onClick={() => onSort!(h.sortKey!, h.defaultDir)}
                         className={cn(
-                          "inline-flex items-center gap-1 uppercase tracking-[0.14em] transition-colors hover:text-foreground",
-                          active && "text-foreground"
+                          "mono-label inline-flex items-center gap-1 transition-colors hover:text-text-strong",
+                          active && "text-text-strong"
                         )}
                         title={`Sort by ${h.label}`}
                       >
                         {h.label}
-                        <span className={cn("text-[9px]", !active && "opacity-30")}>
+                        <span aria-hidden className={cn("text-[10px]", !active && "text-text-faint")}>
                           {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
@@ -125,11 +125,11 @@ export function MetricTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/50">{children}</tbody>
+          <tbody className="divide-y divide-border-soft">{children}</tbody>
         </table>
       </div>
       {footer && (
-        <div className="border-t border-border/60 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+        <div className="border-t border-border bg-bg-soft px-4 py-3 text-[12px] text-muted-foreground">
           {footer}
         </div>
       )}
@@ -138,7 +138,7 @@ export function MetricTable({
 }
 
 export const filterInputClass =
-  "h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+  "h-[38px] rounded-md border border-border bg-bg-section px-3 text-[14px] text-text-strong placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none";
 
 /** Shared search field used above every metric table. */
 export function SearchField({
@@ -152,7 +152,7 @@ export function SearchField({
 }) {
   return (
     <label className="flex min-w-56 flex-1 flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="mono-label text-[11px] text-muted-foreground">
         Search
       </span>
       <input
@@ -191,11 +191,11 @@ export function parseMin(value: string): number | null {
 }
 
 export function CtrCell({ ctr }: { ctr: number }) {
-  return <span className="font-data text-foreground/90">{formatCtr(ctr)}</span>;
+  return <span className="font-data text-text">{formatCtr(ctr)}</span>;
 }
 
 export function NumCell({ value }: { value: number }) {
   return (
-    <span className="font-data text-foreground/90">{value.toLocaleString()}</span>
+    <span className="font-data text-text">{value.toLocaleString()}</span>
   );
 }

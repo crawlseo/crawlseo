@@ -29,9 +29,8 @@ export default async function VitalsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
         title="Core Web Vitals"
-        description="PageSpeed Insights lab data for your top pages · set GOOGLE_PAGESPEED_KEY for higher quota"
+        description="PageSpeed Insights lab data for your top pages. Set GOOGLE_PAGESPEED_KEY for a higher quota."
         actions={<VitalsButton siteId={siteId} />}
       />
 
@@ -57,7 +56,7 @@ export default async function VitalsPage({ params }: Props) {
       )}
 
       <div className="panel mt-6 p-5">
-        <h3 className="font-heading text-lg font-semibold">Index coverage</h3>
+        <h3 className="text-[15px] leading-5 font-semibold">Index coverage</h3>
         <p className="mb-4 text-sm text-muted-foreground">
           Live URL Inspection for top pages (uses your GSC OAuth token)
         </p>

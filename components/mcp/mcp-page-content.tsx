@@ -68,7 +68,7 @@ const SETUP_GUIDES = [
       "Install tsx: npm install -D tsx",
       "Add the config JSON to .claude/settings.json",
       "Replace /path/to/crawlseo with your project path",
-      "Restart Claude Code — tools will be available immediately",
+      "Restart Claude Code; the tools are available right away",
     ],
   },
   {
@@ -119,7 +119,7 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? (
         <>
-          <Check className="size-3 text-signal" />
+          <Check className="size-3 text-success" />
           Copied
         </>
       ) : (
@@ -137,11 +137,11 @@ export function McpPageContent() {
     <div className="space-y-6">
       {/* Connection config */}
       <div className="panel p-5">
-        <h3 className="font-heading text-lg font-semibold text-foreground">
+        <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
           MCP Connection
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Add this configuration to your AI tool to connect to CrawlSEO&apos;s MCP server.
+          Add this configuration to your AI tool to connect to the crawlseo MCP server.
         </p>
         <div className="mt-4 relative">
           <div className="absolute right-3 top-3">
@@ -155,8 +155,8 @@ export function McpPageContent() {
 
       {/* Setup guides */}
       <div className="panel p-5">
-        <h3 className="font-heading text-lg font-semibold text-foreground">
-          Setup Guides
+        <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
+          Setup guides
         </h3>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {SETUP_GUIDES.map((guide) => {
@@ -167,15 +167,15 @@ export function McpPageContent() {
                 className="rounded-lg border border-border bg-card p-4"
               >
                 <div className="mb-3 flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="size-4" />
+                  <div className="flex size-8 items-center justify-center rounded-lg border border-border bg-bg-soft text-text-strong">
+                    <Icon className="size-4" aria-hidden />
                   </div>
-                  <h4 className="font-medium text-foreground">{guide.name}</h4>
+                  <h4 className="font-medium text-text-strong">{guide.name}</h4>
                 </div>
                 <ol className="space-y-1.5 text-xs text-muted-foreground">
                   {guide.steps.map((step, i) => (
                     <li key={i} className="flex gap-2">
-                      <span className="shrink-0 font-medium text-primary">
+                      <span className="shrink-0 font-data text-text-strong">
                         {i + 1}.
                       </span>
                       {step}
@@ -190,8 +190,8 @@ export function McpPageContent() {
 
       {/* Available tools */}
       <div className="panel p-5">
-        <h3 className="font-heading text-lg font-semibold text-foreground">
-          Available Tools
+        <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
+          Available tools
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           10 tools available across 4 categories
@@ -199,16 +199,16 @@ export function McpPageContent() {
         <div className="mt-4 space-y-4">
           {TOOLS.map((group) => (
             <div key={group.category}>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <h4 className="mb-2 mono-label text-[12px] text-muted-foreground">
                 {group.category}
               </h4>
               <div className="space-y-1.5">
                 {group.items.map((tool) => (
                   <div
                     key={tool.name}
-                    className="flex items-start gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2.5"
+                    className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
                   >
-                    <code className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                    <code className="shrink-0 rounded-sm bg-bg-section px-1.5 py-0.5 font-data text-[12px] text-text-strong">
                       {tool.name}
                     </code>
                     <span className="text-sm text-muted-foreground">
@@ -224,19 +224,19 @@ export function McpPageContent() {
 
       {/* Roadmap */}
       <div className="panel p-5">
-        <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-          <Rocket className="size-5 text-primary" />
+        <h3 className="flex items-center gap-2 text-[15px] leading-5 font-semibold text-text-strong">
+          <Rocket className="size-5 text-text-strong" aria-hidden />
           Roadmap
         </h3>
         <div className="mt-4 space-y-3">
           {ROADMAP.map((item) => (
             <div
               key={item.label}
-              className="flex items-start gap-3 rounded-lg border border-dashed border-border/50 px-3 py-2.5"
+              className="flex items-start gap-3 rounded-lg border border-dashed border-border px-3 py-2.5"
             >
-              <div className="mt-0.5 size-2 shrink-0 rounded-full bg-primary/40" />
+              <div aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-text-faint" />
               <div>
-                <p className="text-sm font-medium text-foreground">{item.label}</p>
+                <p className="text-sm font-medium text-text-strong">{item.label}</p>
                 <p className="text-xs text-muted-foreground">{item.description}</p>
               </div>
             </div>

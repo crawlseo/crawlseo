@@ -56,9 +56,8 @@ export default async function SavedKeywordsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        eyebrow={site.domain}
-        title="Saved Keywords"
-        description="Track specific keywords over time"
+        title="Saved keywords"
+        description="Track specific keywords over time."
         actions={<SaveKeywordForm siteId={siteId} />}
       />
 
