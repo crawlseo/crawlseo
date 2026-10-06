@@ -22,6 +22,7 @@ import {
 } from "../lib/seo-metrics";
 import { getAllOpportunities } from "../lib/seo-opportunities";
 import { runSiteCrawl } from "../lib/crawler/engine";
+import { version } from "../package.json";
 import { listVisibleIssues } from "../lib/crawler/issue-filter";
 import type { IssueSeverity } from "@prisma/client";
 
@@ -43,7 +44,7 @@ const SEVERITIES: IssueSeverity[] = ["CRITICAL", "WARNING", "INFO"];
 
 const server = new McpServer({
   name: "CrawlSEO",
-  version: "1.0.0",
+  version, // the app version from package.json
 });
 
 // ---------------------------------------------------------------------------

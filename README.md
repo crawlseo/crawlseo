@@ -178,12 +178,12 @@ credentials are only needed at runtime. Images support `linux/amd64` and
 `linux/arm64`, and database migrations run automatically when the container
 starts.
 
-Version tags are also published as immutable image tags (for example, `1.2.3`)
-and minor-version tags (for example, `1.2`). To use a pinned release or an image
+Version tags are also published as immutable image tags (for example, `0.2.0`)
+and minor-version tags (for example, `0.2`). To use a pinned release or an image
 from a fork, set `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:1.2.3
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.0
 ```
 
 To build locally instead, build the same image name before starting Compose:
