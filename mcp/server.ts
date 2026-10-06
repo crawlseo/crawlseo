@@ -22,6 +22,8 @@ import {
 } from "../lib/seo-metrics";
 import { getAllOpportunities } from "../lib/seo-opportunities";
 import { runSiteCrawl } from "../lib/crawler/engine";
+import { listVisibleIssues } from "../lib/crawler/issue-filter";
+import type { IssueSeverity } from "@prisma/client";
 
 import {
   formatSiteOverview,
@@ -32,6 +34,8 @@ import {
   formatVitals,
   formatOpportunities,
 } from "./formatters";
+
+const SEVERITIES: IssueSeverity[] = ["CRITICAL", "WARNING", "INFO"];
 
 // ---------------------------------------------------------------------------
 // Server
@@ -290,21 +294,19 @@ server.tool(
     limit: z.number().optional().default(50).describe("Max issues to return (default 50)"),
   },
   async ({ crawlId, severity, limit }) => {
-    const where: any = { crawlId };
-    if (severity) {
-      where.severity = severity.toUpperCase();
+    const wanted = severity?.toUpperCase();
+    if (wanted && !SEVERITIES.includes(wanted as IssueSeverity)) {
+      return {
+        content: [{ type: "text", text: `Unknown severity "${severity}". Use CRITICAL, WARNING or INFO.` }],
+        isError: true,
+      };
     }
 
-    const issues = await db.crawlIssue.findMany({
-      where,
-      take: limit,
-      orderBy: [{ severity: "asc" }, { type: "asc" }],
-      select: {
-        severity: true,
-        type: true,
-        url: true,
-        message: true,
-      },
+    // Visible issues only: the crawl summary and content score rows are bookkeeping.
+    const issues = await listVisibleIssues(db, {
+      crawlId,
+      severity: wanted as IssueSeverity | undefined,
+      limit,
     });
 
     return { content: [{ type: "text", text: formatCrawlIssues(issues) }] };

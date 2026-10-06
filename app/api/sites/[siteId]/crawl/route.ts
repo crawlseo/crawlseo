@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { runSiteCrawl } from "@/lib/crawler/engine";
+import { visibleIssueFilter } from "@/lib/crawler/issue-filter";
 
 export async function POST(
   req: Request,
@@ -96,6 +97,7 @@ export async function GET(
       take: 10,
       include: {
         issues: {
+          where: visibleIssueFilter(),
           take: 200,
           orderBy: { severity: "asc" },
         },

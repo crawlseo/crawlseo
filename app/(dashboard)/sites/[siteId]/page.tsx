@@ -14,6 +14,7 @@ import {
 } from "@/components/sites/action-buttons";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
+import { countVisibleIssues } from "@/lib/crawler/issue-filter";
 
 interface SitePageProps {
   params: Promise<{ siteId: string }>;
@@ -40,8 +41,11 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   const latestCrawl = await db.crawl.findFirst({
     where: { siteId, status: "COMPLETED" },
     orderBy: { finishedAt: "desc" },
-    select: { healthScore: true, issuesFound: true, pagesFound: true, finishedAt: true },
+    select: { id: true, healthScore: true, pagesFound: true, finishedAt: true },
   });
+  // Counted live with the Crawl / Audit page's rule, so both screens agree,
+  // also for crawls stored before issuesFound left out the internal rows.
+  const latestIssueCount = latestCrawl ? await countVisibleIssues(db, latestCrawl.id) : 0;
 
   const latestVital = await db.vitalsReport.findFirst({
     where: { siteId },
@@ -94,7 +98,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
                 label="Crawl"
                 value={
                   latestCrawl
-                    ? `${latestCrawl.pagesFound} pages · ${latestCrawl.issuesFound} issues`
+                    ? `${latestCrawl.pagesFound} pages · ${latestIssueCount} issues`
                     : "Not run yet"
                 }
               />

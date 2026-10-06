@@ -8,6 +8,9 @@ import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
 import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
 import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
+import { getVisibleIssues } from "@/lib/crawler/issue-filter";
+
+const ISSUE_ROWS = 200;
 
 interface Props {
   params: Promise<{ siteId: string }>;
@@ -32,18 +35,13 @@ export default async function CrawlPage({ params }: Props) {
   const latest = await db.crawl.findFirst({
     where: { siteId, status: "COMPLETED" },
     orderBy: { finishedAt: "desc" },
-    include: {
-      issues: {
-        where: {
-          NOT: {
-            details: { path: ["kind"], equals: "crawl_summary" },
-          },
-        },
-        orderBy: [{ severity: "asc" }, { type: "asc" }],
-        take: 200,
-      },
-    },
   });
+
+  // Issues a user sees (no crawl summary or content score rows). The table
+  // lists up to ISSUE_ROWS of them; the counts cover all of them.
+  const { issues, total: issueTotal, bySeverity } = latest
+    ? await getVisibleIssues(db, latest.id, ISSUE_ROWS)
+    : { issues: [], total: 0, bySeverity: { CRITICAL: 0, WARNING: 0, INFO: 0 } };
 
   // Get AuditPage data for the latest crawl
   const auditPages = latest
@@ -53,17 +51,6 @@ export default async function CrawlPage({ params }: Props) {
         take: 200,
       })
     : [];
-
-  const realIssues = latest?.issues.filter((i) => {
-    const kind = (i.details as { kind?: string } | null)?.kind;
-    return kind !== "crawl_summary" && kind !== "content_score";
-  }) || [];
-
-  const bySeverity = {
-    CRITICAL: realIssues.filter((i) => i.severity === "CRITICAL").length,
-    WARNING: realIssues.filter((i) => i.severity === "WARNING").length,
-    INFO: realIssues.filter((i) => i.severity === "INFO").length,
-  };
 
   const avgContentScore = auditPages.length > 0
     ? Math.round(auditPages.reduce((s, p) => s + p.contentScore, 0) / auditPages.length)
@@ -123,10 +110,10 @@ export default async function CrawlPage({ params }: Props) {
               <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 pb-1.5">
                 <h2 className="text-[15px] leading-5 font-semibold">Issues</h2>
                 <span className="mono-label text-[11px] text-muted-foreground">
-                  {realIssues.length} issues
+                  {issueTotal} {issueTotal === 1 ? "issue" : "issues"}
                 </span>
               </div>
-              {realIssues.length === 0 ? (
+              {issueTotal === 0 ? (
                 <p className="px-4 pt-2 pb-6 text-[13px] text-muted-foreground">No issues found</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -140,7 +127,7 @@ export default async function CrawlPage({ params }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-soft">
-                      {realIssues.slice(0, 100).map((issue) => {
+                      {issues.map((issue) => {
                         const details = issue.details as { howToFix?: string; kind?: string } | null;
                         return (
                           <tr key={issue.id} className="align-top">
@@ -168,6 +155,11 @@ export default async function CrawlPage({ params }: Props) {
                       })}
                     </tbody>
                   </table>
+                  {issueTotal > issues.length && (
+                    <p className="border-t border-border bg-bg-soft px-4 py-3 text-[12px] text-muted-foreground">
+                      Showing {issues.length} of {issueTotal} issues, most severe first
+                    </p>
+                  )}
                 </div>
               )}
             </section>

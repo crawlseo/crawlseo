@@ -14,6 +14,7 @@
 
 import { IssueSeverity, IssueType, PrismaClient } from "@prisma/client";
 import { gscDate } from "../lib/google/gsc-date";
+import { REMEDIATION } from "../lib/crawler/remediation";
 const db = new PrismaClient();
 
 const DEMO_DOMAIN = "quilltab.app";
@@ -136,32 +137,38 @@ const PAGES = [
   { path: "/about", title: "About · Quilltab" },
 ];
 
+// Issues as the crawler writes them: details carries the remediation text, and
+// orphan / not-in-sitemap rows carry their details.kind. Sample data only.
 const CRAWL_ISSUES: {
   path: string;
   type: IssueType;
   severity: IssueSeverity;
   message: string;
+  kind?: "orphan" | "not_in_sitemap";
 }[] = [
-  // CRITICAL (4)
-  { path: "/old-landing", type: "BROKEN_LINK", severity: "CRITICAL", message: "Page returns 404 Not Found" },
-  { path: "/promo/summer-2025", type: "BROKEN_LINK", severity: "CRITICAL", message: "Page returns 404 Not Found" },
-  { path: "/blog/outdated-post", type: "REDIRECT", severity: "CRITICAL", message: "Redirect chain detected (3 hops): /blog/outdated-post → /blog/old → /blog/new → /blog/freelance-invoice-guide" },
+  // CRITICAL (5)
+  { path: "/old-landing", type: "BROKEN_LINK", severity: "CRITICAL", message: "Listed in sitemap.xml and returns 404 Not Found" },
+  { path: "/promo/summer-2025", type: "BROKEN_LINK", severity: "CRITICAL", message: "Linked from /pricing and returns 404 Not Found" },
   { path: "/features/legacy", type: "BROKEN_LINK", severity: "CRITICAL", message: "Page returns 410 Gone" },
-  // WARNING (7)
-  { path: "/blog/invoice-templates", type: "MISSING_DESCRIPTION", severity: "WARNING", message: "Page is missing meta description" },
+  { path: "/blog/outdated-post", type: "REDIRECT", severity: "CRITICAL", message: "Redirect chain (3 hops): /blog/outdated-post → /blog/old → /blog/new → /blog/freelance-invoice-guide" },
+  { path: "/compare/time-trackers", type: "MISSING_TITLE", severity: "CRITICAL", message: "Page has no <title> element" },
+  // WARNING (9)
+  { path: "/blog/invoice-templates", type: "MISSING_DESCRIPTION", severity: "WARNING", message: "Meta description is empty (content=\"\")" },
+  { path: "/", type: "LARGE_PAGE", severity: "WARNING", message: "Heavy image: hero.gif is 8.4 MB (1920×1440)" },
   { path: "/integrations", type: "DUPLICATE_TITLE", severity: "WARNING", message: "Title duplicated with /features page" },
   { path: "/about", type: "MISSING_H1", severity: "WARNING", message: "Page has no H1 heading tag" },
   { path: "/docs/api", type: "MULTIPLE_H1", severity: "WARNING", message: "Page has 3 H1 tags, should have exactly one" },
   { path: "/blog/late-payment-emails", type: "MISSING_ALT", severity: "WARNING", message: "4 images missing alt text" },
   { path: "/features/reports", type: "SLOW_PAGE", severity: "WARNING", message: "Page load time is 4.2s (threshold: 3s)" },
   { path: "/compare/spreadsheets", type: "MISSING_CANONICAL", severity: "WARNING", message: "Page is missing canonical tag" },
-  // INFO (4)
+  { path: "/blog/payment-terms", type: "MISSING_CANONICAL", severity: "WARNING", message: "Potential orphan page (no internal inlinks found)", kind: "orphan" },
+  // INFO (5)
   { path: "/", type: "MISSING_SCHEMA", severity: "INFO", message: "No structured data (JSON-LD) found on page" },
   { path: "/pricing", type: "MISSING_SCHEMA", severity: "INFO", message: "No structured data (JSON-LD) found on page" },
   { path: "/blog", type: "LARGE_PAGE", severity: "INFO", message: "Page size is 3.4 MB (threshold: 3 MB)" },
   { path: "/docs", type: "MIXED_CONTENT", severity: "INFO", message: "1 HTTP resource loaded on HTTPS page: http://cdn.example.org/legacy.js" },
+  { path: "/features/payments", type: "MISSING_SITEMAP", severity: "INFO", message: "Crawled page not listed in sitemap", kind: "not_in_sitemap" },
 ];
-
 // -------------------------------------------------------------------------
 // Main
 // -------------------------------------------------------------------------
@@ -297,8 +304,8 @@ async function seed() {
         crawlId: crawl.id,
         url,
         statusCode: 200,
-        title: pg.title,
-        description: pg.path === "/" ? "Quilltab sends invoices, chases late payments and keeps your freelance books tidy." : `Learn about ${pg.title.split("·")[0].trim().toLowerCase()} at Quilltab.`,
+        title: pg.path === "/compare/time-trackers" ? null : pg.title,
+        description: pg.path === "/blog/invoice-templates" ? "" : pg.path === "/" ? "Quilltab sends invoices, chases late payments and keeps your freelance books tidy." : `Learn about ${pg.title.split("·")[0].trim().toLowerCase()} at Quilltab.`,
         canonical: url,
         h1Count: pg.path === "/about" ? 0 : pg.path === "/docs/api" ? 3 : 1,
         h1s: pg.path === "/about" ? [] : pg.path === "/docs/api" ? [pg.title, "Authentication", "Endpoints"] : [pg.title.split("·")[0].trim()],
@@ -335,7 +342,7 @@ async function seed() {
     });
   }
 
-  // Crawl issues
+  // Crawl issues, with details shaped like the crawler's
   for (const issue of CRAWL_ISSUES) {
     await db.crawlIssue.create({
       data: {
@@ -344,10 +351,42 @@ async function seed() {
         type: issue.type,
         severity: issue.severity,
         message: issue.message,
+        details:
+          issue.kind === "orphan"
+            ? { kind: "orphan", contentScore: rand(30, 50) }
+            : {
+                ...(issue.kind ? { kind: issue.kind } : {}),
+                howToFix: REMEDIATION[issue.type]?.howToFix ?? null,
+              },
       },
     });
   }
-  console.log(`Created crawl (health: 72/100) with ${PAGES.length + 4} audit pages and ${CRAWL_ISSUES.length} issues`);
+
+  // The crawler's own bookkeeping rows (details.kind crawl_summary and
+  // content_score). The app never lists or counts them as issues.
+  await db.crawlIssue.create({
+    data: {
+      crawlId: crawl.id,
+      url: `https://${DEMO_DOMAIN}/`,
+      type: "MISSING_SCHEMA",
+      severity: "INFO",
+      message: "Crawl summary",
+      details: { kind: "crawl_summary", sitemapUrls: 21, missingFromSitemap: 1, orphans: 1, avgContentScore: 71 },
+    },
+  });
+  for (const path of ["/blog", "/about", "/blog/vat-for-freelancers"]) {
+    await db.crawlIssue.create({
+      data: {
+        crawlId: crawl.id,
+        url: `https://${DEMO_DOMAIN}${path}`,
+        type: "MISSING_DESCRIPTION",
+        severity: "INFO",
+        message: `On-page content score ${rand(50, 59)}/100`,
+        details: { kind: "content_score", contentScore: rand(50, 59) },
+      },
+    });
+  }
+  console.log(`Created crawl (health: 72/100) with ${PAGES.length + 4} audit pages, ${CRAWL_ISSUES.length} issues and 4 internal rows`);
 
   // 6. Some audit links
   const linkPairs = [

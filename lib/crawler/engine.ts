@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import robotsParser from "robots-parser";
 import { REMEDIATION } from "./remediation";
+import { countVisibleIssues } from "./issue-filter";
 
 const ABSOLUTE_MAX_PAGES = 2000;
 const BATCH_SIZE = 15;
@@ -1203,9 +1204,8 @@ async function executeCrawl(
   });
 
   /* ---- Finalize crawl record ---- */
-  const finalIssues = await db.crawlIssue.count({
-    where: { crawlId },
-  });
+  // Count only the issues a user sees: not the summary or content score rows.
+  const finalIssues = await countVisibleIssues(db, crawlId);
 
   await db.crawl.update({
     where: { id: crawlId },
