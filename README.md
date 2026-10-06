@@ -185,7 +185,7 @@ Image tags:
 | Tag | What it is |
 |---|---|
 | `latest` | The latest release. Moves only when a version is tagged. |
-| `0.2.1`, `0.2` | A release, and the newest patch of a minor version. |
+| `0.2.2`, `0.2` | A release, and the newest patch of a minor version. |
 | `edge` | The latest build of `main`, ahead of the last release. |
 | `sha-<commit>` | One exact build, for main pushes and releases. |
 
@@ -193,7 +193,7 @@ To pin a release, follow `main`, or use an image from a fork, set
 `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.1
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.2
 ```
 
 To build locally instead, build the same image name before starting Compose:
