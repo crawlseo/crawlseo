@@ -1,3 +1,4 @@
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 import type { PrismaClient } from "@prisma/client";
 import { renderToString } from "react-dom/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";

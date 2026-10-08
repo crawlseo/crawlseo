@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useHeaderStatus } from "@/components/ui/header-status";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/provider";
 
 const PAGE_LIMIT_ITEMS = [
   { value: "25", label: "25 pages" },
@@ -27,16 +28,24 @@ const MAX_CUSTOM_PAGES = 2000;
 const MIN_CUSTOM_PAGES = 1;
 
 export function CrawlButton({ siteId }: { siteId: string }) {
+  const t = useT();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const [limitSelection, setLimitSelection] = useState("200");
   const [customValue, setCustomValue] = useState("");
+  const pageLimitItems = PAGE_LIMIT_ITEMS.map((item) => ({
+    ...item,
+    label: t(item.label),
+  }));
 
   const isCustom = limitSelection === "custom";
   const maxPages = isCustom
-    ? Math.max(MIN_CUSTOM_PAGES, Math.min(MAX_CUSTOM_PAGES, Math.floor(Number(customValue) || 200)))
+    ? Math.max(
+        MIN_CUSTOM_PAGES,
+        Math.min(MAX_CUSTOM_PAGES, Math.floor(Number(customValue) || 200)),
+      )
     : Number(limitSelection);
 
   async function run() {
@@ -67,15 +76,18 @@ export function CrawlButton({ siteId }: { siteId: string }) {
         <Select
           value={limitSelection}
           onValueChange={(v) => v && setLimitSelection(v)}
-          items={PAGE_LIMIT_ITEMS}
+          items={pageLimitItems}
         >
-          <SelectTrigger aria-label="Pages to crawl" className="h-[38px] bg-bg data-[size=default]:h-[38px]">
+          <SelectTrigger
+            aria-label={t("Pages to crawl")}
+            className="h-[38px] bg-bg data-[size=default]:h-[38px]"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PAGE_LIMIT_ITEMS.map(({ value, label }) => (
               <SelectItem key={value} value={value}>
-                {label}
+                {t(label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -85,53 +97,61 @@ export function CrawlButton({ siteId }: { siteId: string }) {
             type="number"
             min={MIN_CUSTOM_PAGES}
             max={MAX_CUSTOM_PAGES}
-            placeholder="Pages"
+            placeholder={t("Pages")}
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value.replace(/\D/g, ""))}
-            aria-label="Pages to crawl"
+            aria-label={t("Pages to crawl")}
             className="h-[38px] w-20 rounded-md border border-border bg-bg-section px-2 font-data text-[13px] text-text-strong outline-none focus:border-brand-500 focus:bg-bg"
           />
         )}
         <Button
           variant="outline"
-          disabled={loading || (isCustom && (!customValue || Number(customValue) < MIN_CUSTOM_PAGES))}
+          disabled={
+            loading ||
+            (isCustom &&
+              (!customValue || Number(customValue) < MIN_CUSTOM_PAGES))
+          }
           onClick={run}
         >
-          {loading ? "Starting…" : "Run crawl"}
+          {loading ? t("Starting…") : t("Run crawl")}
         </Button>
       </div>
       {msg && (
-        <p className={cn("text-atom-caption", err ? "text-danger" : "text-success")}>
-          {msg}
+        <p
+          className={cn(
+            "text-atom-caption",
+            err ? "text-danger" : "text-success",
+          )}
+        >
+          {t.stored(msg)}
         </p>
       )}
     </div>
   );
 }
 
-type VitalsStatus =
-  | { kind: "ok" | "error"; text: string }
-  | { kind: "quota" };
+type VitalsStatus = { kind: "ok" | "error"; text: string } | { kind: "quota" };
 
 export function VitalsStatusMessage({
-  siteId,
   status,
 }: {
   siteId: string;
   status: VitalsStatus;
 }) {
+  const t = useT();
   if (status.kind === "quota") {
     return (
       <p role="alert" className="max-w-2xl text-atom-caption text-danger">
-        The PageSpeed Insights quota is exhausted. Add your own Google
-        PageSpeed key in{" "}
+        {t(
+          "The PageSpeed Insights quota is exhausted. Add your own Google PageSpeed key in",
+        )}{" "}
         <Link
-          href={`/sites/${siteId}/settings#api-keys`}
+          href="/settings#api-keys"
           className="text-link font-medium"
         >
-          Settings → API keys
+          {t("Settings → API keys")}{" "}
         </Link>{" "}
-        to keep checking vitals.
+        {t("to keep checking vitals.")}{" "}
       </p>
     );
   }
@@ -140,15 +160,16 @@ export function VitalsStatusMessage({
       role={status.kind === "error" ? "alert" : "status"}
       className={cn(
         "max-w-2xl break-words text-atom-caption",
-        status.kind === "error" ? "text-danger" : "text-success"
+        status.kind === "error" ? "text-danger" : "text-success",
       )}
     >
-      {status.text}
+      {t.stored(status.text)}
     </p>
   );
 }
 
 export function VitalsButton({ siteId }: { siteId: string }) {
+  const t = useT();
   const router = useRouter();
   const setHeaderStatus = useHeaderStatus();
   const [loading, setLoading] = useState(false);
@@ -159,7 +180,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
   useEffect(() => {
     if (!setHeaderStatus) return;
     setHeaderStatus(
-      status ? <VitalsStatusMessage siteId={siteId} status={status} /> : null
+      status ? <VitalsStatusMessage siteId={siteId} status={status} /> : null,
     );
   }, [setHeaderStatus, siteId, status]);
   useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
@@ -168,17 +189,25 @@ export function VitalsButton({ siteId }: { siteId: string }) {
     setLoading(true);
     setStatus(null);
     try {
-      const res = await fetch(`/api/sites/${siteId}/vitals`, { method: "POST" });
+      const res = await fetch(`/api/sites/${siteId}/vitals`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (data.code === "QUOTA_EXCEEDED") {
         setStatus({ kind: "quota" });
         return;
       }
       if (!res.ok) throw new Error(data.error || "Vitals failed");
-      setStatus({ kind: "ok", text: `Saved ${data.inserted} PageSpeed reports` });
+      setStatus({
+        kind: "ok",
+        text: `Saved ${data.inserted} PageSpeed reports`,
+      });
       router.refresh();
     } catch (e) {
-      setStatus({ kind: "error", text: e instanceof Error ? e.message : "Failed" });
+      setStatus({
+        kind: "error",
+        text: e instanceof Error ? e.message : "Failed",
+      });
     } finally {
       setLoading(false);
     }
@@ -187,7 +216,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-1">
       <Button variant="outline" disabled={loading} onClick={run}>
-        {loading ? "Checking…" : "Check vitals"}
+        {loading ? t("Checking…") : t("Check vitals")}
       </Button>
       {status && !setHeaderStatus && (
         <VitalsStatusMessage siteId={siteId} status={status} />
@@ -197,6 +226,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
 }
 
 export function IndexCheckButton({ siteId }: { siteId: string }) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [reauthRequired, setReauthRequired] = useState(false);
   const [results, setResults] = useState<
@@ -233,25 +263,20 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={loading}
-        onClick={run}
-      >
-        {loading ? "Inspecting…" : "Check index status"}
+      <Button size="sm" variant="outline" disabled={loading} onClick={run}>
+        {loading ? t("Inspecting…") : t("Check index status")}
       </Button>
       {reauthRequired && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg p-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="text-muted-foreground">
-              Your Google connection expired.{" "}
+              {t("Your Google connection expired.")}{" "}
               <button
                 onClick={() => signIn("google")}
                 className="text-link font-medium"
               >
-                Reconnect &rarr;
+                {t("Reconnect &rarr;")}{" "}
               </button>
             </p>
           </div>
@@ -266,7 +291,7 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
             >
               <p className="truncate font-data text-text-strong">{r.url}</p>
               <p className={r.ok === false ? "text-danger" : "text-success"}>
-                {r.error || r.coverageState || "Unknown"}
+                {t.stored(r.error || r.coverageState || "Unknown")}
               </p>
             </div>
           ))}
@@ -277,19 +302,20 @@ export function IndexCheckButton({ siteId }: { siteId: string }) {
 }
 
 export function ExportLinks({ siteId }: { siteId: string }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-2">
       <a
         href={`/api/sites/${siteId}/export?type=keywords`}
         className={buttonVariants({ variant: "outline", size: "sm" })}
       >
-        Export keywords CSV
+        {t("Export keywords CSV")}{" "}
       </a>
       <a
         href={`/api/sites/${siteId}/export?type=pages`}
         className={buttonVariants({ variant: "outline", size: "sm" })}
       >
-        Export pages CSV
+        {t("Export pages CSV")}{" "}
       </a>
     </div>
   );

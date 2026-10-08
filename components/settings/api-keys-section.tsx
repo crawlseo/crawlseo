@@ -4,15 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, FlaskConical, Save, Trash2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { formatDay } from "@/lib/format";
+import { useT } from "@/components/i18n/provider";
 
 type ApiKeyStatus = Record<string, { connected: boolean; updatedAt?: string }>;
 
-export function ApiKeysSection({
-  initialStatus,
-}: {
-  initialStatus: ApiKeyStatus;
-}) {
+export function ApiKeysSection({ initialStatus }: { initialStatus: ApiKeyStatus }) {
+  const t = useT();
   const [status, setStatus] = useState<ApiKeyStatus>(initialStatus);
 
   function markConnected(provider: string, connected: boolean) {
@@ -27,22 +24,23 @@ export function ApiKeysSection({
   return (
     <div id="api-keys" className="panel scroll-mt-6 p-5">
       <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
-        External API keys
+        {t("External API keys")}{" "}
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Connect third-party APIs for advanced SEO data like keyword volume,
-        domain analysis, and backlinks.
+        {t(
+          "These API keys are shared by all sites in your account. Connect services for keyword research, domain analysis, backlinks and Web Vitals.",
+        )}{" "}
       </p>
 
       <div className="mt-5 space-y-3">
         <ProviderCard
           provider="dataforseo"
           name="DataForSEO"
-          description="Keyword research, domain analysis, backlink data"
-          loginLabel="Login"
-          loginPlaceholder="your@email.com"
-          passwordLabel="Password"
-          passwordPlaceholder="API password"
+          description={t("Keyword research, domain analysis, backlink data")}
+          loginLabel={t("Login")}
+          loginPlaceholder={t("your@email.com")}
+          passwordLabel={t("Password")}
+          passwordPlaceholder={t("API password")}
           testable
           status={status.dataforseo}
           onStatusChange={markConnected}
@@ -51,8 +49,8 @@ export function ApiKeysSection({
         <ProviderCard
           provider="google_pagespeed"
           name="Google PageSpeed Insights"
-          description="Core Web Vitals and Lighthouse lab data for your top pages"
-          loginLabel="API key"
+          description={t("Core Web Vitals and Lighthouse lab data for your top pages")}
+          loginLabel={t("API key")}
           loginPlaceholder="AIza..."
           status={status.google_pagespeed}
           onStatusChange={markConnected}
@@ -61,9 +59,9 @@ export function ApiKeysSection({
         <ProviderCard
           provider="bing"
           name="Bing Webmaster Tools"
-          description="Bing queries, pages, crawl and index stats (free)"
-          loginLabel="API key"
-          loginPlaceholder="Settings → API Access → Generate API Key"
+          description={t("Bing queries, pages, crawl and index stats (free)")}
+          loginLabel={t("API key")}
+          loginPlaceholder={t("Settings → API Access → Generate API Key")}
           testable
           status={status.bing}
           onStatusChange={markConnected}
@@ -103,6 +101,7 @@ function ProviderCard({
   status?: { connected: boolean; updatedAt?: string };
   onStatusChange: (provider: string, connected: boolean) => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -193,21 +192,21 @@ function ProviderCard({
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-60">
           <h4 className="font-medium text-text-strong">{name}</h4>
-          <p className="text-xs text-muted-foreground">{description}</p>
+          <p className="text-xs text-muted-foreground">{t(description)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {isConnected ? (
             <span className="flex items-center gap-1.5 mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success">
               <CheckCircle2 className="size-3.5" />
-              Connected
+              {t("Connected")}{" "}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
               <XCircle className="size-3.5" />
-              Not configured
+              {t("Not configured")}{" "}
             </span>
           )}
         </div>
@@ -216,10 +215,8 @@ function ProviderCard({
       {isConnected ? (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Last updated:{" "}
-            {status?.updatedAt
-              ? formatDay(status.updatedAt, { year: true })
-              : "n/a"}
+            {t("Last updated:")}{" "}
+            {status?.updatedAt ? t.date(status.updatedAt, { year: true }) : t("n/a")}
           </p>
           <button
             type="button"
@@ -227,19 +224,15 @@ function ProviderCard({
             disabled={deleting}
             className="flex items-center gap-1.5 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-bg disabled:opacity-50"
           >
-            {deleting ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Trash2 className="size-3" />
-            )}
-            Remove
+            {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+            {t("Remove")}{" "}
           </button>
         </div>
       ) : (
         <div className="mt-4 space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              {loginLabel}
+              {t(loginLabel)}
             </label>
             <input
               type={needsPassword ? "text" : "password"}
@@ -253,7 +246,7 @@ function ProviderCard({
           {needsPassword && (
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                {passwordLabel}
+                {t(passwordLabel)}
               </label>
               <input
                 type="password"
@@ -265,12 +258,12 @@ function ProviderCard({
             </div>
           )}
 
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p className="text-xs text-danger">{t.stored(error)}</p>}
 
           {testResult === true && (
             <p className="flex items-center gap-1.5 text-xs text-success">
               <CheckCircle2 className="size-3.5" />
-              Connection successful
+              {t("Connection successful")}{" "}
             </p>
           )}
 
@@ -287,7 +280,7 @@ function ProviderCard({
                 ) : (
                   <FlaskConical className="size-3" />
                 )}
-                Test connection
+                {t("Test connection")}{" "}
               </button>
             )}
             <button
@@ -296,12 +289,8 @@ function ProviderCard({
               disabled={!complete || saving}
               className={buttonVariants({ size: "sm" })}
             >
-              {saving ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Save className="size-3" />
-              )}
-              Save Key
+              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+              {t("Save Key")}{" "}
             </button>
           </div>
         </div>

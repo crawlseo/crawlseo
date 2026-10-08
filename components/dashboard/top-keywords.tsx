@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTopKeywords } from "@/lib/seo-metrics";
 import { PositionBadge, CtrCell, NumCell } from "@/components/ui/data-table";
+import { getT } from "@/lib/i18n/server";
 
 interface TopKeywordsProps {
   siteId: string;
@@ -11,31 +12,32 @@ interface TopKeywordsProps {
 const th = "mono-label px-4 py-2.5 text-[11px] font-normal text-muted-foreground";
 
 export async function TopKeywords({ siteId, days = 28, limit = 10 }: TopKeywordsProps) {
+  const t = await getT();
   const topKeywords = await getTopKeywords(siteId, days, limit);
 
   return (
     <section className="panel overflow-hidden">
       <div className="flex items-baseline justify-between gap-3 px-4 pt-4 pb-1.5">
-        <h2 className="text-[15px] leading-5 font-semibold">Top queries</h2>
+        <h2 className="text-[15px] leading-5 font-semibold">{t("Top queries")}</h2>
         <Link href={`/sites/${siteId}/keywords`} className="text-link text-[13px]">
-          All keywords
+          {t("All keywords")}{" "}
         </Link>
       </div>
 
       {topKeywords.length === 0 ? (
         <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-          No keyword data yet. Run a GSC sync.
+          {t("No keyword data yet. Run a GSC sync.")}{" "}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-[13px]">
             <thead>
               <tr className="border-b border-border">
-                <th className={`${th} text-left`}>Query</th>
-                <th className={`${th} text-right`}>Clicks</th>
-                <th className={`${th} text-right`}>Impr.</th>
-                <th className={`${th} text-right`}>CTR</th>
-                <th className={`${th} text-right`}>Pos.</th>
+                <th className={`${th} text-left`}>{t("Query")}</th>
+                <th className={`${th} text-right`}>{t("Clicks")}</th>
+                <th className={`${th} text-right`}>{t("Impr.")}</th>
+                <th className={`${th} text-right`}>{t("CTR")}</th>
+                <th className={`${th} text-right`}>{t("Pos.")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-soft">

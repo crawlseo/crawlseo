@@ -20,6 +20,7 @@ import {
   type PositionFilter,
   type SortDir,
 } from "@/components/ui/data-table";
+import { useT } from "@/components/i18n/provider";
 
 type SortKey = "query" | "clicks" | "impressions" | "position" | "ctr";
 
@@ -47,6 +48,7 @@ const DEFAULT_DIRS: Record<SortKey, SortDir> = {
 };
 
 export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PositionFilter>("all");
   const [minClicks, setMinClicks] = useState("");
@@ -71,14 +73,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
     });
 
     return sortRows(rows, sort);
-  }, [
-    keywords,
-    deferredSearch,
-    position,
-    minClicksNum,
-    minImpressionsNum,
-    sort,
-  ]);
+  }, [keywords, deferredSearch, position, minClicksNum, minImpressionsNum, sort]);
 
   const hasActiveFilters =
     search.trim() !== "" ||
@@ -96,20 +91,13 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
     setSort({ key: "clicks", dir: "desc" });
   }
 
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          placeholder="Filter by query..."
-        />
+        <SearchField value={search} onChange={setSearch} placeholder={t("Filter by query...")} />
 
         <label className="flex flex-col gap-1">
-          <span className="mono-label text-[11px] text-muted-foreground">
-            Position
-          </span>
+          <span className="mono-label text-[11px] text-muted-foreground">{t("Position")} </span>
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value as PositionFilter)}
@@ -117,16 +105,14 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           >
             {POSITION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.label)}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="mono-label text-[11px] text-muted-foreground">
-            Min clicks
-          </span>
+          <span className="mono-label text-[11px] text-muted-foreground">{t("Min clicks")} </span>
           <input
             type="number"
             min={0}
@@ -139,7 +125,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
 
         <label className="flex flex-col gap-1">
           <span className="mono-label text-[11px] text-muted-foreground">
-            Min impressions
+            {t("Min impressions")}{" "}
           </span>
           <input
             type="number"
@@ -152,9 +138,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="mono-label text-[11px] text-muted-foreground">
-            Sort by
-          </span>
+          <span className="mono-label text-[11px] text-muted-foreground">{t("Sort by")} </span>
           <select
             value={sort.key}
             onChange={(e) => {
@@ -165,7 +149,7 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.label)}
               </option>
             ))}
           </select>
@@ -177,16 +161,16 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
             onClick={clearFilters}
             className={buttonVariants({ variant: "ghost" })}
           >
-            Clear
+            {t("Clear")}{" "}
           </button>
         )}
       </div>
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-text-strong">No keywords match</p>
+          <p className="font-medium text-text-strong">{t("No keywords match")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Loosen position, clicks, or impressions filters.
+            {t("Loosen position, clicks, or impressions filters.")}{" "}
           </p>
         </div>
       ) : (
@@ -194,17 +178,16 @@ export function KeywordsTable({ keywords }: { keywords: KeywordRow[] }) {
           sort={sort}
           onSort={toggle}
           headers={HEADERS}
-          footer={`Showing ${filtered.length} of ${keywords.length} keywords · sorted by ${sortLabel(HEADERS, sort)}`}
+          footer={t("Showing {0} of {1} keywords · sorted by {2}", {
+            "0": filtered.length,
+            "1": keywords.length,
+            "2": sortLabel(HEADERS, sort, t),
+          })}
         >
           {filtered.map((keyword) => (
-            <tr
-              key={keyword.query}
-              className="transition-colors hover:bg-bg-soft"
-            >
+            <tr key={keyword.query} className="transition-colors hover:bg-bg-soft">
               <td className="max-w-md px-4 py-[11px]">
-                <span className="text-text-strong">
-                  {keyword.query}
-                </span>
+                <span className="text-text-strong">{keyword.query}</span>
               </td>
               <td className="px-4 py-[11px] text-right">
                 <PositionBadge position={keyword.position} />

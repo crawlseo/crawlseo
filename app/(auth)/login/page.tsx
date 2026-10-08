@@ -2,6 +2,7 @@ import { signIn, auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
+import { getT } from "@/lib/i18n/server";
 
 // Auth.js sends a refused sign-in back here as ?error=AccessDenied, which only
 // the signIn callback produces (DISABLE_REGISTRATION). Any other code gets the
@@ -19,6 +20,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const t = await getT();
   const session = await auth();
   if (session) {
     redirect("/dashboard");
@@ -32,18 +34,20 @@ export default async function LoginPage({
           <h1 className="text-text-strong">
             <Logo className="h-8" />
           </h1>
-          <p className="text-atom-body text-muted-foreground">Self-hosted search ops for founders</p>
+          <p className="text-atom-body text-muted-foreground">
+            {t("Self-hosted search ops for founders")}
+          </p>
         </div>
 
         <div className="panel p-8">
-          <h2 className="text-atom-title font-medium">Sign in</h2>
+          <h2 className="text-atom-title font-medium">{t("Sign in")}</h2>
           <p className="mt-2 text-atom-body text-muted-foreground">
-            Connect Google Search Console with read-only access.
+            {t("Connect Google Search Console with read-only access.")}{" "}
           </p>
 
           {error && (
             <p role="alert" className="mt-4 text-atom-body text-danger">
-              {error}
+              {t.stored(error)}
             </p>
           )}
 
@@ -55,14 +59,14 @@ export default async function LoginPage({
             }}
           >
             <Button type="submit" size="lg" className="w-full">
-              Continue with Google
+              {t("Continue with Google")}{" "}
             </Button>
           </form>
 
           <ul className="mt-6 space-y-1.5 border-t border-border pt-5 text-[13px] leading-5 text-muted-foreground">
-            <li>Keywords, positions and CTR from GSC</li>
-            <li>Technical crawl and Core Web Vitals</li>
-            <li>Data stays on your server</li>
+            <li>{t("Keywords, positions and CTR from GSC")}</li>
+            <li>{t("Technical crawl and Core Web Vitals")}</li>
+            <li>{t("Data stays on your server")}</li>
           </ul>
         </div>
       </div>
