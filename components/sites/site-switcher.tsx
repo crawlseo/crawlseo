@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/components/i18n/provider";
 
 interface Site {
   id: string;
@@ -17,21 +18,24 @@ interface Site {
 }
 
 export function SiteSwitcher({ sites }: { sites: Site[] }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
 
   if (sites.length === 0) return null;
 
   const match = pathname.match(/\/sites\/([^/]+)/);
-  const selected =
-    match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : null;
+  const selected = match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : null;
 
   function handleSiteChange(siteId: string | null) {
     if (!siteId) return;
 
     if (pathname.includes("/sites/")) {
       const sub = pathname.match(/\/sites\/[^/]+\/([^/]+)/)?.[1];
-      if (sub && ["keywords", "pages", "crawl", "vitals", "opportunities", "alerts"].includes(sub)) {
+      if (
+        sub &&
+        ["keywords", "pages", "crawl", "vitals", "opportunities", "alerts"].includes(sub)
+      ) {
         router.push(`/sites/${siteId}/${sub}`);
         return;
       }
@@ -51,7 +55,7 @@ export function SiteSwitcher({ sites }: { sites: Site[] }) {
     return (
       <Link
         href="/sites"
-        aria-label={`Site: ${sites[0].domain}. Switch or add a site`}
+        aria-label={t("Site: {0}. Switch or add a site", { "0": sites[0].domain })}
         className={`${box} transition-colors hover:border-line-strong`}
       >
         <span className="truncate">{sites[0].domain}</span>
@@ -64,8 +68,11 @@ export function SiteSwitcher({ sites }: { sites: Site[] }) {
 
   return (
     <Select value={selected} onValueChange={handleSiteChange} items={items}>
-      <SelectTrigger aria-label="Switch site" className={`${box} py-0 pr-2 data-[size=default]:h-[38px]`}>
-        <SelectValue placeholder="Choose a site" />
+      <SelectTrigger
+        aria-label={t("Switch site")}
+        className={`${box} py-0 pr-2 data-[size=default]:h-[38px]`}
+      >
+        <SelectValue placeholder={t("Choose a site")} />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>
         {items.map(({ value, label }) => (

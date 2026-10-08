@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/provider";
 
 export function EvaluateAlertsButton() {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -22,7 +24,10 @@ export function EvaluateAlertsButton() {
       setMsg(
         n === 0
           ? "No alerts fired"
-          : `${n} alert(s): ${data.fires.map((f: { message: string }) => f.message).join(" · ")}`
+          : t("{0} alert(s): {1}", {
+              "0": n,
+              "1": data.fires.map((f: { message: string }) => t.stored(f.message)).join(" · "),
+            }),
       );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");
@@ -34,11 +39,9 @@ export function EvaluateAlertsButton() {
   return (
     <div className="space-y-1 text-right">
       <Button size="sm" variant="outline" disabled={loading} onClick={run}>
-        {loading ? "Checking…" : "Evaluate now"}
+        {loading ? t("Checking…") : t("Evaluate now")}
       </Button>
-      {msg && (
-        <p className="max-w-sm text-xs text-muted-foreground sm:ml-auto">{msg}</p>
-      )}
+      {msg && <p className="max-w-sm text-xs text-muted-foreground sm:ml-auto">{t.stored(msg)}</p>}
     </div>
   );
 }

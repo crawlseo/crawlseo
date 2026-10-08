@@ -11,6 +11,8 @@ import {
   SearchField,
   type MetricHeader,
 } from "@/components/ui/data-table";
+import { useT } from "@/components/i18n/provider";
+import { getTranslator, type Translator } from "@/lib/i18n";
 
 const HEADERS: MetricHeader[] = [
   { label: "URL", sortKey: "url", defaultDir: "asc" },
@@ -44,21 +46,38 @@ export const PAGE_SIZE = 100;
  * One table page of the filtered rows, and the footer line that says what is
  * shown: "Showing 100 of 205 pages, 1 to 100".
  */
-export function paginate<T>(filtered: T[], total: number, pageIndex: number) {
+export function paginate<T>(
+  filtered: T[],
+  total: number,
+  pageIndex: number,
+  t: Translator = getTranslator("en"),
+) {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(Math.max(0, pageIndex), pageCount - 1);
   const shown = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
   const first = current * PAGE_SIZE + 1;
-  const pages = (n: number) => (n === 1 ? "page" : "pages");
   const of =
     filtered.length === total
-      ? `${total} ${pages(total)}`
-      : `${filtered.length} matching ${pages(filtered.length)} (${total} in total)`;
-  const range = pageCount > 1 ? `, ${first} to ${first + shown.length - 1}` : "";
-  return { shown, current, pageCount, summary: `Showing ${shown.length} of ${of}${range}` };
+      ? t("counts.pages", { count: total })
+      : t("pagination.matching", { count: filtered.length, total });
+  const range =
+    pageCount > 1
+      ? t(", {0} to {1}", { "0": first, "1": first + shown.length - 1 })
+      : "";
+  return {
+    shown,
+    current,
+    pageCount,
+    summary: t("Showing {0} of {1}{2}", {
+      "0": shown.length,
+      "1": of,
+      "2": range,
+    }),
+  };
 }
 
 export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
   const { sort, toggle } = useTableSort({ key: "contentScore", dir: "desc" });
@@ -71,7 +90,12 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
     return sortRows(out, sort);
   }, [rows, deferredSearch, sort]);
 
-  const { shown, current, pageCount, summary } = paginate(filtered, rows.length, pageIndex);
+  const { shown, current, pageCount, summary } = paginate(
+    filtered,
+    rows.length,
+    pageIndex,
+    t,
+  );
 
   return (
     <div className="space-y-3">
@@ -82,14 +106,16 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
             setSearch(value);
             setPageIndex(0);
           }}
-          placeholder="Filter by URL..."
+          placeholder={t("Filter by URL...")}
         />
       </div>
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-text-strong">No pages match</p>
-          <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
+          <p className="font-medium text-text-strong">{t("No pages match")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("Loosen the search.")}
+          </p>
         </div>
       ) : (
         <MetricTable
@@ -102,20 +128,23 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
           footer={
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                {summary} · sorted by {sortLabel(HEADERS, sort)}
+                {summary} {t("· sorted by")} {sortLabel(HEADERS, sort, t)}
               </span>
               {pageCount > 1 && (
-                <nav aria-label="Crawled pages" className="flex items-center gap-2">
+                <nav
+                  aria-label={t("Crawled pages")}
+                  className="flex items-center gap-2"
+                >
                   <Button
                     variant="outline"
                     size="xs"
                     disabled={current === 0}
                     onClick={() => setPageIndex(current - 1)}
                   >
-                    Previous
+                    {t("Previous")}{" "}
                   </Button>
                   <span className="font-data">
-                    Page {current + 1} of {pageCount}
+                    {t("Page")} {current + 1} {t("of")} {pageCount}
                   </span>
                   <Button
                     variant="outline"
@@ -123,7 +152,7 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                     disabled={current === pageCount - 1}
                     onClick={() => setPageIndex(current + 1)}
                   >
-                    Next
+                    {t("Next")}{" "}
                   </Button>
                 </nav>
               )}
@@ -132,7 +161,10 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
         >
           {shown.map((p) => (
             <tr key={p.id} className="hover:bg-bg-soft">
-              <td className="max-w-md truncate px-4 py-[11px] font-data text-[12px] text-text-strong" title={p.url}>
+              <td
+                className="max-w-md truncate px-4 py-[11px] font-data text-[12px] text-text-strong"
+                title={p.url}
+              >
                 {p.url}
               </td>
               <td className="px-4 py-[11px] text-right font-data">
@@ -142,7 +174,7 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                       ? "text-danger"
                       : p.statusCode >= 300
                         ? "text-warning"
-                        : "text-success"
+                        : "text-success",
                   )}
                 >
                   {p.statusCode}
@@ -155,14 +187,14 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                       ? "text-success"
                       : p.contentScore >= 50
                         ? "text-warning"
-                        : "text-danger"
+                        : "text-danger",
                   )}
                 >
                   {p.contentScore}
                 </span>
               </td>
               <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
-                {p.wordCount}
+                {t.number(p.wordCount)}
               </td>
               <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
                 {p.h1Count}
@@ -177,10 +209,11 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
                 )}
               </td>
               <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
-                {p.internalLinks}
+                {t.number(p.internalLinks)}
               </td>
               <td className="px-4 py-[11px] text-right font-data text-muted-foreground">
-                {p.responseTimeMs}ms
+                {t.number(p.responseTimeMs)}
+                {t("ms")}{" "}
               </td>
             </tr>
           ))}

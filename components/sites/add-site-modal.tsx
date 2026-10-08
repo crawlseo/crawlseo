@@ -18,17 +18,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/components/i18n/provider";
 
 interface GSCProperty {
   siteUrl: string;
   permissionLevel: string;
 }
 
-export function AddSiteModal({
-  triggerLabel = "Add site",
-}: {
-  triggerLabel?: string;
-}) {
+export function AddSiteModal({ triggerLabel = "Add site" }: { triggerLabel?: string }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [properties, setProperties] = useState<GSCProperty[]>([]);
@@ -64,14 +62,10 @@ export function AddSiteModal({
       setProperties(data || []);
 
       if (!data?.length) {
-        setError(
-          "No GSC properties found. Verify this Google account has Search Console access."
-        );
+        setError("No GSC properties found. Verify this Google account has Search Console access.");
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load GSC properties"
-      );
+      setError(err instanceof Error ? err.message : "Failed to load GSC properties");
     } finally {
       setLoading(false);
     }
@@ -119,32 +113,32 @@ export function AddSiteModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button />}>{triggerLabel}</DialogTrigger>
+      <DialogTrigger render={<Button />}>{t(triggerLabel)}</DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Connect Search Console</DialogTitle>
+          <DialogTitle>{t("Connect Search Console")}</DialogTitle>
           <DialogDescription>
-            Pick a property you manage. We only request read-only GSC access.
+            {t("Pick a property you manage. We only request read-only GSC access.")}{" "}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {error && (
             <div className="rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger">
-              {error}
+              {t.stored(error)}
             </div>
           )}
 
           {success && (
             <div className="rounded-lg border border-success/30 bg-success-bg px-3 py-2 text-sm text-success">
-              Site connected. Opening workspace…
+              {t("Site connected. Opening workspace…")}{" "}
             </div>
           )}
 
           {loading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              Loading properties from Google…
+              {t("Loading properties from Google…")}{" "}
             </div>
           ) : properties.length > 0 ? (
             <Select
@@ -152,7 +146,7 @@ export function AddSiteModal({
               onValueChange={(value) => value !== null && setSelectedProperty(value)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a GSC property…" />
+                <SelectValue placeholder={t("Select a GSC property…")} />
               </SelectTrigger>
               <SelectContent>
                 {properties.map((prop) => (
@@ -171,14 +165,14 @@ export function AddSiteModal({
               onClick={() => setOpen(false)}
               disabled={adding}
             >
-              Cancel
+              {t("Cancel")}{" "}
             </Button>
             <Button
               type="button"
               onClick={handleAddSite}
               disabled={!selectedProperty || loading || adding}
             >
-              {adding ? "Connecting…" : "Connect site"}
+              {adding ? t("Connecting…") : t("Connect site")}
             </Button>
           </div>
         </div>

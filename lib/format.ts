@@ -6,10 +6,10 @@ export function cnDelta(value: number, invert = false): string {
   return "text-muted-foreground";
 }
 
-export function formatDeltaPercent(value: number): string {
+export function formatDeltaPercent(value: number, locale = "en-US"): string {
   if (!Number.isFinite(value) || value === 0) return "0%";
   const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(value % 1 === 0 ? 0 : 1)}%`;
+  return `${sign}${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
 export function formatDeltaPosition(value: number): string {
@@ -28,13 +28,19 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  */
 export function formatDay(
   value: Date | string,
-  { year = false, time = false }: { year?: boolean; time?: boolean } = {}
+  {
+    year = false,
+    time = false,
+    locale = "en",
+  }: { year?: boolean; time?: boolean; locale?: string } = {},
 ): string {
   const d =
     typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
       ? new Date(`${value}T00:00:00Z`)
       : new Date(value);
-  let out = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+  let out = !locale.startsWith("en")
+    ? new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(d)
+    : `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
   if (year) out += ` ${d.getUTCFullYear()}`;
   if (time) {
     const hh = String(d.getUTCHours()).padStart(2, "0");
@@ -45,8 +51,12 @@ export function formatDay(
 }
 
 /** A signed delta with a real minus sign: "+8.3", "−3.5". */
-export function signed(value: number, digits = 1): string {
-  const abs = Math.abs(value).toFixed(digits);
-  if (Number(abs) === 0) return abs;
+export function signed(value: number, digits = 1, locale = "en-US"): string {
+  const abs = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  }).format(Math.abs(value));
+  if (Number(Math.abs(value).toFixed(digits)) === 0) return abs;
   return value > 0 ? `+${abs}` : `−${abs}`;
 }

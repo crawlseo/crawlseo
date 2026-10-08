@@ -4,14 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import { useT } from "@/components/i18n/provider";
 
-export function DeleteSiteButton({
-  siteId,
-  domain,
-}: {
-  siteId: string;
-  domain: string;
-}) {
+export function DeleteSiteButton({ siteId, domain }: { siteId: string; domain: string }) {
+  const t = useT();
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,7 +29,7 @@ export function DeleteSiteButton({
     return (
       <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
         <Trash2 className="size-3.5" />
-        Delete site
+        {t("Delete site")}{" "}
       </Button>
     );
   }
@@ -41,22 +37,13 @@ export function DeleteSiteButton({
   return (
     <div className="flex items-center gap-3">
       <p className="text-sm text-danger">
-        Delete <strong>{domain}</strong> and all data?
+        {t("Delete")} <strong>{domain}</strong> {t("and all data?")}{" "}
       </p>
-      <Button
-        variant="destructive"
-        size="sm"
-        onClick={handleDelete}
-        disabled={loading}
-      >
+      <Button variant="destructive" size="sm" onClick={handleDelete} disabled={loading}>
         {loading ? "Deleting..." : "Yes, delete"}
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setConfirming(false)}
-      >
-        Cancel
+      <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+        {t("Cancel")}{" "}
       </Button>
     </div>
   );

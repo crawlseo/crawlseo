@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { positionBand, formatPosition, formatCtr } from "@/lib/seo-metrics";
+import { useT } from "@/components/i18n/provider";
 
 export function PositionBadge({ position }: { position: number }) {
+  const t = useT();
   const band = positionBand(position);
   return (
     <span
@@ -13,10 +15,10 @@ export function PositionBadge({ position }: { position: number }) {
         band === "top3" && "rank-top3",
         band === "top10" && "rank-top10",
         band === "top20" && "rank-top20",
-        band === "deep" && "rank-deep"
+        band === "deep" && "rank-deep",
       )}
     >
-      {formatPosition(position)}
+      {formatPosition(position, t.intlLocale)}
     </span>
   );
 }
@@ -42,16 +44,20 @@ export function useTableSort(initial: SortState) {
     setSort((prev) =>
       prev.key === key
         ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: defaultDir }
+        : { key, dir: defaultDir },
     );
   }
   return { sort, setSort, toggle };
 }
 
 /** Human label for the active sort, for footers ("Score", not "perfScore"). */
-export function sortLabel(headers: MetricHeader[], sort: SortState): string {
+export function sortLabel(
+  headers: MetricHeader[],
+  sort: SortState,
+  translate: (text: string) => string = (text) => text,
+): string {
   const label = headers.find((h) => h.sortKey === sort.key)?.label ?? sort.key;
-  return `${label.toLowerCase()} ${sort.dir === "asc" ? "↑" : "↓"}`;
+  return `${translate(label).toLowerCase()} ${sort.dir === "asc" ? "↑" : "↓"}`;
 }
 
 /** Generic comparator: numbers numerically, strings via localeCompare, null/undefined last. */
@@ -82,6 +88,7 @@ export function MetricTable({
   sort?: SortState;
   onSort?: (key: string, defaultDir?: SortDir) => void;
 }) {
+  const t = useT();
   return (
     <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
@@ -99,7 +106,7 @@ export function MetricTable({
                     }
                     className={cn(
                       "mono-label px-4 py-2.5 text-[11px] font-normal text-muted-foreground",
-                      h.align === "right" ? "text-right" : "text-left"
+                      h.align === "right" ? "text-right" : "text-left",
                     )}
                   >
                     {sortable ? (
@@ -108,17 +115,20 @@ export function MetricTable({
                         onClick={() => onSort!(h.sortKey!, h.defaultDir)}
                         className={cn(
                           "mono-label inline-flex items-center gap-1 transition-colors hover:text-text-strong",
-                          active && "text-text-strong"
+                          active && "text-text-strong",
                         )}
-                        title={`Sort by ${h.label}`}
+                        title={t("Sort by {0}", { "0": t(h.label) })}
                       >
-                        {h.label}
-                        <span aria-hidden className={cn("text-[10px]", !active && "text-text-faint")}>
+                        {t(h.label)}
+                        <span
+                          aria-hidden
+                          className={cn("text-[10px]", !active && "text-text-faint")}
+                        >
                           {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
                     ) : (
-                      h.label
+                      t(h.label)
                     )}
                   </th>
                 );
@@ -150,11 +160,10 @@ export function SearchField({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   return (
     <label className="flex min-w-56 flex-1 flex-col gap-1">
-      <span className="mono-label text-[11px] text-muted-foreground">
-        Search
-      </span>
+      <span className="mono-label text-[11px] text-muted-foreground">{t("Search")} </span>
       <input
         type="search"
         value={value}
@@ -191,11 +200,11 @@ export function parseMin(value: string): number | null {
 }
 
 export function CtrCell({ ctr }: { ctr: number }) {
-  return <span className="font-data text-text">{formatCtr(ctr)}</span>;
+  const t = useT();
+  return <span className="font-data text-text">{formatCtr(ctr, t.intlLocale)}</span>;
 }
 
 export function NumCell({ value }: { value: number }) {
-  return (
-    <span className="font-data text-text">{value.toLocaleString()}</span>
-  );
+  const t = useT();
+  return <span className="font-data text-text">{value.toLocaleString(t.intlLocale)}</span>;
 }
