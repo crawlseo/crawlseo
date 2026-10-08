@@ -49,16 +49,22 @@ export function DomainOverviewClient({
   const [loadingOwn, setLoadingOwn] = useState(false);
   const [loadingCompetitor, setLoadingCompetitor] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [ownError, setOwnError] = useState<string | null>(null);
+  const [competitorError, setCompetitorError] = useState<string | null>(null);
 
   async function loadOwnDomain() {
     setLoadingOwn(true);
+    setOwnError(null);
     try {
       const res = await fetch(`/api/sites/${siteId}/domain-overview`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Domain analysis failed");
       setOwnData(data);
       setLoaded(true);
-    } catch {
-      // ignore
+    } catch (error) {
+      setOwnData(null);
+      setLoaded(false);
+      setOwnError(error instanceof Error ? error.message : "Domain analysis failed");
     } finally {
       setLoadingOwn(false);
     }
@@ -68,17 +74,20 @@ export function DomainOverviewClient({
     e.preventDefault();
     if (!competitorDomain.trim()) return;
 
-    if (!loaded) await loadOwnDomain();
-
     setLoadingCompetitor(true);
+    setCompetitorData(null);
+    setCompetitorError(null);
     try {
+      if (!loaded) await loadOwnDomain();
+
       const res = await fetch(
         `/api/sites/${siteId}/domain-overview?domain=${encodeURIComponent(competitorDomain.trim())}`
       );
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Domain comparison failed");
       setCompetitorData(data);
-    } catch {
-      // ignore
+    } catch (error) {
+      setCompetitorError(error instanceof Error ? error.message : "Domain comparison failed");
     } finally {
       setLoadingCompetitor(false);
     }
@@ -150,6 +159,9 @@ export function DomainOverviewClient({
           </form>
         )}
       </div>
+
+      {ownError && <p role="alert" className="text-sm text-danger">{ownError}</p>}
+      {competitorError && <p role="alert" className="text-sm text-danger">{competitorError}</p>}
 
       {/* Results - side by side */}
       {(ownData || competitorData) && (
