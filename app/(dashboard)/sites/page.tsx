@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
+import { BulkActionsButton } from "@/components/sites/bulk-actions";
 import { SyncButton } from "@/components/sites/sync-button";
 import { formatCompact } from "@/lib/seo-metrics";
 import { getT } from "@/lib/i18n/server";
@@ -35,7 +36,7 @@ export default async function SitesPage() {
       <PageHeader
         title={t("Sites")}
         description={t("Connect and sync Google Search Console properties.")}
-        actions={<AddSiteModal />}
+        actions={<div className="flex flex-wrap items-center gap-3"><BulkActionsButton /><AddSiteModal /></div>}
       />
 
       {sites.length === 0 ? (

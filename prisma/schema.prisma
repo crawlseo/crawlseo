@@ -24,6 +24,25 @@ model User {
   sites         Site[]
   alerts        Alert[]
   apiKeys       ApiKey[]
+  bulkJobs      BulkJob[]
+}
+
+// ============ PORTFOLIO ACTIONS ============
+
+model BulkJob {
+  id              String   @id @default(cuid())
+  userId          String
+  status          String   @default("QUEUED")
+  tasks           Json
+  options         Json
+  cancelRequested Boolean  @default(false)
+  heartbeatAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  finishedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Account {

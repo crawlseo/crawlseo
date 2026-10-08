@@ -5,6 +5,7 @@ import { getSitePeriodMetrics, formatCompact } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
+import { BulkActionsButton } from "@/components/sites/bulk-actions";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { formatDeltaPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,8 @@ export default async function DashboardPage() {
           "0": t("counts.sites", { count: sites.length }),
         })}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <BulkActionsButton />
             <AddSiteModal />
           </div>
         }
