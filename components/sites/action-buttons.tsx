@@ -28,11 +28,30 @@ const MIN_CUSTOM_PAGES = 1;
 
 export function CrawlButton({ siteId }: { siteId: string }) {
   const router = useRouter();
+  const setHeaderStatus = useHeaderStatus();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const [limitSelection, setLimitSelection] = useState("200");
   const [customValue, setCustomValue] = useState("");
+
+  useEffect(() => {
+    if (!setHeaderStatus) return;
+    setHeaderStatus(
+      msg ? (
+        <p
+          role={err ? "alert" : "status"}
+          className={cn(
+            "break-words text-atom-caption",
+            err ? "text-danger" : "text-success"
+          )}
+        >
+          {msg}
+        </p>
+      ) : null
+    );
+  }, [setHeaderStatus, msg, err]);
+  useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
 
   const isCustom = limitSelection === "custom";
   const maxPages = isCustom
@@ -100,8 +119,14 @@ export function CrawlButton({ siteId }: { siteId: string }) {
           {loading ? "Starting…" : "Run crawl"}
         </Button>
       </div>
-      {msg && (
-        <p className={cn("text-atom-caption", err ? "text-danger" : "text-success")}>
+      {msg && !setHeaderStatus && (
+        <p
+          role={err ? "alert" : "status"}
+          className={cn(
+            "break-words text-atom-caption",
+            err ? "text-danger" : "text-success"
+          )}
+        >
           {msg}
         </p>
       )}
