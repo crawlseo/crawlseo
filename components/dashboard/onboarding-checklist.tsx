@@ -4,15 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Globe,
-  Link2,
-  RefreshCw,
-  Bug,
-  Check,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import { Globe, Link2, RefreshCw, Bug, Check, ChevronRight, X } from "lucide-react";
+import { useT } from "@/components/i18n/provider";
 
 type Step = {
   id: string;
@@ -39,6 +32,7 @@ export function OnboardingChecklist({
   hasCrawled,
   firstSiteId,
 }: OnboardingChecklistProps) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(false);
 
   const allDone = hasSites && hasGscConnected && hasSyncedData && hasCrawled;
@@ -47,8 +41,8 @@ export function OnboardingChecklist({
   const steps: Step[] = [
     {
       id: "add-site",
-      label: "Add a site",
-      description: "Connect a Google Search Console property to monitor",
+      label: t("Add a site"),
+      description: t("Connect a Google Search Console property to monitor"),
       icon: <Globe className="size-4" />,
       done: hasSites,
       href: "/sites",
@@ -56,8 +50,8 @@ export function OnboardingChecklist({
     },
     {
       id: "connect-gsc",
-      label: "Connect GSC",
-      description: "Link your Google Search Console for keyword and page data",
+      label: t("Connect GSC"),
+      description: t("Link your Google Search Console for keyword and page data"),
       icon: <Link2 className="size-4" />,
       done: hasGscConnected,
       href: firstSiteId ? `/sites/${firstSiteId}` : "/sites",
@@ -65,8 +59,8 @@ export function OnboardingChecklist({
     },
     {
       id: "first-sync",
-      label: "Sync GSC data",
-      description: "Pull the last 28 days of search performance data",
+      label: t("Sync GSC data"),
+      description: t("Pull the last 28 days of search performance data"),
       icon: <RefreshCw className="size-4" />,
       done: hasSyncedData,
       href: firstSiteId ? `/sites/${firstSiteId}` : "/sites",
@@ -74,8 +68,8 @@ export function OnboardingChecklist({
     },
     {
       id: "first-crawl",
-      label: "Run first crawl",
-      description: "Audit your site for technical SEO issues",
+      label: t("Run first crawl"),
+      description: t("Audit your site for technical SEO issues"),
       icon: <Bug className="size-4" />,
       done: hasCrawled,
       href: firstSiteId ? `/sites/${firstSiteId}/crawl` : "/sites",
@@ -87,21 +81,18 @@ export function OnboardingChecklist({
 
   return (
     <div className="panel relative mb-6 overflow-hidden">
-
       <div className="flex items-start justify-between px-5 pt-5">
         <div>
-          <h2 className="text-[15px] leading-5 font-semibold">
-            Get started
-          </h2>
+          <h2 className="text-[15px] leading-5 font-semibold">{t("Get started")} </h2>
           <p className="mono-label mt-1 text-[11px] text-muted-foreground">
-            {completedCount}/{steps.length} steps completed
+            {completedCount}/{steps.length} {t("steps completed")}{" "}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setDismissed(true)}
           className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-bg-section hover:text-text-strong"
-          aria-label="Dismiss"
+          aria-label={t("Dismiss")}
         >
           <X className="size-4" />
         </button>
@@ -121,7 +112,7 @@ export function OnboardingChecklist({
             key={step.id}
             className={cn(
               "flex items-center gap-4 rounded-md px-3 py-3 transition-colors",
-              !step.done && "hover:bg-bg-soft"
+              !step.done && "hover:bg-bg-soft",
             )}
           >
             <div
@@ -129,7 +120,7 @@ export function OnboardingChecklist({
                 "flex size-8 shrink-0 items-center justify-center rounded-md border",
                 step.done
                   ? "border-success/30 bg-success-bg text-success"
-                  : "border-border bg-bg-soft text-text-strong"
+                  : "border-border bg-bg-soft text-text-strong",
               )}
             >
               {step.done ? <Check className="size-4" /> : step.icon}
@@ -139,22 +130,17 @@ export function OnboardingChecklist({
               <p
                 className={cn(
                   "text-[14px] font-medium",
-                  step.done
-                    ? "text-muted-foreground line-through"
-                    : "text-text-strong"
+                  step.done ? "text-muted-foreground line-through" : "text-text-strong",
                 )}
               >
-                {step.label}
+                {t(step.label)}
               </p>
-              <p className="text-[13px] leading-5 text-muted-foreground">{step.description}</p>
+              <p className="text-[13px] leading-5 text-muted-foreground">{t(step.description)}</p>
             </div>
 
             {!step.done && (
-              <Link
-                href={step.href}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                {step.actionLabel}
+              <Link href={step.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                {t(step.actionLabel)}
                 <ChevronRight className="size-3" aria-hidden />
               </Link>
             )}

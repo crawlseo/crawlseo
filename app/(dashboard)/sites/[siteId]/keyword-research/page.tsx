@@ -3,12 +3,14 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeywordResearchClient } from "@/components/research/keyword-research-client";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function KeywordResearchPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -26,8 +28,8 @@ export default async function KeywordResearchPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Keyword research"
-        description="Keyword ideas with search volume, difficulty and CPC."
+        title={t("Keyword research")}
+        description={t("Keyword ideas with search volume, difficulty and CPC.")}
       />
       <KeywordResearchClient siteId={siteId} hasDataForSEO={hasDataForSEO} />
     </div>

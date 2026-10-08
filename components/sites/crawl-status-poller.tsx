@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { CrawlFailedNotice } from "./crawl-failed-notice";
+import { useT } from "@/components/i18n/provider";
 
 interface CrawlStatusPollerProps {
   siteId: string;
@@ -24,6 +25,7 @@ interface CrawlStatus {
 const isDone = (s: CrawlStatus | null) => s?.status === "COMPLETED" || s?.status === "FAILED";
 
 export function CrawlStatusPoller({ siteId, crawlId }: CrawlStatusPollerProps) {
+  const t = useT();
   const router = useRouter();
   const [status, setStatus] = useState<CrawlStatus | null>(null);
 
@@ -60,15 +62,16 @@ export function CrawlStatusPoller({ siteId, crawlId }: CrawlStatusPollerProps) {
   if (done) return null;
 
   return (
-    <div role="status"
-      className="mb-6 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-5 py-4">
+    <div
+      role="status"
+      className="mb-6 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-5 py-4"
+    >
       <Loader2 className="size-5 animate-spin text-brand-500" aria-hidden />
       <div>
-        <p className="text-sm font-medium text-text-strong">
-          Crawl in progress…
-        </p>
+        <p className="text-sm font-medium text-text-strong">{t("Crawl in progress…")} </p>
         <p className="text-xs text-muted-foreground">
-          {status?.pagesFound ?? 0} pages found · {status?.issuesFound ?? 0} issues
+          {status?.pagesFound ?? 0} {t("pages found ·")} {status?.issuesFound ?? 0}{" "}
+          {t("issues")}{" "}
         </p>
       </div>
     </div>

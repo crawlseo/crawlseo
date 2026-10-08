@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import { getLocale, getMessages } from "@/lib/i18n/server";
+import { LocaleProvider } from "@/components/i18n/provider";
 
 // Inter (variable) for all UI and text.
 const inter = Inter({
@@ -37,17 +39,23 @@ export const viewport: Viewport = {
 // mode, blocked site data); nothing depends on it, so errors are ignored.
 const clearStaleTheme = `try{localStorage.removeItem("crawlseo-theme")}catch(e){}`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages(locale);
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} h-full`}>
+    <html lang={locale} className={`${inter.variable} ${geistMono.variable} h-full`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: clearStaleTheme }} />
       </head>
-      <body className="h-full font-sans">{children}</body>
+      <body className="h-full font-sans">
+        <LocaleProvider locale={locale} messages={messages}>
+          {children}
+        </LocaleProvider>
+      </body>
     </html>
   );
 }

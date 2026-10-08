@@ -8,21 +8,20 @@ import { TopKeywords } from "@/components/dashboard/top-keywords";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SyncButton } from "@/components/sites/sync-button";
-import {
-  CrawlButton,
-  VitalsButton,
-} from "@/components/sites/action-buttons";
+import { CrawlButton, VitalsButton } from "@/components/sites/action-buttons";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { countVisibleIssues } from "@/lib/crawler/issue-filter";
 import { getCrawlActivity } from "@/lib/crawler/lifecycle";
 import { cn } from "@/lib/utils";
+import { getT } from "@/lib/i18n/server";
 
 interface SitePageProps {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function SiteOverviewPage({ params }: SitePageProps) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -71,8 +70,8 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   return (
     <div>
       <PageHeader
-        title="Overview"
-        meta="Last 28 days vs the previous 28 days"
+        title={t("Overview")}
+        meta={t("Last 28 days vs the previous 28 days")}
         description={<span className="font-data">{site.gscProperty || site.domain}</span>}
         actions={
           <>
@@ -86,8 +85,8 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
       {!hasData ? (
         <EmptyState
           icon="↻"
-          title="Waiting for GSC data"
-          description="Run a sync to pull keywords, pages, and traffic for the last 28 days."
+          title={t("Waiting for GSC data")}
+          description={t("Run a sync to pull keywords, pages, and traffic for the last 28 days.")}
         />
       ) : (
         <div className="flex flex-col gap-[22px]">
@@ -98,50 +97,58 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
             <TopKeywords siteId={siteId} />
 
             <section className="panel flex flex-col gap-3 self-start px-5 py-[18px]">
-              <h2 className="text-[15px] leading-5 font-semibold">Site checks</h2>
+              <h2 className="text-[15px] leading-5 font-semibold">{t("Site checks")}</h2>
               <CheckRow
-                label="Crawl health"
-                value={latestCrawl?.healthScore != null ? `${latestCrawl.healthScore}/100` : "n/a"}
-              />
-              <CheckRow
-                label="Crawl"
+                label={t("Crawl health")}
                 value={
-                  latestCrawl
-                    ? `${latestPageCount} pages · ${latestIssueCount} issues`
-                    : "Not run yet"
+                  latestCrawl?.healthScore != null ? `${latestCrawl.healthScore}/100` : t("n/a")
                 }
               />
-              {crawlActivity.active && <CheckRow label="Last crawl" value="Running" />}
+              <CheckRow
+                label={t("Crawl")}
+                value={
+                  latestCrawl
+                    ? t("{0} pages · {1} issues", { "0": latestPageCount, "1": latestIssueCount })
+                    : t("Not run yet")
+                }
+              />
+              {crawlActivity.active && <CheckRow label={t("Last crawl")} value={t("Running")} />}
               {crawlActivity.failed && (
                 <div className="flex flex-col gap-0.5">
-                  <CheckRow label="Last crawl" value="Failed" tone="danger" />
+                  <CheckRow label={t("Last crawl")} value={t("Failed")} tone="danger" />
                   <p className="text-[12px] leading-4 text-muted-foreground">
-                    {crawlActivity.failed.error ?? "No reason was recorded."}
+                    {t.stored(crawlActivity.failed.error ?? "No reason was recorded.")}
                   </p>
                 </div>
               )}
-              <CheckRow label="Opportunities" value={String(opportunities?.feed.length ?? 0)} />
               <CheckRow
-                label="Latest perf score"
-                value={latestVital?.perfScore != null ? String(latestVital.perfScore) : "n/a"}
+                label={t("Opportunities")}
+                value={String(opportunities?.feed.length ?? 0)}
+              />
+              <CheckRow
+                label={t("Latest perf score")}
+                value={latestVital?.perfScore != null ? String(latestVital.perfScore) : t("n/a")}
               />
               {latestVital?.url && (
                 <div className="flex items-baseline justify-between gap-3 text-[13px] leading-5">
-                  <span className="shrink-0 text-text">Tested URL</span>
-                  <span className="truncate font-data text-[12px] text-text-strong" title={latestVital.url}>
+                  <span className="shrink-0 text-text">{t("Tested URL")}</span>
+                  <span
+                    className="truncate font-data text-[12px] text-text-strong"
+                    title={latestVital.url}
+                  >
                     {latestVital.url.replace(/^https?:\/\//, "")}
                   </span>
                 </div>
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[13px]">
                 <Link href={`/sites/${siteId}/crawl`} className="text-link">
-                  Crawl / Audit
+                  {t("Crawl / Audit")}{" "}
                 </Link>
                 <Link href={`/sites/${siteId}/opportunities`} className="text-link">
-                  Opportunities
+                  {t("Opportunities")}{" "}
                 </Link>
                 <Link href={`/sites/${siteId}/vitals`} className="text-link">
-                  Vitals
+                  {t("Vitals")}{" "}
                 </Link>
               </div>
             </section>
@@ -165,7 +172,7 @@ function CheckRow({ label, value, tone }: { label: string; value: string; tone?:
       <span
         className={cn(
           /^[\d.,/%]+$/.test(value) ? "font-data" : "mono-label text-[12px]",
-          tone === "danger" ? "text-danger" : "text-text-strong"
+          tone === "danger" ? "text-danger" : "text-text-strong",
         )}
       >
         {value}

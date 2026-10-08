@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatDay } from "@/lib/format";
+import { useT } from "@/components/i18n/provider";
 
 interface TrafficChartProps {
   siteId: string;
@@ -15,7 +15,6 @@ interface ChartData {
 }
 
 type Day = { date: string; clicks: number | null; impressions: number | null };
-
 
 /** Every calendar day from the first synced day to today; days GSC has not reported stay null. */
 function fillDays(data: ChartData[]): Day[] {
@@ -40,6 +39,7 @@ function fillDays(data: ChartData[]): Day[] {
  * not reported yet is an empty dashed bar, never a zero.
  */
 export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
+  const t = useT();
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   if (loading) {
     return (
       <div className="panel flex h-[262px] items-center justify-center">
-        <p className="text-atom-body text-muted-foreground">Loading traffic…</p>
+        <p className="text-atom-body text-muted-foreground">{t("Loading traffic…")}</p>
       </div>
     );
   }
@@ -86,7 +86,7 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   if (error) {
     return (
       <div className="panel flex h-[262px] items-center justify-center">
-        <p className="text-atom-body text-danger">{error}</p>
+        <p className="text-atom-body text-danger">{t.stored(error)}</p>
       </div>
     );
   }
@@ -94,9 +94,9 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   if (series.length === 0) {
     return (
       <div className="panel flex h-[262px] flex-col items-center justify-center gap-2">
-        <p className="text-atom-subheader font-medium text-text-strong">No traffic yet</p>
+        <p className="text-atom-subheader font-medium text-text-strong">{t("No traffic yet")}</p>
         <p className="text-atom-body text-muted-foreground">
-          Sync GSC data to populate the last {days} days.
+          {t("Sync GSC data to populate the last")} {days} {t("days.")}{" "}
         </p>
       </div>
     );
@@ -108,22 +108,33 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
   return (
     <section className="panel flex flex-col gap-4 px-[22px] py-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] leading-5 font-semibold">Clicks per day</h2>
+        <h2 className="text-[15px] leading-5 font-semibold">{t("Clicks per day")}</h2>
         <div className="flex flex-wrap gap-[18px] text-[12px] leading-4 text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-1" />
-            Synced
+            {t("Synced")}{" "}
           </span>
           <span className="flex items-center gap-1.5">
-            <span aria-hidden className="size-2.5 rounded-[2px] border border-dashed border-text-soft" />
-            Not in GSC yet, not a zero
+            <span
+              aria-hidden
+              className="size-2.5 rounded-[2px] border border-dashed border-text-soft"
+            />
+            {t("Not in GSC yet, not a zero")}{" "}
           </span>
         </div>
       </div>
 
       <div
         role="img"
-        aria-label={`Clicks per day, ${formatDay(series[0].date)} to ${formatDay(series[series.length - 1].date)}. Highest day ${max.toLocaleString()} clicks. ${missing} days not reported by Search Console yet.`}
+        aria-label={t(
+          "Clicks per day, {0} to {1}. Highest day {2} clicks. {3} days not reported by Search Console yet.",
+          {
+            "0": t.date(series[0].date),
+            "1": t.date(series[series.length - 1].date),
+            "2": max,
+            "3": missing,
+          },
+        )}
         className="flex h-[170px] items-end gap-[3px] border-b border-border sm:gap-1.5"
         onMouseLeave={() => setHover(null)}
       >
@@ -151,15 +162,15 @@ export function TrafficChart({ siteId, days = 90 }: TrafficChartProps) {
       <div className="flex items-center justify-between gap-3 text-[11px] leading-4 text-muted-foreground">
         {shown ? (
           <span className="mono-label">
-            {formatDay(shown.date)} ·{" "}
+            {t.date(shown.date)} ·{" "}
             {shown.clicks === null
-              ? "not in GSC yet"
-              : `${shown.clicks.toLocaleString()} clicks · ${shown.impressions?.toLocaleString()} impressions`}
+              ? t("not in GSC yet")
+              : t("{0} clicks · {1} impressions", { "0": shown.clicks, "1": shown.impressions })}
           </span>
         ) : (
           ticks.map((i) => (
             <span key={i} className="mono-label">
-              {formatDay(series[i].date)}
+              {t.date(series[i].date)}
             </span>
           ))
         )}

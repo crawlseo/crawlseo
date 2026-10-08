@@ -3,12 +3,14 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { BacklinksClient } from "@/components/research/backlinks-client";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function BacklinksPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -26,14 +28,10 @@ export default async function BacklinksPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Backlinks"
-        description="Your backlink profile, referring domains and anchor text."
+        title={t("Backlinks")}
+        description={t("Your backlink profile, referring domains and anchor text.")}
       />
-      <BacklinksClient
-        siteId={siteId}
-        domain={site.domain}
-        hasDataForSEO={hasDataForSEO}
-      />
+      <BacklinksClient siteId={siteId} domain={site.domain} hasDataForSEO={hasDataForSEO} />
     </div>
   );
 }

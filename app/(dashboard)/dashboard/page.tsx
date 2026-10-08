@@ -8,8 +8,10 @@ import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { formatDeltaPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { getT } from "@/lib/i18n/server";
 
 export default async function DashboardPage() {
+  const t = await getT();
   const session = await auth();
 
   const sites = await db.site.findMany({
@@ -25,8 +27,7 @@ export default async function DashboardPage() {
 
   // Search Console anonymises the query dimension on low-traffic sites, so a
   // synced site can have pages but no keywords. Either one means data arrived.
-  const hasData = (s: (typeof sites)[number]) =>
-    s._count.keywords > 0 || s._count.pages > 0;
+  const hasData = (s: (typeof sites)[number]) => s._count.keywords > 0 || s._count.pages > 0;
 
   // Onboarding state
   const hasSites = sites.length > 0;
@@ -39,8 +40,10 @@ export default async function DashboardPage() {
     return (
       <div>
         <PageHeader
-          title="Welcome to crawlseo"
-          description="Connect Google Search Console properties to track rankings, traffic, and opportunity."
+          title={t("Welcome to crawlseo")}
+          description={t(
+            "Connect Google Search Console properties to track rankings, traffic, and opportunity.",
+          )}
           actions={<AddSiteModal triggerLabel="Connect first site" />}
         />
         <OnboardingChecklist
@@ -51,9 +54,11 @@ export default async function DashboardPage() {
         />
         <EmptyState
           icon="↗"
-          title="No sites connected"
-          description="Import a GSC property to start monitoring organic search performance. Read-only access only."
-          actionLabel="Add site"
+          title={t("No sites connected")}
+          description={t(
+            "Import a GSC property to start monitoring organic search performance. Read-only access only.",
+          )}
+          actionLabel={t("Add site")}
           actionHref="/sites"
         />
       </div>
@@ -76,14 +81,16 @@ export default async function DashboardPage() {
       } catch {
         return { site, metrics: null };
       }
-    })
+    }),
   );
 
   return (
     <div>
       <PageHeader
-        title="Portfolio overview"
-        description={`${sites.length} site${sites.length === 1 ? "" : "s"} · last 28 days vs prior period`}
+        title={t("Portfolio overview")}
+        description={t("{0} · last 28 days vs prior period", {
+          "0": t("counts.sites", { count: sites.length }),
+        })}
         actions={
           <div className="flex items-center gap-3">
             <AddSiteModal />
@@ -116,46 +123,53 @@ export default async function DashboardPage() {
                   {site.gscProperty}
                 </p>
               </div>
-              <span aria-hidden className="text-muted-foreground transition-colors group-hover:text-text-strong">
+              <span
+                aria-hidden
+                className="text-muted-foreground transition-colors group-hover:text-text-strong"
+              >
                 →
               </span>
             </div>
 
             {!metrics ? (
               <div className="mt-6 rounded-md border border-dashed border-line-strong px-3 py-4 text-sm text-muted-foreground">
-                Waiting for first GSC sync…
+                {t("Waiting for first GSC sync…")}{" "}
               </div>
             ) : (
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <Stat
-                  label="Clicks"
-                  value={formatCompact(metrics.current.clicks)}
-                  delta={formatDeltaPercent(metrics.deltas.clicks)}
+                  label={t("Clicks")}
+                  value={formatCompact(metrics.current.clicks, t.intlLocale)}
+                  delta={formatDeltaPercent(metrics.deltas.clicks, t.intlLocale)}
                   positive={metrics.deltas.clicks >= 0}
                 />
                 <Stat
-                  label="Impressions"
-                  value={formatCompact(metrics.current.impressions)}
-                  delta={formatDeltaPercent(metrics.deltas.impressions)}
+                  label={t("Impressions")}
+                  value={formatCompact(metrics.current.impressions, t.intlLocale)}
+                  delta={formatDeltaPercent(metrics.deltas.impressions, t.intlLocale)}
                   positive={metrics.deltas.impressions >= 0}
                 />
                 <Stat
-                  label="Avg position"
+                  label={t("Avg position")}
                   value={
                     metrics.current.avgPosition > 0
-                      ? metrics.current.avgPosition.toFixed(1)
-                      : "n/a"
+                      ? t.number(metrics.current.avgPosition, {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                          useGrouping: false,
+                        })
+                      : t("n/a")
                   }
                   delta={
                     metrics.deltas.avgPosition === 0
                       ? "0"
-                      : `${metrics.deltas.avgPosition > 0 ? "+" : ""}${metrics.deltas.avgPosition.toFixed(1)}`
+                      : `${metrics.deltas.avgPosition > 0 ? "+" : ""}${t.number(metrics.deltas.avgPosition, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })}`
                   }
                   positive={metrics.deltas.avgPosition >= 0}
                 />
                 <Stat
-                  label="Keywords"
-                  value={metrics.current.uniqueKeywords.toLocaleString()}
+                  label={t("Keywords")}
+                  value={metrics.current.uniqueKeywords.toLocaleString(t.intlLocale)}
                 />
               </div>
             )}
@@ -179,18 +193,11 @@ function Stat({
 }) {
   return (
     <div className="rounded-md border border-border-soft bg-bg-soft px-3 py-2.5">
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
+      <p className="mono-label text-[11px] text-muted-foreground">{label}</p>
       <div className="mt-1 flex items-baseline justify-between gap-2">
         <p className="font-data text-[16px] font-medium text-text-strong">{value}</p>
         {delta !== undefined && (
-          <span
-            className={cn(
-              "font-data text-[12px]",
-              positive ? "text-success" : "text-danger"
-            )}
-          >
+          <span className={cn("font-data text-[12px]", positive ? "text-success" : "text-danger")}>
             {delta}
           </span>
         )}

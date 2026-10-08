@@ -7,12 +7,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SyncButton } from "@/components/sites/sync-button";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { PagesTable } from "@/components/sites/pages-table";
+import { getT } from "@/lib/i18n/server";
 
 interface PagesPageProps {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function PagesPage({ params }: PagesPageProps) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -30,8 +32,8 @@ export default async function PagesPage({ params }: PagesPageProps) {
   return (
     <div>
       <PageHeader
-        title="Pages"
-        description="Landing pages from Search Console, aggregated over the last 28 days."
+        title={t("Pages")}
+        description={t("Landing pages from Search Console, aggregated over the last 28 days.")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <CsvExportButton siteId={siteId} type="pages" />
@@ -43,8 +45,8 @@ export default async function PagesPage({ params }: PagesPageProps) {
       {pages.length === 0 ? (
         <EmptyState
           icon="◫"
-          title="No pages yet"
-          description="Sync GSC to pull page-level clicks, impressions, and positions."
+          title={t("No pages yet")}
+          description={t("Sync GSC to pull page-level clicks, impressions, and positions.")}
         />
       ) : (
         <PagesTable

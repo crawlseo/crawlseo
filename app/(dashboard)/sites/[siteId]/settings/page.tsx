@@ -5,13 +5,15 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DeleteSiteButton } from "@/components/sites/delete-site-button";
 import { ApiKeysSection } from "@/components/settings/api-keys-section";
 import { BingSiteSection } from "@/components/settings/bing-site-section";
-import { formatDay } from "@/lib/format";
+import { LanguageSection } from "@/components/settings/language-section";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function SettingsPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -57,37 +59,36 @@ export default async function SettingsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Settings"
-        description="Site configuration and data management."
+        title={t("Settings")}
+        description={t("Site configuration and data management.")}
       />
 
       <div className="space-y-6">
+        <LanguageSection />
         {/* Site info */}
         <div className="panel p-5">
           <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
-            Site details
+            {t("Site details")}{" "}
           </h3>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Domain</dt>
+              <dt className="text-muted-foreground">{t("Domain")}</dt>
               <dd className="font-medium text-text-strong">{site.domain}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">GSC property</dt>
+              <dt className="text-muted-foreground">{t("GSC property")}</dt>
               <dd className="font-medium text-text-strong">
                 {site.gscProperty || "Not connected"}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Bing property</dt>
-              <dd className="font-medium text-text-strong">
-                {site.bingSite || "Not connected"}
-              </dd>
+              <dt className="text-muted-foreground">{t("Bing property")}</dt>
+              <dd className="font-medium text-text-strong">{site.bingSite || "Not connected"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Added</dt>
+              <dt className="text-muted-foreground">{t("Added")}</dt>
               <dd className="font-medium text-text-strong">
-                {formatDay(site.createdAt, { year: true })}
+                {t.date(site.createdAt, { year: true })}
               </dd>
             </div>
           </dl>
@@ -106,26 +107,25 @@ export default async function SettingsPage({ params }: Props) {
         {/* Data summary */}
         <div className="panel p-5">
           <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
-            Stored data
+            {t("Stored data")}{" "}
           </h3>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <DataStat label="Keyword records" value={site._count.keywords} />
-            <DataStat label="Page records" value={site._count.pages} />
-            <DataStat label="Crawls" value={site._count.crawls} />
-            <DataStat label="Vitals reports" value={site._count.vitals} />
-            <DataStat label="Alert rules" value={site._count.alerts} />
-            <DataStat label="Saved keywords" value={site._count.savedKeywords} />
+            <DataStat label={t("Keyword records")} value={site._count.keywords} />
+            <DataStat label={t("Page records")} value={site._count.pages} />
+            <DataStat label={t("Crawls")} value={site._count.crawls} />
+            <DataStat label={t("Vitals reports")} value={site._count.vitals} />
+            <DataStat label={t("Alert rules")} value={site._count.alerts} />
+            <DataStat label={t("Saved keywords")} value={site._count.savedKeywords} />
           </div>
         </div>
 
         {/* Danger zone */}
         <div className="panel border-danger/30 p-5">
-          <h3 className="text-[15px] leading-5 font-semibold text-danger">
-            Danger zone
-          </h3>
+          <h3 className="text-[15px] leading-5 font-semibold text-danger">{t("Danger zone")} </h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Permanently delete this site and all associated data. This action
-            cannot be undone.
+            {t(
+              "Permanently delete this site and all associated data. This action cannot be undone.",
+            )}{" "}
           </p>
           <div className="mt-4">
             <DeleteSiteButton siteId={siteId} domain={site.domain} />
@@ -136,14 +136,13 @@ export default async function SettingsPage({ params }: Props) {
   );
 }
 
-function DataStat({ label, value }: { label: string; value: number }) {
+async function DataStat({ label, value }: { label: string; value: number }) {
+  const t = await getT();
   return (
     <div className="rounded-lg border border-border bg-bg px-3 py-2.5">
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
+      <p className="mono-label text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 font-data text-lg font-medium text-text-strong">
-        {value.toLocaleString()}
+        {t.number(value)}
       </p>
     </div>
   );

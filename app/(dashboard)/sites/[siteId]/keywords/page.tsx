@@ -7,12 +7,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SyncButton } from "@/components/sites/sync-button";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { KeywordsTable } from "@/components/sites/keywords-table";
+import { getT } from "@/lib/i18n/server";
 
 interface KeywordsPageProps {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function KeywordsPage({ params }: KeywordsPageProps) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -31,8 +33,8 @@ export default async function KeywordsPage({ params }: KeywordsPageProps) {
   return (
     <div>
       <PageHeader
-        title="Keywords"
-        description="Queries with impressions in the last 28 days, aggregated across days."
+        title={t("Keywords")}
+        description={t("Queries with impressions in the last 28 days, aggregated across days.")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <CsvExportButton siteId={siteId} type="keywords" />
@@ -44,8 +46,8 @@ export default async function KeywordsPage({ params }: KeywordsPageProps) {
       {keywords.length === 0 ? (
         <EmptyState
           icon="⌘"
-          title="No keywords yet"
-          description="Sync Google Search Console to populate query-level performance."
+          title={t("No keywords yet")}
+          description={t("Sync Google Search Console to populate query-level performance.")}
         />
       ) : (
         <KeywordsTable keywords={keywords} />

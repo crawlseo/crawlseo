@@ -10,7 +10,7 @@ import {
   SearchField,
   type MetricHeader,
 } from "@/components/ui/data-table";
-import { formatDay } from "@/lib/format";
+import { useT } from "@/components/i18n/provider";
 
 const HEADERS: MetricHeader[] = [
   { label: "URL", sortKey: "url", defaultDir: "asc" },
@@ -35,6 +35,7 @@ export interface VitalsRowData {
 }
 
 export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const { sort, toggle } = useTableSort({ key: "date", dir: "desc" });
 
@@ -49,20 +50,24 @@ export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
-        <SearchField value={search} onChange={setSearch} placeholder="Filter by URL..." />
+        <SearchField value={search} onChange={setSearch} placeholder={t("Filter by URL...")} />
       </div>
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-text-strong">No reports match</p>
-          <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
+          <p className="font-medium text-text-strong">{t("No reports match")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Loosen the search.")}</p>
         </div>
       ) : (
         <MetricTable
           sort={sort}
           onSort={toggle}
           headers={HEADERS}
-          footer={`Showing ${filtered.length} of ${rows.length} reports · sorted by ${sortLabel(HEADERS, sort)}`}
+          footer={t("Showing {0} of {1} reports · sorted by {2}", {
+            "0": filtered.length,
+            "1": rows.length,
+            "2": sortLabel(HEADERS, sort, t),
+          })}
         >
           {filtered.map((r) => (
             <tr key={r.id} className="hover:bg-bg-soft">
@@ -76,26 +81,36 @@ export function VitalsTable({ rows }: { rows: VitalsRowData[] }) {
                       ? "text-success"
                       : (r.perfScore ?? 0) >= 50
                         ? "text-warning"
-                        : "text-danger"
+                        : "text-danger",
                   )}
                 >
                   {r.perfScore ?? "n/a"}
                 </span>
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.lcp != null ? `${r.lcp.toFixed(2)}s` : "n/a"}
+                {r.lcp != null
+                  ? `${t.number(r.lcp, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false })}s`
+                  : t("n/a")}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.cls != null ? r.cls.toFixed(3) : "n/a"}
+                {r.cls != null
+                  ? t.number(r.cls, {
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 3,
+                      useGrouping: false,
+                    })
+                  : t("n/a")}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.inp != null ? `${Math.round(r.inp)}ms` : "n/a"}
+                {r.inp != null ? `${Math.round(r.inp)}ms` : t("n/a")}
               </td>
               <td className="px-4 py-2.5 text-right font-data">
-                {r.ttfb != null ? `${r.ttfb.toFixed(2)}s` : "n/a"}
+                {r.ttfb != null
+                  ? `${t.number(r.ttfb, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false })}s`
+                  : t("n/a")}
               </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                {formatDay(r.date, { year: true, time: true })}
+                {t.date(r.date, { year: true, time: true })}
               </td>
             </tr>
           ))}

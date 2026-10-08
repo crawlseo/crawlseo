@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
+import { useT } from "@/components/i18n/provider";
 
 export function SaveKeywordForm({ siteId }: { siteId: string }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -38,7 +40,7 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
     return (
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="size-3.5" />
-        Save keyword
+        {t("Save keyword")}{" "}
       </Button>
     );
   }
@@ -46,37 +48,40 @@ export function SaveKeywordForm({ siteId }: { siteId: string }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
       <div>
-        <label className="mb-1 block text-[11px] text-muted-foreground">Query</label>
+        <label className="mb-1 block text-[11px] text-muted-foreground">{t("Query")}</label>
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. seo tools"
+          placeholder={t("e.g. seo tools")}
           className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:outline-none"
           autoFocus
         />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] text-muted-foreground">Notes (optional)</label>
+        <label className="mb-1 block text-[11px] text-muted-foreground">
+          {t("Notes (optional)")}
+        </label>
         <input
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Target page, intent..."
+          placeholder={t("Target page, intent...")}
           className="h-8 rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:outline-none"
         />
       </div>
       <Button size="sm" type="submit" disabled={loading || !query.trim()}>
-        {loading ? "Saving..." : "Save"}
+        {loading ? "Saving..." : t("Save")}
       </Button>
       <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
-        Cancel
+        {t("Cancel")}{" "}
       </Button>
     </form>
   );
 }
 
 export function DeleteKeywordButton({ siteId, query }: { siteId: string; query: string }) {
+  const t = useT();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -102,7 +107,7 @@ export function DeleteKeywordButton({ siteId, query }: { siteId: string; query: 
       onClick={handleDelete}
       disabled={loading}
       className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"
-      title="Remove saved keyword"
+      title={t("Remove saved keyword")}
     >
       <Trash2 className="size-3.5" />
     </button>
