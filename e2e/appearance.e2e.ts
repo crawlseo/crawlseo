@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-// The app is light only and uses Inter and Geist Mono. Run with the browser in
-// dark mode: nothing may change. /login is public and loads the same root
-// layout and globals.css as every other page.
+// /login is public and uses the same appearance cookie and tokens as the dashboard.
 
 test.use({ colorScheme: "dark" });
 
-test("dark OS setting still renders the light UI", async ({ page }) => {
+test("the default remains light even with a dark OS setting", async ({
+  page,
+}) => {
   await page.goto("/login");
   const { background, scheme, htmlClass } = await page.evaluate(() => ({
     background: getComputedStyle(document.body).backgroundColor,
@@ -23,7 +23,9 @@ test("body text is Inter and mono labels are Geist Mono", async ({ page }) => {
   await page.goto("/login");
   await page.evaluate(() => document.fonts.ready);
 
-  const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  const bodyFont = await page.evaluate(
+    () => getComputedStyle(document.body).fontFamily,
+  );
   expect(bodyFont).toMatch(/^"?Inter"?,/);
   expect(bodyFont).toMatch(/sans-serif$/);
 
@@ -51,4 +53,46 @@ test("body text is Inter and mono labels are Geist Mono", async ({ page }) => {
     mono: document.fonts.check('12px "Geist Mono"'),
   }));
   expect(loaded).toEqual({ inter: true, mono: true });
+});
+
+test("explicit dark mode survives reloads and overrides a light OS setting", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([
+    { name: "crawlseo-theme", value: "dark", url: baseURL! },
+  ]);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(18, 21, 24)",
+  );
+  await page.reload();
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(18, 21, 24)",
+  );
+});
+
+test("system mode follows OS changes without reloading", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([
+    { name: "crawlseo-theme", value: "system", url: baseURL! },
+  ]);
+  await page.goto("/login");
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(18, 21, 24)",
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(255, 255, 255)",
+  );
 });

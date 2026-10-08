@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
 import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import { useT } from "@/components/i18n/provider";
+import { SIDEBAR_COLLAPSED, useBrowserPreference, setPreference } from "@/lib/browser-preferences";
 
 export type ShellSite = { id: string; domain: string; dataThrough: string | null };
 
@@ -21,25 +22,6 @@ type AppShellProps = {
   showCloudPromo: boolean;
 };
 
-const COLLAPSED_KEY = "crawlseo-sidebar-collapsed";
-
-function subscribeCollapsed(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(COLLAPSED_KEY, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(COLLAPSED_KEY, onChange);
-  };
-}
-
-function readCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
-
 export function AppShell({ email, name, children, sites, showCloudPromo }: AppShellProps) {
   const t = useT();
   const displayName = name || email?.split("@")[0] || "User";
@@ -50,17 +32,8 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
   const mobileOpen = openOnPath === pathname;
   const setMobileOpen = (open: boolean) => setOpenOnPath(open ? pathname : null);
 
-  // Collapsed sidebar, remembered in localStorage (expanded on the server and when storage is blocked).
-  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
-
-  function toggleCollapsed() {
-    try {
-      localStorage.setItem(COLLAPSED_KEY, String(!collapsed));
-    } catch {
-      // Storage blocked: the toggle cannot be remembered.
-    }
-    window.dispatchEvent(new Event(COLLAPSED_KEY));
-  }
+  const collapsed = useBrowserPreference(SIDEBAR_COLLAPSED);
+  const toggleCollapsed = () => setPreference(SIDEBAR_COLLAPSED, !collapsed);
 
   // Status block: the open site's latest GSC day, or the latest across all sites.
   const activeId = pathname.match(/\/sites\/([^/]+)/)?.[1];
@@ -147,7 +120,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-text-strong/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

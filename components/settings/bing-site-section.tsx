@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { buttonVariants } from "@/components/ui/button";
 import { useT } from "@/components/i18n/provider";
+import Link from "next/link";
 
 interface BingSite {
   url: string;
@@ -138,7 +139,8 @@ export function BingSiteSection({
 
       {!keyConnected ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          {t("Add a Bing Webmaster Tools API key above first.")}{" "}
+          {t("First add a Bing Webmaster Tools API key in global settings.")}{" "}
+          <Link href="/settings#api-keys" className="text-link">{t("Manage API keys")}</Link>
         </p>
       ) : (
         <div className="mt-4 space-y-3">

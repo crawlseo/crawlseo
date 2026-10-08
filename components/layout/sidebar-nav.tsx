@@ -50,6 +50,7 @@ export function SidebarNav({
     items: [
       { href: "/dashboard", label: t("Dashboard"), icon: LayoutDashboard },
       { href: "/sites", label: t("Sites"), icon: Globe, exact: true },
+      { href: "/settings", label: t("Settings"), icon: Settings },
     ],
   };
 
@@ -106,7 +107,7 @@ export function SidebarNav({
         label: t("Connect"),
         items: [
           { href: `/sites/${activeSiteId}/mcp`, label: t("AI & MCP"), icon: Bot },
-          { href: `/sites/${activeSiteId}/settings`, label: t("Settings"), icon: Settings },
+          { href: `/sites/${activeSiteId}/settings`, label: t("Site settings"), icon: Settings },
         ],
       }
     : null;

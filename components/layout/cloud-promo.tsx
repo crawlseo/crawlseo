@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/i18n/provider";
 
-const STORAGE_KEY = "crawlseo-cloud-promo-hidden";
+import { CLOUD_PROMO_HIDDEN, useBrowserPreference, setPreference } from "@/lib/browser-preferences";
 const CLOUD_URL =
   "https://crawlseo.cloud/?utm_source=oss&utm_medium=app&utm_campaign=sidebar";
 
@@ -17,43 +16,12 @@ const CLOUD_URL =
  * CRAWLSEO_HIDE_CLOUD_PROMO=true (the server leaves it out), or per browser
  * with the Hide button (remembered in localStorage).
  */
-const HIDE_EVENT = "crawlseo-cloud-promo-hidden";
-
-function subscribe(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(HIDE_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(HIDE_EVENT, onChange);
-  };
-}
-
-function storedHidden() {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    // Storage blocked: show the card; Hide still works for this page view.
-    return false;
-  }
-}
-
 export function CloudPromo() {
   const t = useT();
   // The server renders nothing (snapshot true) and the browser decides after
   // reading storage, so a dismissed card never flashes.
-  const stored = useSyncExternalStore(subscribe, storedHidden, () => true);
-  const [hiddenNow, setHiddenNow] = useState(false);
-  const hidden = stored || hiddenNow;
-
-  function hide() {
-    setHiddenNow(true);
-    try {
-      localStorage.setItem(STORAGE_KEY, "true");
-      window.dispatchEvent(new Event(HIDE_EVENT));
-    } catch {
-      // Not remembered when storage is blocked; hidden until the next load.
-    }
-  }
+  const hidden = useBrowserPreference(CLOUD_PROMO_HIDDEN, true);
+  const hide = () => setPreference(CLOUD_PROMO_HIDDEN, true);
 
   if (hidden) return null;
 

@@ -31,7 +31,7 @@ export function LanguageSection() {
   }
 
   return (
-    <section className="panel p-5" aria-labelledby="language-title">
+    <section id="language" className="panel scroll-mt-6 p-5" aria-labelledby="language-title">
       <h3 id="language-title" className="text-[15px] leading-5 font-semibold text-text-strong">
         {t("Language")}
       </h3>

@@ -1,6 +1,6 @@
 # Interface languages
 
-The interface currently offers English and German in **Settings → Language**.
+The interface currently offers English and German in **Global settings → Language** (`/settings#language`).
 The choice applies to all sites in the current browser. It is stored for a year
 in the `crawlseo-locale` cookie, which is HttpOnly, SameSite=Lax, and Secure on
 HTTPS. An absent or unsupported value uses English. No database migration is

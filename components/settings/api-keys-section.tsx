@@ -28,7 +28,7 @@ export function ApiKeysSection({ initialStatus }: { initialStatus: ApiKeyStatus 
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
         {t(
-          "Connect third-party APIs for advanced SEO data like keyword volume, domain analysis, and backlinks.",
+          "These API keys are shared by all sites in your account. Connect services for keyword research, domain analysis, backlinks and Web Vitals.",
         )}{" "}
       </p>
 
@@ -192,12 +192,12 @@ function ProviderCard({
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-60">
           <h4 className="font-medium text-text-strong">{name}</h4>
           <p className="text-xs text-muted-foreground">{t(description)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {isConnected ? (
             <span className="flex items-center gap-1.5 mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success">
               <CheckCircle2 className="size-3.5" />

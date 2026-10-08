@@ -97,7 +97,7 @@ export function DomainOverviewClient({
             </p>
             <p className="mt-0.5 text-muted-foreground">
               {t("Add a DataForSEO API key in")}{" "}
-              <Link href={`/sites/${siteId}/settings`} className="text-link">
+              <Link href="/settings#api-keys" className="text-link">
                 {t("Settings")}{" "}
               </Link>{" "}
               {t("for full domain analysis and competitor comparison.")}{" "}

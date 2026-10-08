@@ -133,7 +133,6 @@ export function CrawlButton({ siteId }: { siteId: string }) {
 type VitalsStatus = { kind: "ok" | "error"; text: string } | { kind: "quota" };
 
 export function VitalsStatusMessage({
-  siteId,
   status,
 }: {
   siteId: string;
@@ -147,7 +146,7 @@ export function VitalsStatusMessage({
           "The PageSpeed Insights quota is exhausted. Add your own Google PageSpeed key in",
         )}{" "}
         <Link
-          href={`/sites/${siteId}/settings#api-keys`}
+          href="/settings#api-keys"
           className="text-link font-medium"
         >
           {t("Settings → API keys")}{" "}

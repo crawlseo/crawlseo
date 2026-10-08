@@ -3,10 +3,9 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { DeleteSiteButton } from "@/components/sites/delete-site-button";
-import { ApiKeysSection } from "@/components/settings/api-keys-section";
 import { BingSiteSection } from "@/components/settings/bing-site-section";
-import { LanguageSection } from "@/components/settings/language-section";
 import { getT } from "@/lib/i18n/server";
+import Link from "next/link";
 
 interface Props {
   params: Promise<{ siteId: string }>;
@@ -39,69 +38,58 @@ export default async function SettingsPage({ params }: Props) {
   });
   if (!site || site.userId !== session?.user?.id) redirect("/sites");
 
-  // Check API key status
-  const apiKeys = await db.apiKey.findMany({
-    where: { userId: session.user.id },
-    select: { provider: true, updatedAt: true },
+  const bingKey = await db.apiKey.findFirst({
+    where: { userId: session.user.id, provider: "bing" },
+    select: { id: true },
   });
-  const apiKeyStatus: Record<string, { connected: boolean; updatedAt?: string }> = {
-    dataforseo: { connected: false },
-    google_pagespeed: { connected: false },
-    bing: { connected: false },
-  };
-  for (const key of apiKeys) {
-    apiKeyStatus[key.provider] = {
-      connected: true,
-      updatedAt: key.updatedAt.toISOString(),
-    };
-  }
 
   return (
     <div>
       <PageHeader
-        title={t("Settings")}
+        title={t("Site settings")}
+        meta={site.domain}
         description={t("Site configuration and data management.")}
       />
 
       <div className="space-y-6">
-        <LanguageSection />
+        <div id="api-keys" className="panel-muted scroll-mt-6 p-4 text-sm text-muted-foreground">
+          {t("Language, appearance and API keys are managed in global settings.")}{" "}
+          <Link href="/settings" className="text-link">{t("Open global settings")}</Link>
+        </div>
         {/* Site info */}
         <div className="panel p-5">
           <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
             {t("Site details")}{" "}
           </h3>
           <dl className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
               <dt className="text-muted-foreground">{t("Domain")}</dt>
-              <dd className="font-medium text-text-strong">{site.domain}</dd>
+              <dd className="min-w-0 break-all font-medium text-text-strong">{site.domain}</dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
               <dt className="text-muted-foreground">{t("GSC property")}</dt>
-              <dd className="font-medium text-text-strong">
-                {site.gscProperty || "Not connected"}
+              <dd className="min-w-0 break-all font-medium text-text-strong">
+                {site.gscProperty || t("Not connected")}
               </dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
               <dt className="text-muted-foreground">{t("Bing property")}</dt>
-              <dd className="font-medium text-text-strong">{site.bingSite || "Not connected"}</dd>
+              <dd className="min-w-0 break-all font-medium text-text-strong">{site.bingSite || t("Not connected")}</dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
               <dt className="text-muted-foreground">{t("Added")}</dt>
-              <dd className="font-medium text-text-strong">
+              <dd className="min-w-0 break-all font-medium text-text-strong">
                 {t.date(site.createdAt, { year: true })}
               </dd>
             </div>
           </dl>
         </div>
 
-        {/* External API keys */}
-        <ApiKeysSection initialStatus={apiKeyStatus} />
-
         {/* Bing Webmaster property */}
         <BingSiteSection
           siteId={siteId}
           bingSite={site.bingSite}
-          keyConnected={apiKeyStatus.bing.connected}
+          keyConnected={!!bingKey}
         />
 
         {/* Data summary */}
