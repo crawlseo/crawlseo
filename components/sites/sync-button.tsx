@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/i18n/provider";
 
 export function SyncButton({
   siteId,
@@ -16,6 +17,7 @@ export function SyncButton({
   className?: string;
   fullWidth?: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function SyncButton({
       }
 
       setMessage(
-        `Synced ${data.keywordsInserted ?? 0} keywords · ${data.pagesInserted ?? 0} pages`
+        `Synced ${data.keywordsInserted ?? 0} keywords · ${data.pagesInserted ?? 0} pages`,
       );
       router.refresh();
       setTimeout(() => setMessage(null), 4000);
@@ -71,19 +73,16 @@ export function SyncButton({
         disabled={loading}
         className={cn(fullWidth && "w-full", className)}
       >
-        {loading ? "Syncing…" : "Sync GSC"}
+        {loading ? t("Syncing…") : t("Sync GSC")}
       </Button>
       {reauthRequired && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg p-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="text-muted-foreground">
-              Your Google connection expired.{" "}
-              <button
-                onClick={() => signIn("google")}
-                className="text-link font-medium"
-              >
-                Reconnect &rarr;
+              {t("Your Google connection expired.")}{" "}
+              <button onClick={() => signIn("google")} className="text-link font-medium">
+                {t("Reconnect &rarr;")}{" "}
               </button>
             </p>
           </div>
@@ -94,10 +93,10 @@ export function SyncButton({
           className={cn(
             "text-atom-caption",
             error ? "text-danger" : "text-success",
-            fullWidth && "text-center"
+            fullWidth && "text-center",
           )}
         >
-          {message}
+          {t.stored(message)}
         </p>
       )}
     </div>

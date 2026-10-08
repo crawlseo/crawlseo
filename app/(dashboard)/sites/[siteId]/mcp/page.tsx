@@ -3,12 +3,14 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { McpPageContent } from "@/components/mcp/mcp-page-content";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function McpPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -21,8 +23,8 @@ export default async function McpPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="AI & MCP"
-        description="Connect your AI agent to crawlseo through the Model Context Protocol."
+        title={t("AI & MCP")}
+        description={t("Connect your AI agent to crawlseo through the Model Context Protocol.")}
       />
       <McpPageContent />
     </div>

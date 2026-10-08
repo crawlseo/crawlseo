@@ -17,6 +17,7 @@ import {
   type MetricHeader,
   type PositionFilter,
 } from "@/components/ui/data-table";
+import { useT } from "@/components/i18n/provider";
 
 const HEADERS: MetricHeader[] = [
   { label: "URL", sortKey: "url", defaultDir: "asc" },
@@ -34,13 +35,8 @@ export interface PageRowData {
   ctr: number;
 }
 
-export function PagesTable({
-  rows,
-  domain,
-}: {
-  rows: PageRowData[];
-  domain: string;
-}) {
+export function PagesTable({ rows, domain }: { rows: PageRowData[]; domain: string }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PositionFilter>("all");
   const [minClicks, setMinClicks] = useState("");
@@ -65,12 +61,10 @@ export function PagesTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
-        <SearchField value={search} onChange={setSearch} placeholder="Filter by URL..." />
+        <SearchField value={search} onChange={setSearch} placeholder={t("Filter by URL...")} />
 
         <label className="flex flex-col gap-1">
-          <span className="mono-label text-[11px] text-muted-foreground">
-            Position
-          </span>
+          <span className="mono-label text-[11px] text-muted-foreground">{t("Position")} </span>
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value as PositionFilter)}
@@ -78,16 +72,14 @@ export function PagesTable({
           >
             {POSITION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.label)}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="mono-label text-[11px] text-muted-foreground">
-            Min clicks
-          </span>
+          <span className="mono-label text-[11px] text-muted-foreground">{t("Min clicks")} </span>
           <input
             type="number"
             min={0}
@@ -100,7 +92,7 @@ export function PagesTable({
 
         <label className="flex flex-col gap-1">
           <span className="mono-label text-[11px] text-muted-foreground">
-            Min impressions
+            {t("Min impressions")}{" "}
           </span>
           <input
             type="number"
@@ -115,9 +107,9 @@ export function PagesTable({
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
-          <p className="font-medium text-text-strong">No pages match</p>
+          <p className="font-medium text-text-strong">{t("No pages match")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Loosen the search or filters.
+            {t("Loosen the search or filters.")}{" "}
           </p>
         </div>
       ) : (
@@ -125,7 +117,11 @@ export function PagesTable({
           sort={sort}
           onSort={toggle}
           headers={HEADERS}
-          footer={`Showing ${filtered.length} of ${rows.length} pages · sorted by ${sortLabel(HEADERS, sort)}`}
+          footer={t("Showing {0} of {1} pages · sorted by {2}", {
+            "0": filtered.length,
+            "1": rows.length,
+            "2": sortLabel(HEADERS, sort, t),
+          })}
         >
           {filtered.map((page) => {
             const href = page.url.startsWith("http")

@@ -6,9 +6,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { SyncButton } from "@/components/sites/sync-button";
 import { formatCompact } from "@/lib/seo-metrics";
-import { formatDay } from "@/lib/format";
+import { getT } from "@/lib/i18n/server";
 
 export default async function SitesPage() {
+  const t = await getT();
   const session = await auth();
 
   const sites = await db.site.findMany({
@@ -32,16 +33,18 @@ export default async function SitesPage() {
   return (
     <div>
       <PageHeader
-        title="Sites"
-        description="Connect and sync Google Search Console properties."
+        title={t("Sites")}
+        description={t("Connect and sync Google Search Console properties.")}
         actions={<AddSiteModal />}
       />
 
       {sites.length === 0 ? (
         <EmptyState
           icon="⊕"
-          title="Connect your first property"
-          description="Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally."
+          title={t("Connect your first property")}
+          description={t(
+            "Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally.",
+          )}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -61,22 +64,18 @@ export default async function SitesPage() {
 
                 <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4">
                   <MiniStat
-                    label="Keyword rows"
-                    value={formatCompact(site._count.keywords)}
+                    label={t("Keyword rows")}
+                    value={formatCompact(site._count.keywords, t.intlLocale)}
                   />
                   <MiniStat
-                    label="Page rows"
-                    value={formatCompact(site._count.pages)}
+                    label={t("Page rows")}
+                    value={formatCompact(site._count.pages, t.intlLocale)}
                   />
-                  <MiniStat
-                    label="Crawls"
-                    value={String(site._count.crawls)}
-                  />
+                  <MiniStat label={t("Crawls")} value={String(site._count.crawls)} />
                 </div>
 
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Added{" "}
-                  {formatDay(site.createdAt, { year: true })}
+                  {t("Added")} {t.date(site.createdAt, { year: true })}
                 </p>
               </Link>
 
@@ -94,12 +93,8 @@ export default async function SitesPage() {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
-      <p className="font-data mt-0.5 text-[14px] font-medium text-text-strong">
-        {value}
-      </p>
+      <p className="mono-label text-[11px] text-muted-foreground">{label}</p>
+      <p className="font-data mt-0.5 text-[14px] font-medium text-text-strong">{value}</p>
     </div>
   );
 }

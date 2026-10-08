@@ -13,7 +13,7 @@ describe("VitalsStatusMessage", () => {
       createElement(VitalsStatusMessage, { siteId: "site-1", status: { kind: "quota" } })
     );
     expect(html).toContain("quota is exhausted");
-    expect(html).toContain('href="/sites/site-1/settings#api-keys"');
+    expect(html).toContain('href="/settings#api-keys"');
     expect(html).toContain("API keys");
   });
 });

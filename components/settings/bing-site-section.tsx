@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { buttonVariants } from "@/components/ui/button";
+import { useT } from "@/components/i18n/provider";
+import Link from "next/link";
 
 interface BingSite {
   url: string;
@@ -25,6 +27,7 @@ export function BingSiteSection({
   bingSite: string | null;
   keyConnected: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [sites, setSites] = useState<BingSite[]>([]);
   const [selected, setSelected] = useState(bingSite ?? "");
@@ -91,13 +94,14 @@ export function BingSiteSection({
         throw new Error(data.error || "Sync failed");
       }
       setMessage(
-        `Synced ${data.daysUpserted} days, ${data.queriesUpserted} query weeks, ` +
-          `${data.pagesUpserted} page weeks.`
+        t("Synced {0} days, {1} query weeks, {2} page weeks.", {
+          "0": data.daysUpserted,
+          "1": data.queriesUpserted,
+          "2": data.pagesUpserted,
+        }),
       );
       if (data.partial?.length) {
-        setError(
-          `Bing did not answer for: ${data.partial.join(", ")}. Run the sync again.`
-        );
+        setError(`Bing did not answer for: ${data.partial.join(", ")}. Run the sync again.`);
       }
       router.refresh();
     } catch (err) {
@@ -112,29 +116,31 @@ export function BingSiteSection({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
-            Bing Webmaster property
+            {t("Bing Webmaster property")}{" "}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Bing reports its own queries, pages and crawl stats. The property URL
-            often differs from the Search Console one, so pick it explicitly.
+            {t(
+              "Bing reports its own queries, pages and crawl stats. The property URL often differs from the Search Console one, so pick it explicitly.",
+            )}{" "}
           </p>
         </div>
         {bingSite ? (
           <span className="flex shrink-0 items-center gap-1.5 mono-label rounded-md border border-success/30 bg-success-bg px-2 py-0.5 text-[11px] text-success">
             <CheckCircle2 className="size-3.5" />
-            Connected
+            {t("Connected")}{" "}
           </span>
         ) : (
           <span className="flex shrink-0 items-center gap-1.5 mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
             <XCircle className="size-3.5" />
-            Not connected
+            {t("Not connected")}{" "}
           </span>
         )}
       </div>
 
       {!keyConnected ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          Add a Bing Webmaster Tools API key above first.
+          {t("First add a Bing Webmaster Tools API key in global settings.")}{" "}
+          <Link href="/settings#api-keys" className="text-link">{t("Manage API keys")}</Link>
         </p>
       ) : (
         <div className="mt-4 space-y-3">
@@ -147,9 +153,7 @@ export function BingSiteSection({
               }}
             >
               <SelectTrigger className="min-w-64">
-                <SelectValue
-                  placeholder={loading ? "Loading…" : "Choose a Bing property"}
-                />
+                <SelectValue placeholder={loading ? t("Loading…") : t("Choose a Bing property")} />
               </SelectTrigger>
               <SelectContent>
                 {sites.map((site) => (
@@ -166,12 +170,8 @@ export function BingSiteSection({
               disabled={!selected || selected === bingSite || saving || syncing}
               className={buttonVariants({ size: "sm" })}
             >
-              {saving ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Save className="size-3" />
-              )}
-              Save
+              {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+              {t("Save")}{" "}
             </button>
 
             <button
@@ -185,12 +185,12 @@ export function BingSiteSection({
               ) : (
                 <RefreshCw className="size-3" />
               )}
-              Sync Bing
+              {t("Sync Bing")}{" "}
             </button>
           </div>
 
-          {message && <p className="text-xs text-success">{message}</p>}
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {message && <p className="text-xs text-success">{t.stored(message)}</p>}
+          {error && <p className="text-xs text-danger">{t.stored(error)}</p>}
         </div>
       )}
     </div>

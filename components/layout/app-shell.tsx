@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { formatDay } from "@/lib/format";
 import { Logo } from "@/components/brand/logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
 import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
+import { useT } from "@/components/i18n/provider";
+import { SIDEBAR_COLLAPSED, useBrowserPreference, setPreference } from "@/lib/browser-preferences";
 
 export type ShellSite = { id: string; domain: string; dataThrough: string | null };
 
@@ -21,26 +22,8 @@ type AppShellProps = {
   showCloudPromo: boolean;
 };
 
-const COLLAPSED_KEY = "crawlseo-sidebar-collapsed";
-
-function subscribeCollapsed(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(COLLAPSED_KEY, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(COLLAPSED_KEY, onChange);
-  };
-}
-
-function readCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
-
 export function AppShell({ email, name, children, sites, showCloudPromo }: AppShellProps) {
+  const t = useT();
   const displayName = name || email?.split("@")[0] || "User";
   const pathname = usePathname();
 
@@ -49,17 +32,8 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
   const mobileOpen = openOnPath === pathname;
   const setMobileOpen = (open: boolean) => setOpenOnPath(open ? pathname : null);
 
-  // Collapsed sidebar, remembered in localStorage (expanded on the server and when storage is blocked).
-  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
-
-  function toggleCollapsed() {
-    try {
-      localStorage.setItem(COLLAPSED_KEY, String(!collapsed));
-    } catch {
-      // Storage blocked: the toggle cannot be remembered.
-    }
-    window.dispatchEvent(new Event(COLLAPSED_KEY));
-  }
+  const collapsed = useBrowserPreference(SIDEBAR_COLLAPSED);
+  const toggleCollapsed = () => setPreference(SIDEBAR_COLLAPSED, !collapsed);
 
   // Status block: the open site's latest GSC day, or the latest across all sites.
   const activeId = pathname.match(/\/sites\/([^/]+)/)?.[1];
@@ -68,7 +42,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
     ? activeSite.dataThrough
     : sites.reduce<string | null>(
         (max, s) => (s.dataThrough && (!max || s.dataThrough > max) ? s.dataThrough : max),
-        null
+        null,
       );
 
   const sidebarContent = (
@@ -85,8 +59,8 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           <button
             type="button"
             onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
+            title={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
             className="hidden size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-bg-section hover:text-text-strong md:flex"
           >
             {collapsed ? (
@@ -107,9 +81,11 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
         {!collapsed && (
           <div className="flex flex-col gap-1 border-t border-border px-2.5 pt-3 text-[11px] leading-4 text-muted-foreground">
             <span className="mono-label">
-              {dataThrough ? `GSC data through ${formatDay(dataThrough)}` : "No GSC data yet"}
+              {dataThrough
+                ? t("GSC data through {0}", { "0": t.date(dataThrough) })
+                : t("No GSC data yet")}
             </span>
-            <span className="mono-label">Search data lags 3 days</span>
+            <span className="mono-label">{t("Search data lags 3 days")}</span>
           </div>
         )}
 
@@ -121,7 +97,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
             {/* An Auth.js API route, not a page: it needs a full page load, which next/link would skip. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/api/auth/signout" className="text-link shrink-0">
-              Log out
+              {t("Log out")}{" "}
             </a>
           </div>
         )}
@@ -135,7 +111,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
       <aside
         className={cn(
           "sticky top-0 z-20 hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar transition-[width] duration-200 md:block",
-          collapsed ? "w-16" : "w-[232px]"
+          collapsed ? "w-16" : "w-[232px]",
         )}
       >
         {sidebarContent}
@@ -144,7 +120,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-text-strong/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -153,7 +129,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar transition-transform duration-200 md:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
         inert={!mobileOpen}
       >
@@ -161,7 +137,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            aria-label="Close menu"
+            aria-label={t("Close menu")}
             className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-bg-section hover:text-text-strong"
           >
             <X className="size-5" aria-hidden />
@@ -184,7 +160,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            aria-label={t("Open menu")}
             className="flex size-11 items-center justify-center rounded-md text-text-strong hover:bg-bg-section"
           >
             <Menu className="size-5" aria-hidden />

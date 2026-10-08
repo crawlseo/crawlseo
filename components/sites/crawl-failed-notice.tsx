@@ -1,5 +1,7 @@
+"use client";
+
 import { AlertTriangle } from "lucide-react";
-import { formatDay } from "@/lib/format";
+import { useT } from "@/components/i18n/provider";
 
 /** The last crawl attempt failed: why, and when. */
 export function CrawlFailedNotice({
@@ -9,6 +11,7 @@ export function CrawlFailedNotice({
   error: string | null;
   finishedAt: Date | string | null;
 }) {
+  const t = useT();
   return (
     <div
       role="alert"
@@ -17,10 +20,11 @@ export function CrawlFailedNotice({
       <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden />
       <div>
         <p className="text-sm font-medium text-text-strong">
-          Last crawl failed{finishedAt ? ` · ${formatDay(finishedAt, { time: true })}` : ""}
+          {t("Last crawl failed")}
+          {finishedAt ? ` · ${t.date(finishedAt, { time: true })}` : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          {error ?? "No reason was recorded."} Run a new crawl to try again.
+          {t.stored(error ?? "No reason was recorded.")} {t("Run a new crawl to try again.")}{" "}
         </p>
       </div>
     </div>

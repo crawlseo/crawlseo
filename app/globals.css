@@ -3,7 +3,7 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Design tokens. One layer, light theme only, taken from crawlseo.cloud
+ * Design tokens. Shared light and dark palettes based on crawlseo.cloud
  * (crawlseo-web docs/tokens.md). The raw values live in :root; Tailwind
  * utilities and the shadcn names (bg-primary, text-muted-foreground, ...)
  * point at them, so a colour is changed in one place.
@@ -105,26 +105,26 @@
 :root {
   color-scheme: light;
 
-  --bg: #ffffff;
-  --bg-soft: #fafafa;
-  --bg-section: #f5f5f5;
-  --text: #29363d;
-  --text-strong: #0a0a0a;
-  --text-muted: #616c75;
-  --text-soft: #8b9296;
-  --text-faint: #aab1b5;
-  --border-color: #e5e5e7;
-  --border-soft: #efeff1;
-  --line-strong: #d4d4d8;
+  --bg: light-dark(#ffffff, #121518);
+  --bg-soft: light-dark(#fafafa, #15191d);
+  --bg-section: light-dark(#f5f5f5, #22282e);
+  --text: light-dark(#29363d, #d7dfe5);
+  --text-strong: light-dark(#0a0a0a, #f5f7fa);
+  --text-muted: light-dark(#616c75, #a3afba);
+  --text-soft: light-dark(#8b9296, #8796a4);
+  --text-faint: light-dark(#aab1b5, #657585);
+  --border-color: light-dark(#e5e5e7, #39434c);
+  --border-soft: light-dark(#efeff1, #283038);
+  --line-strong: light-dark(#d4d4d8, #55616d);
 
-  --brand-50: #fff4ed;
-  --brand-100: #ffe6d4;
-  --brand-200: #ffc8a8;
+  --brand-50: light-dark(#fff4ed, #302219);
+  --brand-100: light-dark(#ffe6d4, #49281e);
+  --brand-200: light-dark(#ffc8a8, #69301f);
   --brand-300: #ffa270;
   --brand-400: #ff7037;
   --brand-500: #ff470b;
   --brand-600: #f03006;
-  --brand-700: #c71f07;
+  --brand-700: light-dark(#c71f07, #ff9874);
   --brand-800: #9e1a0e;
   --brand-900: #7f190f;
   --brand-950: #450805;
@@ -133,23 +133,23 @@
   --ink-text: #ffffff;
   --ink-lead: #a1a1aa;
 
-  --button-primary: #e8330c;
-  --button-primary-hover: #c71f07;
-  --button-secondary: #f4f4f5;
-  --button-secondary-hover: #ebebee;
+  --button-primary: light-dark(#e8330c, #d9320e);
+  --button-primary-hover: light-dark(#c71f07, #be280a);
+  --button-secondary: light-dark(#f4f4f5, #282f36);
+  --button-secondary-hover: light-dark(#ebebee, #343e47);
 
-  --success: #137a40;
-  --success-bg: #e7f6ec;
-  --warning: #a16207;
-  --warning-bg: #fffbeb;
-  --danger: #be123c;
-  --danger-bg: #fff1f2;
+  --success: light-dark(#137a40, #6bdda0);
+  --success-bg: light-dark(#e7f6ec, #123425);
+  --warning: light-dark(#a16207, #f5cf6b);
+  --warning-bg: light-dark(#fffbeb, #3b3017);
+  --danger: light-dark(#be123c, #ff8fac);
+  --danger-bg: light-dark(#fff1f2, #3e1e2a);
 
   --background: var(--bg);
   --foreground: var(--text);
-  --card: var(--bg);
+  --card: light-dark(#ffffff, #191e22);
   --card-foreground: var(--text);
-  --popover: var(--bg);
+  --popover: var(--card);
   --popover-foreground: var(--text);
   --primary: var(--button-primary);
   --primary-foreground: #ffffff;
@@ -173,9 +173,18 @@
   --chart-grid: var(--border-soft);
   --chart-axis: var(--text-muted);
 
-  --shadow-1: 0 1px 2px rgba(15, 15, 15, 0.04);
-  --shadow-2: 0 1px 2px rgba(15, 15, 15, 0.04);
-  --shadow-3: 0 16px 32px rgba(15, 15, 15, 0.08);
+  --shadow-1: 0 1px 2px light-dark(rgba(15, 15, 15, 0.04), rgba(0, 0, 0, 0.2));
+  --shadow-2: 0 1px 2px light-dark(rgba(15, 15, 15, 0.04), rgba(0, 0, 0, 0.2));
+  --shadow-3: 0 16px 32px light-dark(rgba(15, 15, 15, 0.08), rgba(0, 0, 0, 0.4));
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* The browser follows OS changes without a startup script or a light flash. */
+:root[data-theme="system"] {
+  color-scheme: light dark;
 }
 
 /* Mono is for uppercase text: labels, badges, table headers. */
@@ -225,10 +234,8 @@
     @apply border-border;
   }
 
-  /* Light only: the app looks the same when the OS or browser is in dark mode. */
   html {
     @apply h-full font-sans;
-    color-scheme: light;
   }
 
   body {

@@ -3,12 +3,14 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { DomainOverviewClient } from "@/components/research/domain-overview-client";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function DomainOverviewPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -26,14 +28,10 @@ export default async function DomainOverviewPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Domain overview"
-        description="Organic traffic, keyword rankings and backlink metrics."
+        title={t("Domain overview")}
+        description={t("Organic traffic, keyword rankings and backlink metrics.")}
       />
-      <DomainOverviewClient
-        siteId={siteId}
-        domain={site.domain}
-        hasDataForSEO={hasDataForSEO}
-      />
+      <DomainOverviewClient siteId={siteId} domain={site.domain} hasDataForSEO={hasDataForSEO} />
     </div>
   );
 }

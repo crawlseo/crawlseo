@@ -5,12 +5,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VitalsButton, IndexCheckButton } from "@/components/sites/action-buttons";
 import { VitalsTable } from "@/components/sites/vitals-table";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function VitalsPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -29,16 +31,18 @@ export default async function VitalsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Core Web Vitals"
-        description="PageSpeed Insights lab data for your top pages. Set GOOGLE_PAGESPEED_KEY for a higher quota."
+        title={t("Core Web Vitals")}
+        description={t(
+          "PageSpeed Insights lab data for your top pages. Set GOOGLE_PAGESPEED_KEY for a higher quota.",
+        )}
         actions={<VitalsButton siteId={siteId} />}
       />
 
       {reports.length === 0 ? (
         <EmptyState
           icon="⚡"
-          title="No vitals yet"
-          description="Run a check on your top landing pages (mobile Lighthouse)."
+          title={t("No vitals yet")}
+          description={t("Run a check on your top landing pages (mobile Lighthouse).")}
         />
       ) : (
         <VitalsTable
@@ -56,9 +60,9 @@ export default async function VitalsPage({ params }: Props) {
       )}
 
       <div className="panel mt-6 p-5">
-        <h3 className="text-[15px] leading-5 font-semibold">Index coverage</h3>
+        <h3 className="text-[15px] leading-5 font-semibold">{t("Index coverage")}</h3>
         <p className="mb-4 text-sm text-muted-foreground">
-          Live URL Inspection for top pages (uses your GSC OAuth token)
+          {t("Live URL Inspection for top pages (uses your GSC OAuth token)")}{" "}
         </p>
         <IndexCheckButton siteId={siteId} />
       </div>

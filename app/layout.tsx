@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import { getLocale, getMessages } from "@/lib/i18n/server";
+import { LocaleProvider } from "@/components/i18n/provider";
+import { getTheme } from "@/lib/appearance-server";
 
 // Inter (variable) for all UI and text.
 const inter = Inter({
@@ -26,28 +29,41 @@ export const metadata: Metadata = {
   applicationName: "crawlseo",
 };
 
-// Light only: tells the browser not to darken form controls and scrollbars.
-export const viewport: Viewport = {
-  colorScheme: "light",
-  themeColor: "#ffffff",
-};
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await getTheme();
+  return {
+    colorScheme: theme === "system" ? "light dark" : theme,
+    themeColor:
+      theme === "system"
+        ? [
+            { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+            { media: "(prefers-color-scheme: dark)", color: "#121518" },
+          ]
+        : theme === "dark"
+          ? "#121518"
+          : "#ffffff",
+  };
+}
 
-// Earlier versions stored a theme choice under this key. The app is light only
-// now, so the value is dropped before first paint. Storage can throw (private
-// mode, blocked site data); nothing depends on it, so errors are ignored.
-const clearStaleTheme = `try{localStorage.removeItem("crawlseo-theme")}catch(e){}`;
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages(locale);
+  const theme = await getTheme();
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} h-full`}>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: clearStaleTheme }} />
-      </head>
-      <body className="h-full font-sans">{children}</body>
+    <html
+      lang={locale}
+      data-theme={theme}
+      className={`${inter.variable} ${geistMono.variable} h-full`}
+    >
+      <body className="h-full font-sans">
+        <LocaleProvider locale={locale} messages={messages}>
+          {children}
+        </LocaleProvider>
+      </body>
     </html>
   );
 }

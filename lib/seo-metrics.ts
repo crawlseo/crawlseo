@@ -310,16 +310,28 @@ export async function getDailyTraffic(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function formatPosition(position: number): string {
+export function formatPosition(position: number, locale = "en-US"): string {
   if (!Number.isFinite(position) || position <= 0) return "n/a";
-  return position.toFixed(1);
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(position);
 }
 
-export function formatCtr(ctr: number): string {
-  return `${(ctr * 100).toFixed(2)}%`;
+export function formatCtr(ctr: number, locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(ctr);
 }
 
-export function formatCompact(num: number): string {
+export function formatCompact(num: number, locale = "en-US"): string {
+  if (!locale.startsWith("en"))
+    return new Intl.NumberFormat(locale, {
+      notation: num >= 1_000_000 ? "compact" : "standard",
+      maximumFractionDigits: 1,
+    }).format(num);
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toLocaleString();

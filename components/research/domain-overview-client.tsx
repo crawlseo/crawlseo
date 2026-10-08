@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { useT } from "@/components/i18n/provider";
 
 type DomainData = {
   source: string;
@@ -43,6 +44,7 @@ export function DomainOverviewClient({
   domain: string;
   hasDataForSEO: boolean;
 }) {
+  const t = useT();
   const [ownData, setOwnData] = useState<DomainData | null>(null);
   const [competitorDomain, setCompetitorDomain] = useState("");
   const [competitorData, setCompetitorData] = useState<DomainData | null>(null);
@@ -73,7 +75,7 @@ export function DomainOverviewClient({
     setLoadingCompetitor(true);
     try {
       const res = await fetch(
-        `/api/sites/${siteId}/domain-overview?domain=${encodeURIComponent(competitorDomain.trim())}`
+        `/api/sites/${siteId}/domain-overview?domain=${encodeURIComponent(competitorDomain.trim())}`,
       );
       const data = await res.json();
       setCompetitorData(data);
@@ -91,17 +93,14 @@ export function DomainOverviewClient({
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="font-medium text-text-strong">
-              Limited data: GSC metrics only
+              {t("Limited data: GSC metrics only")}{" "}
             </p>
             <p className="mt-0.5 text-muted-foreground">
-              Add a DataForSEO API key in{" "}
-              <Link
-                href={`/sites/${siteId}/settings`}
-                className="text-link"
-              >
-                Settings
+              {t("Add a DataForSEO API key in")}{" "}
+              <Link href="/settings#api-keys" className="text-link">
+                {t("Settings")}{" "}
               </Link>{" "}
-              for full domain analysis and competitor comparison.
+              {t("for full domain analysis and competitor comparison.")}{" "}
             </p>
           </div>
         </div>
@@ -120,7 +119,7 @@ export function DomainOverviewClient({
           ) : (
             <Globe className="size-4" />
           )}
-          Analyze {domain}
+          {t("Analyze")} {domain}
         </button>
 
         {hasDataForSEO && (
@@ -131,7 +130,7 @@ export function DomainOverviewClient({
                 type="text"
                 value={competitorDomain}
                 onChange={(e) => setCompetitorDomain(e.target.value)}
-                placeholder="Enter competitor domain..."
+                placeholder={t("Enter competitor domain...")}
                 className="w-full rounded-lg border border-border bg-background py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
               />
             </div>
@@ -145,7 +144,7 @@ export function DomainOverviewClient({
               ) : (
                 <Search className="size-4" />
               )}
-              Compare
+              {t("Compare")}{" "}
             </button>
           </form>
         )}
@@ -154,11 +153,9 @@ export function DomainOverviewClient({
       {/* Results - side by side */}
       {(ownData || competitorData) && (
         <div className="grid gap-4 sm:grid-cols-2">
-          {ownData && (
-            <DomainCard data={ownData} label="Your domain" />
-          )}
+          {ownData && <DomainCard data={ownData} label={t("Your domain")} />}
           {competitorData && (
-            <DomainCard data={competitorData} label="Competitor" />
+            <DomainCard data={competitorData} label={t("Competitor")} />
           )}
         </div>
       )}
@@ -167,13 +164,12 @@ export function DomainOverviewClient({
 }
 
 function DomainCard({ data, label }: { data: DomainData; label: string }) {
+  const t = useT();
   return (
     <div className="panel p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="eyebrow text-[12px]">
-            {label}
-          </p>
+          <p className="eyebrow text-[12px]">{t(label)}</p>
           <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
             {data.domain}
           </h3>
@@ -186,29 +182,34 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
       {data.overview ? (
         <div className="grid grid-cols-2 gap-3">
           <MetricCard
-            label="Organic keywords"
-            value={data.overview.organicKeywords.toLocaleString()}
+            label={t("Organic keywords")}
+            value={data.overview.organicKeywords.toLocaleString(t.intlLocale)}
           />
           <MetricCard
-            label="Organic traffic"
-            value={data.overview.organicTraffic.toLocaleString()}
+            label={t("Organic traffic")}
+            value={data.overview.organicTraffic.toLocaleString(t.intlLocale)}
           />
           {data.overview.organicCost != null && (
             <MetricCard
-              label="Traffic cost"
-              value={`$${data.overview.organicCost.toLocaleString()}`}
+              label={t("Traffic cost")}
+              value={t.number(data.overview.organicCost, {
+                style: "currency",
+                currency: "USD",
+              })}
             />
           )}
           {data.overview.backlinks != null && (
             <MetricCard
-              label="Backlinks"
-              value={data.overview.backlinks.toLocaleString()}
+              label={t("Backlinks")}
+              value={data.overview.backlinks.toLocaleString(t.intlLocale)}
             />
           )}
           {data.overview.referringDomains != null && (
             <MetricCard
-              label="Referring domains"
-              value={data.overview.referringDomains.toLocaleString()}
+              label={t("Referring domains")}
+              value={data.overview.referringDomains.toLocaleString(
+                t.intlLocale,
+              )}
             />
           )}
         </div>
@@ -216,7 +217,7 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
         <div className="flex flex-col items-center py-8 text-center">
           <Globe className="size-8 text-text-faint" />
           <p className="mt-2 text-sm text-muted-foreground">
-            No data available for this domain
+            {t("No data available for this domain")}{" "}
           </p>
         </div>
       )}
@@ -224,24 +225,26 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
       {data.backlinks && (
         <div className="mt-4 border-t border-border pt-4">
           <p className="mb-2 mono-label text-[12px] text-muted-foreground">
-            Backlink Summary
+            {t("Backlink Summary")}{" "}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <MetricCard
-              label="Total backlinks"
-              value={data.backlinks.totalBacklinks.toLocaleString()}
+              label={t("Total backlinks")}
+              value={data.backlinks.totalBacklinks.toLocaleString(t.intlLocale)}
             />
             <MetricCard
-              label="Referring domains"
-              value={data.backlinks.referringDomains.toLocaleString()}
+              label={t("Referring domains")}
+              value={data.backlinks.referringDomains.toLocaleString(
+                t.intlLocale,
+              )}
             />
             <MetricCard
-              label="Dofollow"
-              value={data.backlinks.dofollow.toLocaleString()}
+              label={t("Dofollow")}
+              value={data.backlinks.dofollow.toLocaleString(t.intlLocale)}
             />
             <MetricCard
-              label="Nofollow"
-              value={data.backlinks.nofollow.toLocaleString()}
+              label={t("Nofollow")}
+              value={data.backlinks.nofollow.toLocaleString(t.intlLocale)}
             />
           </div>
         </div>
@@ -251,11 +254,10 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border bg-bg px-3 py-2.5">
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
+      <p className="mono-label text-[11px] text-muted-foreground">{t(label)}</p>
       <p className="mt-1 font-data text-lg font-medium text-text-strong">
         {value}
       </p>

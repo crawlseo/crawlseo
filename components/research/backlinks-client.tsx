@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Link as LinkIcon,
-  Loader2,
-  AlertTriangle,
-  ExternalLink,
-  RefreshCw,
-} from "lucide-react";
+import { Link as LinkIcon, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { useT } from "@/components/i18n/provider";
 
 type BacklinkItem = {
   referringDomain: string;
@@ -31,13 +26,13 @@ type BacklinksOverview = {
 
 export function BacklinksClient({
   siteId,
-  domain,
   hasDataForSEO,
 }: {
   siteId: string;
   domain: string;
   hasDataForSEO: boolean;
 }) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState<string | null>(null);
   const [overview, setOverview] = useState<BacklinksOverview | null>(null);
@@ -66,29 +61,19 @@ export function BacklinksClient({
         <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-bg p-4">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="text-sm">
-            <p className="font-medium text-text-strong">
-              Limited backlink data
-            </p>
+            <p className="font-medium text-text-strong">{t("Limited backlink data")} </p>
             <p className="mt-0.5 text-muted-foreground">
-              Add a DataForSEO API key in{" "}
-              <Link
-                href={`/sites/${siteId}/settings`}
-                className="text-link"
-              >
-                Settings
+              {t("Add a DataForSEO API key in")}{" "}
+              <Link href="/settings#api-keys" className="text-link">
+                {t("Settings")}{" "}
               </Link>{" "}
-              for full backlink analysis with referring domains and anchor text.
+              {t("for full backlink analysis with referring domains and anchor text.")}{" "}
             </p>
           </div>
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={handleLoad}
-        disabled={loading}
-        className={buttonVariants()}
-      >
+      <button type="button" onClick={handleLoad} disabled={loading} className={buttonVariants()}>
         {loading ? (
           <Loader2 className="size-4 animate-spin" />
         ) : loaded ? (
@@ -96,28 +81,22 @@ export function BacklinksClient({
         ) : (
           <LinkIcon className="size-4" />
         )}
-        {loaded ? "Refresh" : "Load backlinks"}
+        {loaded ? t("Refresh") : t("Load backlinks")}
       </button>
 
       {/* Overview stats */}
       {overview && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
-            label="Total backlinks"
-            value={overview.totalBacklinks.toLocaleString()}
+            label={t("Total backlinks")}
+            value={overview.totalBacklinks.toLocaleString(t.intlLocale)}
           />
           <StatCard
-            label="Referring domains"
-            value={overview.referringDomains.toLocaleString()}
+            label={t("Referring domains")}
+            value={overview.referringDomains.toLocaleString(t.intlLocale)}
           />
-          <StatCard
-            label="Dofollow"
-            value={overview.dofollow.toLocaleString()}
-          />
-          <StatCard
-            label="Nofollow"
-            value={overview.nofollow.toLocaleString()}
-          />
+          <StatCard label={t("Dofollow")} value={overview.dofollow.toLocaleString(t.intlLocale)} />
+          <StatCard label={t("Nofollow")} value={overview.nofollow.toLocaleString(t.intlLocale)} />
         </div>
       )}
 
@@ -129,16 +108,16 @@ export function BacklinksClient({
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Referring Domain
+                    {t("Referring Domain")}{" "}
                   </th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Target URL
+                    {t("Target URL")}{" "}
                   </th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Anchor Text
+                    {t("Anchor Text")}{" "}
                   </th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                    Type
+                    {t("Type")}{" "}
                   </th>
                 </tr>
               </thead>
@@ -157,9 +136,7 @@ export function BacklinksClient({
                       </span>
                     </td>
                     <td className="max-w-[200px] px-4 py-3">
-                      <span className="block truncate text-foreground">
-                        {link.targetUrl}
-                      </span>
+                      <span className="block truncate text-foreground">{link.targetUrl}</span>
                     </td>
                     <td className="max-w-[150px] px-4 py-3">
                       <span className="block truncate text-muted-foreground">
@@ -183,7 +160,8 @@ export function BacklinksClient({
             </table>
           </div>
           <div className="border-t border-border bg-bg-soft px-4 py-2 text-xs text-muted-foreground">
-            {backlinks.length} backlink{backlinks.length !== 1 ? "s" : ""}
+            {backlinks.length} {t("backlink")}
+            {backlinks.length !== 1 ? "s" : ""}
             {source === "dataforseo" ? " via DataForSEO" : " from crawl data"}
           </div>
         </div>
@@ -193,11 +171,13 @@ export function BacklinksClient({
       {loaded && backlinks.length === 0 && (
         <div className="panel flex flex-col items-center py-12 text-center">
           <LinkIcon className="size-10 text-text-faint" />
-          <p className="mt-3 font-medium text-text-strong">No backlinks found</p>
+          <p className="mt-3 font-medium text-text-strong">{t("No backlinks found")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {source === "none"
-              ? "Run a site crawl first to discover external links, or add a DataForSEO API key for full backlink data"
-              : "No backlink data available"}
+              ? t(
+                  "Run a site crawl first to discover external links, or add a DataForSEO API key for full backlink data",
+                )
+              : t("No backlink data available")}
           </p>
         </div>
       )}
@@ -206,14 +186,11 @@ export function BacklinksClient({
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
+  const t = useT();
   return (
     <div className="panel px-4 py-3">
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 font-data text-xl font-medium text-text-strong">
-        {value}
-      </p>
+      <p className="mono-label text-[11px] text-muted-foreground">{t(label)}</p>
+      <p className="mt-1 font-data text-xl font-medium text-text-strong">{value}</p>
     </div>
   );
 }

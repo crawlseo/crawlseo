@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 import { PageHeader } from "@/components/ui/page-header";
 import { EvaluateAlertsButton } from "@/components/sites/evaluate-alerts-button";
-import { formatDay } from "@/lib/format";
+import { getT } from "@/lib/i18n/server";
 
 interface Props {
   params: Promise<{ siteId: string }>;
 }
 
 export default async function AlertsPage({ params }: Props) {
+  const t = await getT();
   const session = await auth();
   const { siteId } = await params;
 
@@ -30,8 +31,10 @@ export default async function AlertsPage({ params }: Props) {
   return (
     <div>
       <PageHeader
-        title="Alerts"
-        description="Rules for traffic drops, position changes, crawl health and vitals."
+        title={t("Alerts")}
+        description={t(
+          "Rules for traffic drops, position changes, crawl health and vitals.",
+        )}
         actions={<EvaluateAlertsButton />}
       />
 
@@ -43,13 +46,15 @@ export default async function AlertsPage({ params }: Props) {
           >
             <div>
               <p className="mono-label text-[12px] text-text-strong">
-                {a.type.replaceAll("_", " ")}
+                {t(a.type.replaceAll("_", " "))}
               </p>
               <p className="text-xs text-muted-foreground">
-                Channel: {a.channel}
+                {t("Channel:")} {t(a.channel)}
                 {a.lastFired
-                  ? ` · last fired ${formatDay(a.lastFired, { year: true, time: true })}`
-                  : " · never fired"}
+                  ? t(" · last fired {0}", {
+                      "0": t.date(a.lastFired, { year: true, time: true }),
+                    })
+                  : ` ${t("· never fired")}`}
               </p>
               <p className="mt-1 font-data text-[11px] text-muted-foreground">
                 {JSON.stringify(a.config)}
@@ -62,7 +67,7 @@ export default async function AlertsPage({ params }: Props) {
                   : "mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
               }
             >
-              {a.enabled ? "Enabled" : "Off"}
+              {a.enabled ? t("Enabled") : t("Off")}
             </span>
           </div>
         ))}
