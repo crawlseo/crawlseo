@@ -42,6 +42,8 @@ Google Search Console, a site crawler, Core Web Vitals and an MCP server in one 
 
 > **BYOK** = Bring Your Own Key. Keyword research and backlink data use DataForSEO (optional). Google Autocomplete suggestions work as a free fallback.
 
+In **Domain overview**, enter a competitor's domain or full website URL and choose **Compare** to query DataForSEO for that domain. Search Console fallback data is only used for your own site; unavailable competitor metrics are shown as unavailable.
+
 ## Features
 
 ### 🔍 GSC Analytics

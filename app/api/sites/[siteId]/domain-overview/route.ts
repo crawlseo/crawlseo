@@ -2,9 +2,10 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { domainOverview, backlinksOverview } from "@/lib/dataforseo/client";
 import { getSitePeriodMetrics } from "@/lib/seo-metrics";
+import { siteDomainFromProperty } from "@/lib/site-domain";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ siteId: string }> }
 ) {
   try {
@@ -22,7 +23,14 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    const targetDomain = site.domain;
+    const requestedDomain = new URL(req.url).searchParams.get("domain");
+    // DataForSEO expects a hostname without a scheme, path or www prefix.
+    const targetDomain = requestedDomain === null
+      ? site.domain
+      : siteDomainFromProperty(requestedDomain)?.replace(/^www\./, "");
+    if (!targetDomain) {
+      return Response.json({ error: "Invalid comparison domain" }, { status: 400 });
+    }
 
     // Try DataForSEO
     const [domainData, backlinksData] = await Promise.all([
@@ -30,9 +38,10 @@ export async function GET(
       backlinksOverview(session.user.id, targetDomain),
     ]);
 
-    if (domainData !== null) {
+    // Search Console data belongs to the stored site, never its competitor.
+    if (domainData !== null || targetDomain !== site.domain) {
       return Response.json({
-        source: "dataforseo",
+        source: domainData !== null || backlinksData !== null ? "dataforseo" : "none",
         domain: targetDomain,
         overview: domainData,
         backlinks: backlinksData,
