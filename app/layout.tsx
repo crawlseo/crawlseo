@@ -1,21 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import "./fonts";
 import "./globals.css";
-
-// Inter (variable) for all UI and text.
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-// Geist Mono for uppercase labels (400), button labels (500) and numbers.
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -43,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} h-full`}>
+    <html lang="en" className="h-full">
       <head>
         <script dangerouslySetInnerHTML={{ __html: clearStaleTheme }} />
       </head>

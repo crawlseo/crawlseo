@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 const root = resolve(__dirname, "..");
 const css = readFileSync(join(root, "app/globals.css"), "utf8");
 const layout = readFileSync(join(root, "app/layout.tsx"), "utf8");
+const fonts = readFileSync(join(root, "app/fonts.ts"), "utf8");
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -48,10 +49,36 @@ describe("light only", () => {
 });
 
 describe("fonts", () => {
-  it("puts both next/font variables on <html>", () => {
-    expect(layout).toMatch(/Inter\(\{[^}]*variable:\s*"--font-inter"/);
-    expect(layout).toMatch(/Geist_Mono\(\{[^}]*variable:\s*"--font-geist-mono"/);
-    expect(layout).toMatch(/<html[^>]*className=\{`\$\{inter\.variable\} \$\{geistMono\.variable\}/);
+  /** The localFont({...}) calls in app/fonts.ts. */
+  const calls = [...fonts.matchAll(/localFont\(\{([\s\S]*?)\n\}\);/g)].map((m) => m[1]);
+
+  it("self-hosts both fonts with next/font/local, nothing from Google at build time", () => {
+    for (const file of [...sourceFiles(join(root, "app")), ...sourceFiles(join(root, "components"))]) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/from "next\/font\/google"/);
+    }
+    expect(layout).toMatch(/^import "\.\/fonts";$/m);
+    expect(calls).toHaveLength(13);
+    for (const call of calls) {
+      const src = call.match(/src: "\.\/(fonts\/[\w-]+\.woff2)"/)?.[1];
+      expect(src && existsSync(join(root, "app", src)), call).toBe(true);
+      expect(call).toMatch(/prop: "font-family", value: "(Inter|'Geist Mono')"/);
+      expect(call).toMatch(/prop: "unicode-range", value: "U\+/);
+    }
+    // Only latin is preloaded, as next/font/google did with subsets: ["latin"].
+    const preloaded = calls.filter((call) => !/preload: false/.test(call));
+    expect(preloaded.map((call) => call.match(/fonts\/([\w-]+)\.woff2/)?.[1])).toEqual([
+      "inter-latin",
+      "geist-mono-latin",
+    ]);
+    expect(existsSync(join(root, "app/fonts/Inter-OFL.txt"))).toBe(true);
+    expect(existsSync(join(root, "app/fonts/GeistMono-OFL.txt"))).toBe(true);
+  });
+
+  it("names the families and their metric-matched fallbacks", () => {
+    expect(token("--font-inter")).toBe('"Inter", "Inter Fallback"');
+    expect(token("--font-geist-mono")).toBe('"Geist Mono", "Geist Mono Fallback"');
+    expect(css).toMatch(/@font-face\s*\{\s*font-family: "Inter Fallback";\s*src: local\("Arial"\);/);
+    expect(css).toMatch(/@font-face\s*\{\s*font-family: "Geist Mono Fallback";\s*src: local\("Arial"\);/);
   });
 
   it("maps the theme fonts to those variables with sans and monospace fallbacks", () => {

@@ -12,7 +12,9 @@ COPY . .
 # Prisma generate needs a syntactically valid DATABASE_URL but never connects.
 # Inline it so it does not persist as an image layer.
 RUN DATABASE_URL="postgresql://build:build@localhost/build" npx prisma generate
-RUN npm run build
+# The build needs no network: fonts are self-hosted (app/fonts.ts). Without a
+# network a dependency that starts downloading at build time fails here.
+RUN --network=none npm run build
 # Stage the Prisma CLI with its FULL runtime dependency closure for the
 # runner. Computed from the installed tree, not hand-listed: a partial copy
 # shipped an image that crashed at start with MODULE_NOT_FOUND (issue #27).

@@ -102,8 +102,34 @@
   --shadow-atom-3: var(--shadow-3);
 }
 
+/*
+ * Fonts. The faces are self-hosted by app/fonts.ts. The fallbacks are Arial
+ * scaled to each font's metrics (the values next/font/google generated), so
+ * text does not shift when the font arrives.
+ */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial");
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+
+@font-face {
+  font-family: "Geist Mono Fallback";
+  src: local("Arial");
+  ascent-override: 74.67%;
+  descent-override: 21.92%;
+  line-gap-override: 0%;
+  size-adjust: 134.59%;
+}
+
 :root {
   color-scheme: light;
+
+  --font-inter: "Inter", "Inter Fallback";
+  --font-geist-mono: "Geist Mono", "Geist Mono Fallback";
 
   --bg: #ffffff;
   --bg-soft: #fafafa;
