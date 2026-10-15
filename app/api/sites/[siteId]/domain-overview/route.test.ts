@@ -61,10 +61,10 @@ describe("GET /api/sites/[siteId]/domain-overview", () => {
   // Reproduced in the live Compare form: entering another website returned
   // the owned site's domain and its backlink counts in both cards.
   it.each([
-    ["competitor.example", "competitor.example"],
-    [" https://www.Competitor.example/blog/?ref=test#about ", "competitor.example"],
-    ["www.competitor.example/", "competitor.example"],
-    ["https://shop.competitor.example/", "shop.competitor.example"],
+    ["competitor.com", "competitor.com"],
+    [" https://www.Competitor.com/blog/?ref=test#about ", "competitor.com"],
+    ["www.competitor.com/", "competitor.com"],
+    ["https://shop.competitor.com/", "shop.competitor.com"],
   ])("analyzes the requested competitor %s", async (input, target) => {
     const response = await get(input);
     expect(response.status).toBe(200);
@@ -89,11 +89,11 @@ describe("GET /api/sites/[siteId]/domain-overview", () => {
   it.each([null, backlinks])("never substitutes own-site GSC data for a competitor with missing rankings", async (summary) => {
     domainOverview.mockResolvedValue(null);
     backlinksOverview.mockResolvedValue(summary);
-    const response = await get("competitor.example");
+    const response = await get("competitor.com");
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       source: summary ? "dataforseo" : "none",
-      domain: "competitor.example", overview: null, backlinks: summary,
+      domain: "competitor.com", overview: null, backlinks: summary,
     });
     expect(getSitePeriodMetrics).not.toHaveBeenCalled();
     expect(db.keyword.groupBy).not.toHaveBeenCalled();
@@ -108,9 +108,63 @@ describe("GET /api/sites/[siteId]/domain-overview", () => {
     expect(getSitePeriodMetrics).not.toHaveBeenCalled();
   });
 
+  // Own site stored with www: typing the bare domain (or the www URL) is the
+  // own site, looked up as stored, so the Search Console fallback still applies.
+  it.each(["own-site.com", "www.own-site.com", "https://WWW.Own-Site.com/blog"])(
+    "treats %s as the own site when the site is stored with www",
+    async (domain) => {
+      db.site.findUnique.mockResolvedValue({ userId: "user-1", domain: "www.own-site.com" });
+      domainOverview.mockResolvedValue(null);
+      const response = await get(domain);
+      expect(await response.json()).toMatchObject({ source: "gsc", domain: "www.own-site.com", metrics });
+      expect(domainOverview).toHaveBeenCalledWith("user-1", "www.own-site.com");
+      expect(backlinksOverview).toHaveBeenCalledWith("user-1", "www.own-site.com");
+      expect(getSitePeriodMetrics).toHaveBeenCalledWith("site-1", 28);
+    }
+  );
+
+  it("does not apply the public-domain check to the own site", async () => {
+    db.site.findUnique.mockResolvedValue({ userId: "user-1", domain: "staging.internal" });
+    domainOverview.mockResolvedValue(null);
+    const response = await get("https://staging.internal/");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ source: "gsc", domain: "staging.internal" });
+  });
+
+  it.each([
+    "localhost",
+    "http://localhost:3000/",
+    "127.0.0.1",
+    "https://10.0.0.5/admin",
+    "[::1]",
+    "http://[2606:4700::1111]/",
+    "intranet",
+    "printer.local",
+    "shop.test",
+    "nothing.invalid",
+    "competitor.example",
+    "db.internal",
+    "app.localhost",
+    "2130706433",
+    "0x7f000001",
+    "127.1",
+    "user@localhost",
+    "localhost.",
+    "router.home.arpa",
+    "hidden.onion",
+    "nas.lan",
+  ])("rejects %s with a plain message before calling DataForSEO", async (domain) => {
+    const response = await get(domain);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/^Enter a public domain such as example\.com\./);
+    expect(domainOverview).not.toHaveBeenCalled();
+    expect(backlinksOverview).not.toHaveBeenCalled();
+    expect(getSitePeriodMetrics).not.toHaveBeenCalled();
+  });
+
   it("requires authentication before querying a competitor", async () => {
     auth.mockResolvedValue(null);
-    expect((await get("competitor.example")).status).toBe(401);
+    expect((await get("competitor.com")).status).toBe(401);
     expect(db.site.findUnique).not.toHaveBeenCalled();
     expect(domainOverview).not.toHaveBeenCalled();
     expect(backlinksOverview).not.toHaveBeenCalled();
@@ -118,7 +172,7 @@ describe("GET /api/sites/[siteId]/domain-overview", () => {
 
   it.each([null, { userId: "other-user", domain: "other.example" }])("still requires ownership of the site", async (site) => {
     db.site.findUnique.mockResolvedValue(site);
-    expect((await get("competitor.example")).status).toBe(404);
+    expect((await get("competitor.com")).status).toBe(404);
     expect(domainOverview).not.toHaveBeenCalled();
     expect(backlinksOverview).not.toHaveBeenCalled();
   });

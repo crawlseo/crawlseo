@@ -191,7 +191,7 @@ function DomainCard({ data, label }: { data: DomainData; label: string }) {
           </h3>
         </div>
         <span className="mono-label rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-          {data.source}
+          {sourceLabel(data.source)}
         </span>
       </div>
 
@@ -273,4 +273,9 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+/** The source badge: "none" means no provider had data for the domain. */
+export function sourceLabel(source: string): string {
+  return source === "none" ? "UNAVAILABLE" : source.toUpperCase();
 }
