@@ -11,6 +11,8 @@ import robotsParser from "robots-parser";
  *   allowed. Also when robots.txt redirects more than 5 times.
  * - 429, 5xx, a network error or a timeout: the origin is treated as fully
  *   disallowed for this crawl.
+ * - Paths compare after percent-encoded unreserved characters are decoded,
+ *   in URLs and in rules alike: /%73ecret/ is /secret/ (RFC 9309 2.2.2).
  * - Crawl-delay of the CrawlSEOBot group (or * when there is no CrawlSEOBot
  *   group) is honoured: one request at a time on that origin, with the delay
  *   between them. A delay over MAX_CRAWL_DELAY_S skips the origin; we never
@@ -84,7 +86,8 @@ export class RobotsBlockedError extends Error {
 
 /** Thrown when the next request on a Crawl-delay origin would start after the time limit. */
 export class CrawlDelayStopError extends Error {
-  constructor(readonly origin: string) {
+  /** `url`: the request that was not made, a redirect target included. */
+  constructor(readonly origin: string, readonly url: string) {
     super(`Crawl-delay: ${origin} stopped early`);
   }
 }
@@ -107,6 +110,33 @@ const SAMPLE_LIMIT = 50;
 
 function originOf(url: string): string {
   return new URL(url).origin;
+}
+
+const UNRESERVED = /[A-Za-z0-9\-._~]/;
+
+/**
+ * RFC 9309 2.2.2: a percent-encoded octet that is an unreserved character is
+ * compared as the character itself. Reserved and non-ASCII octets stay encoded.
+ */
+export function decodeUnreserved(path: string): string {
+  return path.replace(/%([0-9A-Fa-f]{2})/g, (match, hex: string) => {
+    const c = String.fromCharCode(parseInt(hex, 16));
+    return UNRESERVED.test(c) ? c : match;
+  });
+}
+
+/** The URL as robots.txt rules see it. */
+function robotsUrl(url: string): string {
+  const u = new URL(url);
+  return u.origin + decodeUnreserved(u.pathname + u.search);
+}
+
+/** robots.txt with the paths of its Allow and Disallow rules decoded the same way. */
+function decodeRulePaths(text: string): string {
+  return text.replace(
+    /^([ \t]*(?:allow|disallow)[ \t]*:)(.*)$/gim,
+    (_, key: string, value: string) => key + decodeUnreserved(value)
+  );
 }
 
 function seconds(s: number): string {
@@ -153,7 +183,7 @@ export function resolveRobots(
   }
 
   // Parsed for this origin even when robots.txt was served from a redirect target.
-  const robot = robotsParser(`${origin}/robots.txt`, fetched.text);
+  const robot = robotsParser(`${origin}/robots.txt`, decodeRulePaths(fetched.text));
   const delay = robot.getCrawlDelay(userAgent);
   const crawlDelay = delay !== undefined && delay > 0 ? delay : null;
   const tooLong = crawlDelay !== null && crawlDelay > MAX_CRAWL_DELAY_S;
@@ -225,7 +255,7 @@ export class RobotsPolicy {
     }
     // isAllowed() answers undefined only for a URL on another origin, which
     // originFor() rules out; treat it as allowed like an empty robots.txt.
-    return s.robot?.isAllowed(url, this.opts.userAgent) === false ? "disallowed" : "allowed";
+    return s.robot?.isAllowed(robotsUrl(url), this.opts.userAgent) === false ? "disallowed" : "allowed";
   }
 
   /** Before every request: throws unless robots.txt allows the URL. */
@@ -269,11 +299,11 @@ export class RobotsPolicy {
     await previous;
 
     try {
-      if (s.outcome === "stopped-early") throw new CrawlDelayStopError(s.origin);
+      if (s.outcome === "stopped-early") throw new CrawlDelayStopError(s.origin, url);
       const startAt = Math.max(Date.now(), s.lastDone + delayMs);
       if (startAt > this.opts.deadline) {
         this.stopEarly(s);
-        throw new CrawlDelayStopError(s.origin);
+        throw new CrawlDelayStopError(s.origin, url);
       }
       for (let left = startAt - Date.now(); left > 0; left = startAt - Date.now()) {
         await new Promise((resolve) => setTimeout(resolve, Math.min(left, HEARTBEAT_MS)));
@@ -316,7 +346,7 @@ export class RobotsPolicy {
       const s = known.get(originOf(url));
       if (!s || s.crawlDelay === null) continue;
       if (s.outcome !== "rules" && s.outcome !== "stopped-early") continue;
-      if (s.robot?.isAllowed(url, this.opts.userAgent) === false) continue;
+      if (s.robot?.isAllowed(robotsUrl(url), this.opts.userAgent) === false) continue;
       this.stopEarly(s);
       s.skipped++;
     }
