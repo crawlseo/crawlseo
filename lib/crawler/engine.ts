@@ -201,7 +201,7 @@ export function isPrivateIp(ip: string): boolean {
 }
 
 class BlockedAddressError extends Error {
-  constructor(hostname: string) {
+  constructor(readonly hostname: string) {
     super(`Blocked: ${hostname} resolves to private/reserved IP`);
   }
 }
@@ -711,6 +711,11 @@ async function fetchRobotsTxt(origin: string): Promise<RobotsFetch> {
   try {
     r = await fetchPublic(url, { "User-Agent": USER_AGENT });
   } catch (err) {
+    // Its own host refused at connect time (a record the pre-flight check did
+    // not see): the same answer as a failed pre-flight check.
+    if (err instanceof BlockedAddressError && err.hostname === new URL(url).hostname) {
+      return { kind: "no-host", error: err.message };
+    }
     if (err instanceof TooManyRedirectsError) return { kind: "too-many-redirects" };
     if (err instanceof FetchTimeoutError) return { kind: "error", reason: "timeout" };
     return { kind: "error", reason: "network error" };

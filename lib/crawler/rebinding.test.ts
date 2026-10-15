@@ -66,6 +66,7 @@ describe("DNS rebinding", () => {
 
     expect(await fetchText(`${base}/sitemap.xml`)).toBeNull();
     expect(hits).toBe(0);
+    expect(lookup).toHaveBeenCalledWith("localhost", { all: true });
   });
 
   it.each(["::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:a9fe:a9fe"])(
@@ -75,6 +76,7 @@ describe("DNS rebinding", () => {
 
       expect(await fetchText(`${base}/`)).toBeNull();
       expect(hits).toBe(0);
+      expect(lookup).toHaveBeenCalledWith("localhost", { all: true });
     }
   );
 });
