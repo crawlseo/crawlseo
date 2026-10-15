@@ -11,11 +11,11 @@ const store = vi.hoisted(() => ({
   pages: [] as { url: string; statusCode: number; redirectUrl: string | null }[],
   progress: [] as number[],
 }));
+// The crawler always resolves with { all: true }, which answers a list.
 const { lookup } = vi.hoisted(() => ({
-  lookup: vi.fn<(host: string) => Promise<{ address: string; family: number }>>(async () => ({
-    address: "93.184.216.34",
-    family: 4,
-  })),
+  lookup: vi.fn<(host: string, opts?: { all?: boolean }) => Promise<{ address: string; family: number }[]>>(
+    async () => [{ address: "93.184.216.34", family: 4 }]
+  ),
 }));
 
 vi.mock("dns/promises", () => ({ lookup, default: { lookup } }));
@@ -162,7 +162,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  lookup.mockImplementation(async () => ({ address: "93.184.216.34", family: 4 }));
+  lookup.mockImplementation(async () => [{ address: "93.184.216.34", family: 4 }]);
   vi.useRealTimers();
   vi.unstubAllGlobals();
   delete process.env.CRAWL_MAX_MINUTES;
@@ -211,12 +211,14 @@ describe("pinned connections", () => {
 
 describe("a host refused at connect time", () => {
   it("is reported like a failed pre-flight check, not as an unreachable robots.txt", async () => {
-    // One public and one private record: the pre-flight check sees only the
-    // first, the connection's lookup sees both and refuses.
-    lookup.mockImplementation((async (_host: string, opts?: { all?: boolean }) =>
-      opts?.all
-        ? [{ address: "93.184.216.34", family: 4 }, { address: "10.0.0.5", family: 4 }]
-        : { address: "93.184.216.34", family: 4 }) as never);
+    // The pre-flight check gets a public answer, the connection's lookup a
+    // private record next to it (a rebinding) and refuses.
+    lookup
+      .mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }])
+      .mockResolvedValue([
+        { address: "93.184.216.34", family: 4 },
+        { address: "10.0.0.5", family: 4 },
+      ]);
     // What fetch() throws when the dispatcher's lookup fails.
     const refused = () => () => () =>
       new Promise<Response>((_, reject) =>
@@ -393,7 +395,7 @@ describe("redirects and robots.txt", () => {
   it("reports a redirect to a host that does not resolve as a broken link, not as a robots.txt skip", async () => {
     lookup.mockImplementation(async (host: string) => {
       if (host === "dead.invalid") throw new Error(`getaddrinfo ENOTFOUND ${host}`);
-      return { address: "93.184.216.34", family: 4 };
+      return [{ address: "93.184.216.34", family: 4 }];
     });
     routes = {
       "https://example.com/robots.txt": text("User-agent: *\nAllow: /\n"),
@@ -516,7 +518,7 @@ describe("robots.txt answers", () => {
   it("reports URLs on a host that does not resolve as broken links", async () => {
     lookup.mockImplementation(async (host: string) => {
       if (host === "www.example.com") throw new Error(`getaddrinfo ENOTFOUND ${host}`);
-      return { address: "93.184.216.34", family: 4 };
+      return [{ address: "93.184.216.34", family: 4 }];
     });
     routes = {
       "https://example.com/robots.txt": text("User-agent: *\nAllow: /\n"),

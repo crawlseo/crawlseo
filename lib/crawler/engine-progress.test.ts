@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 // clock forward without slowing the test.
 
 const holder = vi.hoisted(() => ({ db: null as PrismaClient | null }));
-const { lookup } = vi.hoisted(() => ({ lookup: vi.fn(async () => ({ address: "93.184.216.34", family: 4 })) }));
+const { lookup } = vi.hoisted(() => ({ lookup: vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]) }));
 
 vi.mock("dns/promises", () => ({ lookup, default: { lookup } }));
 vi.mock("@/lib/db", async () => {

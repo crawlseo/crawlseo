@@ -39,13 +39,9 @@ beforeEach(() => {
   lookup.mockReset();
 });
 
-/** A resolver: `single` answers lookup(name), `all` answers lookup(name, { all: true }). */
-function resolver(single: () => string, all: () => LookupAddress[]) {
-  lookup.mockImplementation(async (_host: string, opts?: { all?: boolean }) => {
-    if (opts?.all) return all();
-    const address = single();
-    return { address, family: address.includes(":") ? 6 : 4 };
-  });
+/** A resolver for lookup(name, { all: true }), the only form the crawler uses. */
+function resolver(all: () => LookupAddress[]) {
+  lookup.mockImplementation(async () => all());
 }
 const v4 = (address: string): LookupAddress => ({ address, family: 4 });
 const v6 = (address: string): LookupAddress => ({ address, family: 6 });
@@ -54,7 +50,7 @@ describe("DNS rebinding", () => {
   it("never reaches the private address a second resolution returns", async () => {
     let n = 0;
     const next = () => (n++ === 0 ? PUBLIC : "127.0.0.1");
-    resolver(next, () => [v4(next())]);
+    resolver(() => [v4(next())]);
 
     expect(await fetchText(`${base}/robots.txt`)).toBeNull();
     expect(hits).toBe(0);
@@ -62,7 +58,7 @@ describe("DNS rebinding", () => {
   });
 
   it("refuses a name with a public and a private record", async () => {
-    resolver(() => PUBLIC, () => [v4(PUBLIC), v4("127.0.0.1")]);
+    resolver(() => [v4(PUBLIC), v4("127.0.0.1")]);
 
     expect(await fetchText(`${base}/sitemap.xml`)).toBeNull();
     expect(hits).toBe(0);
@@ -72,7 +68,7 @@ describe("DNS rebinding", () => {
   it.each(["::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:a9fe:a9fe"])(
     "refuses a name with a %s record next to a public one",
     async (address) => {
-      resolver(() => PUBLIC, () => [v4(PUBLIC), v6(address)]);
+      resolver(() => [v4(PUBLIC), v6(address)]);
 
       expect(await fetchText(`${base}/`)).toBeNull();
       expect(hits).toBe(0);

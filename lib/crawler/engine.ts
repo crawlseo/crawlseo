@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import type { LookupAddress } from "dns";
 import { lookup } from "dns/promises";
 import { BlockList, isIPv4, isIPv6, type LookupFunction } from "net";
 import { Agent } from "undici";
@@ -168,8 +169,12 @@ for (const [net, prefix] of [
   ["127.0.0.0", 8],
   ["169.254.0.0", 16],
   ["172.16.0.0", 12],
+  ["192.0.0.0", 24],     // IETF protocol assignments
+  ["192.0.2.0", 24],     // documentation (TEST-NET-1)
   ["192.168.0.0", 16],
   ["198.18.0.0", 15],    // benchmarking
+  ["198.51.100.0", 24],  // documentation (TEST-NET-2)
+  ["203.0.113.0", 24],   // documentation (TEST-NET-3)
   ["224.0.0.0", 4],      // multicast
   ["240.0.0.0", 4],      // reserved, incl. 255.255.255.255
 ] as const) {
@@ -180,11 +185,15 @@ for (const [net, prefix] of [
   ["::1", 128],          // loopback
   ["::", 96],            // IPv4-compatible (deprecated), embeds an IPv4 address
   ["64:ff9b::", 96],     // NAT64, embeds an IPv4 address
+  ["64:ff9b:1::", 48],   // local-use NAT64, embeds an IPv4 address
   ["100::", 64],         // discard-only
+  ["2001::", 32],        // Teredo, embeds IPv4 addresses
+  ["2001:2::", 48],      // benchmarking
   ["2001:db8::", 32],    // documentation
   ["2002::", 16],        // 6to4, embeds an IPv4 address
   ["fc00::", 7],         // unique local
   ["fe80::", 10],        // link-local
+  ["fec0::", 10],        // site-local (deprecated)
   ["ff00::", 8],         // multicast
 ] as const) {
   PRIVATE_RANGES.addSubnet(net, prefix, "ipv6");
@@ -207,14 +216,23 @@ class BlockedAddressError extends Error {
   }
 }
 
+/** Every address of a name, or a Blocked error if any of them is private or reserved. */
+async function publicAddresses(hostname: string): Promise<LookupAddress[]> {
+  const addresses = await lookup(hostname, { all: true });
+  if (addresses.length === 0 || addresses.some((a) => isPrivateIp(a.address))) {
+    throw new BlockedAddressError(hostname);
+  }
+  return addresses;
+}
+
 /**
- * Pre-flight check with a clear error message. It cannot stop DNS rebinding
- * on its own (the connection resolves the name again); pinnedLookup can.
+ * Pre-flight check with a clear error message. It applies the same rule as
+ * pinnedLookup, so a name it accepts is not refused at connect time unless
+ * its answer changed. It cannot stop DNS rebinding on its own (the connection
+ * resolves the name again); pinnedLookup can.
  */
 async function assertPublicUrl(url: string): Promise<void> {
-  const { hostname } = new URL(url);
-  const { address } = await lookup(hostname);
-  if (isPrivateIp(address)) throw new BlockedAddressError(hostname);
+  await publicAddresses(new URL(url).hostname);
 }
 
 /**
@@ -231,11 +249,8 @@ export const pinnedLookup: LookupFunction = (hostname, options, callback) => {
     options.family === 4 || options.family === "IPv4" ? 4
     : options.family === 6 || options.family === "IPv6" ? 6
     : 0;
-  lookup(hostname, { all: true })
+  publicAddresses(hostname)
     .then((addresses) => {
-      if (addresses.length === 0 || addresses.some((a) => isPrivateIp(a.address))) {
-        throw new BlockedAddressError(hostname);
-      }
       const usable = family ? addresses.filter((a) => a.family === family) : addresses;
       if (usable.length === 0) {
         throw Object.assign(new Error(`No IPv${family} address for ${hostname}`), { code: "ENOTFOUND" });

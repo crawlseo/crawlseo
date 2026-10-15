@@ -67,7 +67,7 @@ beforeEach(() => {
   tx.$queryRaw.mockImplementation(async () => [{ bingSite: row.bingSite }]);
   lookup.mockImplementation(async (host: string) => {
     const address = DNS[host] ?? host;
-    return { address, family: address.includes(":") ? 6 : 4 };
+    return [{ address, family: address.includes(":") ? 6 : 4 }];
   });
 });
 
@@ -106,13 +106,13 @@ describe("PUT /api/sites/[siteId] domain", () => {
     const blocked = await put({ domain: "https://internal.example/blog/" });
 
     expect(blocked.status).toBe(400);
-    expect(lookup).toHaveBeenCalledWith("internal.example");
+    expect(lookup).toHaveBeenCalledWith("internal.example", { all: true });
     expect(row.domain).toBe("quilltab.app");
 
     const allowed = await put({ domain: "https://new-site.com/blog/" });
 
     expect(allowed.status).toBe(200);
-    expect(lookup).toHaveBeenLastCalledWith("new-site.com");
+    expect(lookup).toHaveBeenLastCalledWith("new-site.com", { all: true });
     expect(row.domain).toBe("new-site.com");
   });
 
