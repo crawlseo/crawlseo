@@ -43,6 +43,11 @@ beforeEach(() => {
 function resolver(all: () => LookupAddress[]) {
   lookup.mockImplementation(async () => all());
 }
+/** Answers only the public address to the pre-flight check, then `later` to the connection. */
+function rebinding(later: LookupAddress[]) {
+  let n = 0;
+  resolver(() => (n++ === 0 ? [v4(PUBLIC)] : later));
+}
 const v4 = (address: string): LookupAddress => ({ address, family: 4 });
 const v6 = (address: string): LookupAddress => ({ address, family: 6 });
 
@@ -57,22 +62,24 @@ describe("DNS rebinding", () => {
     expect(n).toBe(2);
   });
 
-  it("refuses a name with a public and a private record", async () => {
-    resolver(() => [v4(PUBLIC), v4("127.0.0.1")]);
+  it("refuses a connection when the name gains a private record after the pre-flight check", async () => {
+    rebinding([v4(PUBLIC), v4("127.0.0.1")]);
 
     expect(await fetchText(`${base}/sitemap.xml`)).toBeNull();
     expect(hits).toBe(0);
-    expect(lookup).toHaveBeenCalledWith("localhost", { all: true });
+    // One answer for the pre-flight check, one for the connection.
+    expect(lookup).toHaveBeenCalledTimes(2);
   });
 
   it.each(["::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:a9fe:a9fe"])(
-    "refuses a name with a %s record next to a public one",
+    "refuses a connection when the name gains a %s record next to the public one",
     async (address) => {
-      resolver(() => [v4(PUBLIC), v6(address)]);
+      rebinding([v4(PUBLIC), v6(address)]);
 
       expect(await fetchText(`${base}/`)).toBeNull();
       expect(hits).toBe(0);
-      expect(lookup).toHaveBeenCalledWith("localhost", { all: true });
+      // One answer for the pre-flight check, one for the connection.
+      expect(lookup).toHaveBeenCalledTimes(2);
     }
   );
 });

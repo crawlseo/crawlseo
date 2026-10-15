@@ -41,6 +41,10 @@ describe("isPrivateIp", () => {
     "2001:2::1",
     // fec0::/10, site-local (deprecated)
     "fec0::1", "feff::1",
+    // ::ffff:0:0:0/96, IPv4-translated (SIIT)
+    "::ffff:0:127.0.0.1", "::ffff:0:7f00:1", "::ffff:0:808:808",
+    // 3fff::/20, documentation
+    "3fff::1", "3fff:fff:ffff::1",
   ])("blocks %s", (ip) => {
     expect(isPrivateIp(ip)).toBe(true);
   });
@@ -51,7 +55,7 @@ describe("isPrivateIp", () => {
     "2606:4700::1111", "2003::1",
     // just outside the reserved ranges
     "191.255.255.255", "192.0.1.0", "192.0.3.0", "198.51.99.255", "198.51.101.0", "203.0.112.255", "203.0.114.0",
-    "2001:1::1", "2001:3::1", "2001:4860:4860::8888",
+    "2001:1::1", "2001:3::1", "2001:4860:4860::8888", "3ffe:ffff::1", "3fff:1000::1",
   ])("allows public %s", (ip) => {
     expect(isPrivateIp(ip)).toBe(false);
   });

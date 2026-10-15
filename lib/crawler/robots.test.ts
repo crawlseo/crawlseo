@@ -211,19 +211,23 @@ describe("pinned connections", () => {
 
 describe("a host refused at connect time", () => {
   it("is reported like a failed pre-flight check, not as an unreachable robots.txt", async () => {
-    // The pre-flight check gets a public answer, the connection's lookup a
-    // private record next to it (a rebinding) and refuses.
-    lookup
-      .mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }])
-      .mockResolvedValue([
+    // The pre-flight checks get a public answer. Between them and the
+    // connection the name gains a private record (a rebinding), so the
+    // connection's lookup refuses.
+    let refusedAtConnect = 0;
+    const refused = () => () => () => {
+      lookup.mockResolvedValue([
         { address: "93.184.216.34", family: 4 },
         { address: "10.0.0.5", family: 4 },
       ]);
-    // What fetch() throws when the dispatcher's lookup fails.
-    const refused = () => () => () =>
-      new Promise<Response>((_, reject) =>
-        pinnedLookup("example.com", { all: true }, (err) => reject(new TypeError("fetch failed", { cause: err })))
+      // What fetch() throws when the dispatcher's lookup fails.
+      return new Promise<Response>((_, reject) =>
+        pinnedLookup("example.com", { all: true }, (err) => {
+          refusedAtConnect++;
+          reject(new TypeError("fetch failed", { cause: err }));
+        })
       );
+    };
     routes = { "https://example.com/robots.txt": refused(), "https://example.com/": refused() };
 
     await crawl();
@@ -237,6 +241,7 @@ describe("a host refused at connect time", () => {
       })
     );
     expect(fetched("https://example.com/")).toBe(false);
+    expect(refusedAtConnect).toBe(1);
   });
 });
 
