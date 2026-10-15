@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { lookup } from "dns/promises";
-import { BlockList, isIPv4, isIPv6 } from "net";
+import { BlockList, isIPv4, isIPv6, type LookupFunction } from "net";
+import { Agent } from "undici";
 import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import { REMEDIATION } from "./remediation";
@@ -176,10 +177,14 @@ for (const [net, prefix] of [
 for (const [net, prefix] of [
   ["::", 128],           // unspecified
   ["::1", 128],          // loopback
+  ["::", 96],            // IPv4-compatible (deprecated), embeds an IPv4 address
   ["64:ff9b::", 96],     // NAT64, embeds an IPv4 address
+  ["100::", 64],         // discard-only
+  ["2001:db8::", 32],    // documentation
   ["2002::", 16],        // 6to4, embeds an IPv4 address
   ["fc00::", 7],         // unique local
   ["fe80::", 10],        // link-local
+  ["ff00::", 8],         // multicast
 ] as const) {
   PRIVATE_RANGES.addSubnet(net, prefix, "ipv6");
 }
@@ -195,13 +200,58 @@ export function isPrivateIp(ip: string): boolean {
   return true;
 }
 
+class BlockedAddressError extends Error {
+  constructor(hostname: string) {
+    super(`Blocked: ${hostname} resolves to private/reserved IP`);
+  }
+}
+
+/**
+ * Pre-flight check with a clear error message. It cannot stop DNS rebinding
+ * on its own (the connection resolves the name again); pinnedLookup can.
+ */
 async function assertPublicUrl(url: string): Promise<void> {
   const { hostname } = new URL(url);
   const { address } = await lookup(hostname);
-  if (isPrivateIp(address)) {
-    throw new Error(`Blocked: ${hostname} resolves to private/reserved IP`);
-  }
+  if (isPrivateIp(address)) throw new BlockedAddressError(hostname);
 }
+
+/**
+ * The `lookup` of every crawler connection. It resolves the name once, with
+ * all its addresses, refuses the connection if any of them is private or
+ * reserved, and hands the socket only the addresses it checked. The check and
+ * the connection share one resolution, so a short-TTL record that answers a
+ * public IP to the pre-flight check and a private one afterwards (DNS
+ * rebinding) cannot reach an internal address. IP literals never get here:
+ * they cannot rebind, and assertPublicUrl has already refused private ones.
+ */
+export const pinnedLookup: LookupFunction = (hostname, options, callback) => {
+  const family =
+    options.family === 4 || options.family === "IPv4" ? 4
+    : options.family === 6 || options.family === "IPv6" ? 6
+    : 0;
+  lookup(hostname, { all: true })
+    .then((addresses) => {
+      if (addresses.length === 0 || addresses.some((a) => isPrivateIp(a.address))) {
+        throw new BlockedAddressError(hostname);
+      }
+      const usable = family ? addresses.filter((a) => a.family === family) : addresses;
+      if (usable.length === 0) {
+        throw Object.assign(new Error(`No IPv${family} address for ${hostname}`), { code: "ENOTFOUND" });
+      }
+      return usable;
+    })
+    .then(
+      (usable) => {
+        if (options.all) callback(null, usable);
+        else callback(null, usable[0].address, usable[0].family);
+      },
+      (err: NodeJS.ErrnoException) => callback(err, "")
+    );
+};
+
+/** Dispatcher of every crawler request: pages, redirect hops, robots.txt, sitemaps. */
+export const crawlerDispatcher = new Agent({ connect: { lookup: pinnedLookup } });
 
 /**
  * Validates that a domain string resolves to a public IP.
@@ -558,10 +608,18 @@ async function fetchPublic(
 
     let res: Response;
     try {
-      res = await fetch(currentUrl, { headers, signal: controller.signal, redirect: "manual" });
+      res = await fetch(currentUrl, {
+        headers,
+        signal: controller.signal,
+        redirect: "manual",
+        dispatcher: crawlerDispatcher,
+      } as RequestInit);
     } catch (err) {
       done();
-      throw controller.signal.aborted ? new FetchTimeoutError(currentUrl) : err;
+      if (controller.signal.aborted) throw new FetchTimeoutError(currentUrl);
+      // Refused at connect time: report it as clearly as the pre-flight check.
+      if (err instanceof Error && err.cause instanceof BlockedAddressError) throw err.cause;
+      throw err;
     }
 
     const location =
