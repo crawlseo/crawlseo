@@ -764,6 +764,70 @@ describe("sitemaps and robots.txt", () => {
     expect(missing).toMatchObject([{ url: "https://example.com/sitemap.xml", message: "Sitemap blocked by robots.txt" }]);
   });
 
+  it("checks and counts a sitemap once when an index lists another candidate", async () => {
+    routes = {
+      "https://example.com/robots.txt": text(
+        "User-agent: *\nDisallow: /sitemap.xml\nSitemap: https://example.com/sitemap_index.xml\n"
+      ),
+      "https://example.com/": page("Home"),
+      "https://example.com/sitemap_index.xml": () =>
+        new Response(
+          `<?xml version="1.0"?><sitemapindex><sitemap><loc>https://example.com/sitemap.xml</loc></sitemap></sitemapindex>`,
+          { status: 200, headers: { "content-type": "application/xml" } }
+        ),
+    };
+
+    await crawl();
+
+    expect(callsTo("https://example.com/sitemap_index.xml")).toHaveLength(1);
+    expect(report()?.disallowed).toBe(1);
+    expect(report()?.samples).toEqual([{ url: "https://example.com/sitemap.xml" }]);
+  });
+
+  it("fetches a Sitemap: line as written", async () => {
+    routes = {
+      "https://example.com/robots.txt": text("User-agent: *\nAllow: /\nSitemap: https://example.com/sitemaps/\n"),
+      "https://example.com/": page("Home"),
+      "https://example.com/sitemaps/": xml(["https://example.com/a"]),
+      "https://example.com/a": page("A"),
+    };
+
+    await crawl();
+
+    expect(fetched("https://example.com/sitemaps/")).toBe(true);
+    expect(fetched("https://example.com/a")).toBe(true);
+  });
+
+  it("tells how to unblock a sitemap robots.txt blocks, not how to create one", async () => {
+    routes = {
+      "https://example.com/robots.txt": text("User-agent: *\nDisallow: /sitemap\n"),
+      "https://example.com/": page("Home"),
+    };
+
+    await crawl();
+
+    expect(store.issues).toContainEqual(
+      expect.objectContaining({
+        type: "MISSING_SITEMAP",
+        details: { howToFix: expect.stringMatching(/^Allow the sitemap URL in robots\.txt/) },
+      })
+    );
+  });
+
+  it("says the sitemap was not fetched when robots.txt skipped its host", async () => {
+    routes = {
+      "https://example.com/robots.txt": text("busy", 503),
+      "https://example.com/sitemap.xml": xml(["https://example.com/a"]),
+    };
+
+    await crawl();
+
+    expect(fetched("https://example.com/sitemap.xml")).toBe(false);
+    expect(store.issues.filter((i) => i.type === "MISSING_SITEMAP").map((i) => i.message)).toEqual([
+      "Sitemap not fetched, robots.txt skipped its host",
+    ]);
+  });
+
   it("names a sitemap that robots.txt disallows directly in the sitemap issue", async () => {
     routes = {
       "https://example.com/robots.txt": text("User-agent: *\nDisallow: /sitemap\n"),
@@ -841,6 +905,21 @@ describe("percent-encoded paths (RFC 9309 2.2.2)", () => {
     await crawl();
 
     expect(fetched("https://example.com/secret/x")).toBe(false);
+  });
+
+  it("decodes lowercase hex and encodings in the query string", async () => {
+    routes = {
+      "https://example.com/robots.txt": text("User-agent: *\nDisallow: /~admin\nDisallow: /search?q=abc\n"),
+      "https://example.com/": page("Home", ["/%7eadmin/x", "/search?q=%61bc"]),
+      "https://example.com/%7eadmin/x": page("X"),
+      "https://example.com/search?q=%61bc": page("S"),
+    };
+
+    await crawl();
+
+    expect(fetched("https://example.com/%7eadmin/x")).toBe(false);
+    expect(fetched("https://example.com/search?q=%61bc")).toBe(false);
+    expect(report()?.disallowed).toBe(2);
   });
 
   it("keeps an encoded reserved character distinct from the character", async () => {

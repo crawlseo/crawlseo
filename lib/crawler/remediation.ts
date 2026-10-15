@@ -64,6 +64,11 @@ export const REMEDIATION: Record<string, { title: string; howToFix: string }> = 
     howToFix:
       "Create an XML sitemap listing all indexable pages and submit it to Google Search Console. Ensure every crawlable page is included in the sitemap.",
   },
+  SITEMAP_BLOCKED: {
+    title: "Sitemap Blocked by robots.txt",
+    howToFix:
+      "Allow the sitemap URL in robots.txt: remove or narrow the Disallow rule that matches it, or the redirect target it leads to. If robots.txt itself cannot be read (429, 5xx, timeout), fix that first. Then resubmit the sitemap in Google Search Console.",
+  },
   MISSING_SCHEMA: {
     title: "No Structured Data",
     howToFix:

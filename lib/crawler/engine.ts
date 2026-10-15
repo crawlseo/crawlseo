@@ -1052,19 +1052,25 @@ async function executeCrawl(
   // Sitemap: lines are free text; a malformed one is ignored, not fatal. One
   // that names a default location is checked (and counted) once.
   const sitemapCandidates = [
-    ...new Set(
-      [...seedRobots.sitemaps.filter(isHttpUrl), `${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`]
-        .map((u) => normalizeUrl(u, origin))
-        .filter((u): u is string => u !== null)
-    ),
+    ...seedRobots.sitemaps.filter(isHttpUrl),
+    `${origin}/sitemap.xml`,
+    `${origin}/sitemap_index.xml`,
   ];
+  /** Sitemaps already handled, by normalized URL: each is checked and counted once. */
+  const sitemapsSeen = new Set<string>();
   /** The first sitemap robots.txt kept the crawler from, for the report. */
   let sitemapSkip = null as { url: string; verdict: SkipReason } | null;
   /**
    * A sitemap's body, or null. A sitemap robots.txt keeps the crawler from,
-   * directly or at a redirect hop, is counted like any other skipped URL.
+   * directly or at a redirect hop, is counted like any other skipped URL. A
+   * URL seen before (a Sitemap: line naming a default location, an index
+   * listing another candidate) is not requested or counted again; it is
+   * fetched as written.
    */
   const sitemapText = async (url: string): Promise<string | null> => {
+    const key = normalizeUrl(url, origin) ?? url;
+    if (sitemapsSeen.has(key)) return null;
+    sitemapsSeen.add(key);
     if (!(await allowed(url))) {
       sitemapSkip ??= { url, verdict: (await robots.check(url)) as SkipReason };
       return null;
@@ -1110,9 +1116,7 @@ async function executeCrawl(
           : sitemapSkip
             ? "Sitemap not fetched, robots.txt skipped its host"
             : "No sitemap.xml found",
-      details: REMEDIATION.MISSING_SITEMAP
-        ? { howToFix: REMEDIATION.MISSING_SITEMAP.howToFix }
-        : {},
+      details: { howToFix: (sitemapSkip ? REMEDIATION.SITEMAP_BLOCKED : REMEDIATION.MISSING_SITEMAP)?.howToFix },
     });
   } else {
     // Seed queue from sitemap
