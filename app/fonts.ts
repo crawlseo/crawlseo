@@ -7,6 +7,8 @@ import localFont from "next/font/local";
 // has characters from it. Only latin is preloaded. The family names and the
 // fallback faces are set in globals.css: Turbopack names a local font's CSS
 // variable and fallback after the JS constant, not after its font-family.
+// Every call stays exported: nothing reads the values, and an unused binding
+// could be dropped together with its faces.
 // Licences: ./fonts/Inter-OFL.txt and ./fonts/GeistMono-OFL.txt.
 
 export const interCyrillicExt = localFont({

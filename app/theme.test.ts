@@ -51,6 +51,7 @@ describe("light only", () => {
 describe("fonts", () => {
   /** The localFont({...}) calls in app/fonts.ts. */
   const calls = [...fonts.matchAll(/localFont\(\{([\s\S]*?)\n\}\);/g)].map((m) => m[1]);
+  const files = calls.map((call) => call.match(/fonts\/([\w-]+)\.woff2/)?.[1]);
 
   it("self-hosts both fonts with next/font/local, nothing from Google at build time", () => {
     for (const file of [...sourceFiles(join(root, "app")), ...sourceFiles(join(root, "components"))]) {
@@ -58,6 +59,7 @@ describe("fonts", () => {
     }
     expect(layout).toMatch(/^import "\.\/fonts";$/m);
     expect(calls).toHaveLength(13);
+    expect(fonts.match(/^export const \w+ = localFont\(/gm)).toHaveLength(13);
     for (const call of calls) {
       const src = call.match(/src: "\.\/(fonts\/[\w-]+\.woff2)"/)?.[1];
       expect(src && existsSync(join(root, "app", src)), call).toBe(true);
@@ -70,6 +72,10 @@ describe("fonts", () => {
       "inter-latin",
       "geist-mono-latin",
     ]);
+    // Latin is declared last in each family, as Google orders it: where
+    // unicode-ranges overlap, the last face wins.
+    expect(files.indexOf("inter-latin")).toBe(files.filter((f) => f?.startsWith("inter-")).length - 1);
+    expect(files.at(-1)).toBe("geist-mono-latin");
     expect(existsSync(join(root, "app/fonts/Inter-OFL.txt"))).toBe(true);
     expect(existsSync(join(root, "app/fonts/GeistMono-OFL.txt"))).toBe(true);
   });
