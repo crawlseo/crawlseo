@@ -78,6 +78,7 @@ export function CloudPromo() {
       >
         See crawlseo.cloud
         <ArrowUpRight aria-hidden />
+        <span className="sr-only">(opens in a new tab)</span>
       </a>
       <button
         type="button"
