@@ -68,7 +68,8 @@ export function DisconnectGoogleDialog({ disabled = false }: { disabled?: boolea
           <DialogTitle>Disconnect Google?</DialogTitle>
           <DialogDescription>
             crawlseo asks Google to revoke its access, removes the stored Google tokens and signs
-            you out. Search Console sync stops until you sign in again and grant access.
+            you out on every device. Search Console sync stops until you sign in again and grant
+            access.
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
