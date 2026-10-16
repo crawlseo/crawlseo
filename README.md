@@ -87,8 +87,10 @@ The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud)`) follows robots.txt per
 | 🔗 | **Backlinks** | Backlink profile, referring domains, anchor text, dofollow/nofollow analysis |
 | 📊 | **Rank Tracking** | Historical position snapshots with saved keywords and notes |
 | 💡 | **SEO Opportunities** | Striking distance keywords, low CTR, content decay, cannibalization detection |
-| 🔔 | **Alerts** | Traffic drops, position changes, new 404s, vitals degradation, by email, Slack, Telegram or webhook |
+| 🔔 | **Alerts** | Traffic drops, position drops, low crawl health and degraded vitals. Checked when you press Evaluate now on the Alerts page and shown in the app; nothing is sent by email or chat yet |
 | 📥 | **CSV Export** | Export keywords and pages data for offline analysis |
+
+GSC sync, crawls and Core Web Vitals checks run when you start them in the app. There is no built-in schedule yet.
 
 ## Quick Start
 
@@ -187,7 +189,7 @@ Image tags:
 | Tag | What it is |
 |---|---|
 | `latest` | The latest release. Moves only when a version is tagged. |
-| `0.2.4`, `0.2` | A release, and the newest patch of a minor version. |
+| `0.2.5`, `0.2` | A release, and the newest patch of a minor version. |
 | `edge` | The latest build of `main`, ahead of the last release. |
 | `sha-<commit>` | One exact build, for main pushes and releases. |
 
@@ -195,7 +197,7 @@ To pin a release, follow `main`, or use an image from a fork, set
 `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.4
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.2.5
 ```
 
 To build locally instead, build the same image name before starting Compose:
@@ -204,6 +206,36 @@ To build locally instead, build the same image name before starting Compose:
 docker build -t crawlseo:local .
 CRAWLSEO_IMAGE=crawlseo:local docker compose up -d
 ```
+
+### Run on a server
+
+The defaults above are for a local machine. On a server reachable from the internet, change these before you sign in.
+
+**1. Publish the app port on loopback only.** In `docker-compose.yml`, change the app's port mapping:
+
+```yaml
+    ports:
+      - "127.0.0.1:3000:3000"
+```
+
+Docker writes its own firewall rules for published ports, so they bypass host firewalls such as ufw. With the default `3000:3000` the app answers plain http on the server's public IP even if ufw blocks port 3000. On loopback only the reverse proxy on the same host can reach it.
+
+**2. Put the app behind HTTPS with a reverse proxy.** A minimal [Caddy](https://caddyserver.com/) setup on the host, with your domain's DNS pointing at the server and ports 80 and 443 open (Caddy gets the certificate itself):
+
+```
+# /etc/caddy/Caddyfile
+seo.example.com {
+	reverse_proxy 127.0.0.1:3000
+}
+```
+
+**3. Set the public URL and the Google redirect URI.** In `.env`, set `NEXTAUTH_URL=https://seo.example.com` and keep `AUTH_TRUST_HOST=true`. In the Google OAuth client, add `https://seo.example.com/api/auth/callback/google` as an authorized redirect URI.
+
+**4. Set your own database password.** Set `POSTGRES_PASSWORD` in `.env` before the first `docker compose up`; the default is `changeme`. Postgres keeps the password it was created with, so changing it later also means changing it inside the database.
+
+**5. Close registration.** Sign in once with your own Google account, then set `DISABLE_REGISTRATION=true` in `.env` and recreate the app container with `docker compose up -d --force-recreate app` (`docker compose restart` does not reread `.env`). From then on only accounts that already signed in can log in. Without it, anyone with a Google account can sign up on your instance and run crawls from your server.
+
+**6. Keep `NEXTAUTH_SECRET` stable.** It signs sessions and also encrypts stored API keys and Google tokens. If it changes, saved API keys become unreadable and users have to sign in with Google again.
 
 ### Manual
 
@@ -224,10 +256,11 @@ npm start
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `NEXTAUTH_SECRET` | Yes | Session encryption key (`openssl rand -hex 32`) |
+| `NEXTAUTH_SECRET` | Yes | Session key, also encrypts stored API keys and Google tokens (`openssl rand -hex 32`). Keep it stable. `AUTH_SECRET` works as an alias |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `NEXTAUTH_URL` | No | Base URL (auto-detected in most environments) |
+| `NEXTAUTH_URL` | No | Public base URL of the app, e.g. `https://seo.example.com`. Set it on a server; locally the request host is used |
+| `DISABLE_REGISTRATION` | No | Set to `true` to close sign-up: a Google account that has never signed in on this instance is refused, while accounts that already signed in keep signing in |
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
 

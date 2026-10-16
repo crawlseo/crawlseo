@@ -107,7 +107,7 @@ Copy `.env.example` to `.env.local` and update:
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | DATABASE_URL | Yes | PostgreSQL connection string |
-| APP_SECRET | Yes | NextAuth secret (use `openssl rand -hex 32`) |
+| NEXTAUTH_SECRET | Yes | Auth.js secret, also encrypts stored API keys and Google tokens (use `openssl rand -hex 32`) |
 | GOOGLE_CLIENT_ID | Yes | Google OAuth client ID |
 | GOOGLE_CLIENT_SECRET | Yes | Google OAuth client secret |
 | NEXTAUTH_URL | No | NextAuth URL (auto-detected in dev) |
