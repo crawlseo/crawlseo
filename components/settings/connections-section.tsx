@@ -349,26 +349,33 @@ function KeyRow({
             : config.description
         }
         actions={
-          connected ? (
-            <DisconnectKeyDialog
-              config={config}
-              onDisconnected={() => {
-                refocus.current = true;
-                onStatusChange(config.provider, false);
-                router.refresh();
-              }}
-            />
-          ) : expanded ? null : (
+          expanded ? null : connected ? (
+            <>
+              {config.testable && <SavedKeyTest provider={config.provider} />}
+              <Button size="sm" variant="outline" onClick={() => onExpand(true)}>
+                Replace
+              </Button>
+              <DisconnectKeyDialog
+                config={config}
+                onDisconnected={() => {
+                  refocus.current = true;
+                  onStatusChange(config.provider, false);
+                  router.refresh();
+                }}
+              />
+            </>
+          ) : (
             <Button size="sm" variant="outline" onClick={() => onExpand(true)}>
               Connect
             </Button>
           )
         }
       />
-      {!connected && expanded && (
+      {expanded && (
         <KeyForm
           id={formId}
           config={config}
+          replacing={connected}
           onCancel={() => {
             refocus.current = true;
             onExpand(false);
@@ -385,14 +392,68 @@ function KeyRow({
   );
 }
 
+/**
+ * TEST CONNECTION on a connected row: the server tests the saved key
+ * (POST /api/user/api-keys/test with `saved: true`) and answers only whether
+ * it works. The key never comes back to the browser.
+ */
+function SavedKeyTest({ provider }: { provider: KeyProvider }) {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handleTest() {
+    setTesting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/user/api-keys/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, saved: true }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      setResult(
+        data.success === true
+          ? { ok: true, text: "The saved key works." }
+          : { ok: false, text: data.error ?? "The service did not accept the saved key." }
+      );
+    } catch {
+      setResult({ ok: false, text: "The connection test could not run. Try again." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" disabled={testing} onClick={handleTest}>
+        {testing && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+        Test connection
+      </Button>
+      <span
+        role="status"
+        className={cn(
+          "basis-full text-xs sm:order-first sm:basis-auto",
+          result?.ok ? "text-success" : "text-danger",
+          !result && "sr-only"
+        )}
+      >
+        {result?.text}
+      </span>
+    </>
+  );
+}
+
 function KeyForm({
   id,
   config,
+  replacing = false,
   onCancel,
   onSaved,
 }: {
   id: string;
   config: KeyProviderConfig;
+  /** The provider already has a key: saving swaps it and keeps everything synced with it. */
+  replacing?: boolean;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -467,6 +528,11 @@ function KeyForm({
   return (
     <form id={id} onSubmit={handleSave} noValidate className="mt-4 sm:pl-[50px]">
       <div className={cn(FORM_MAX_WIDTH, "space-y-3")}>
+        {replacing && (
+          <p className="text-[13px] leading-5 text-text">
+            The new key replaces the saved one for all your sites. Data already synced stays.
+          </p>
+        )}
         {config.fields.map((field, i) => {
           const inputId = `${id}-${field.name}`;
           const last = i === config.fields.length - 1;
@@ -527,7 +593,7 @@ function KeyForm({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={saving || testing}>
           {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-          Save
+          {replacing ? "Save new key" : "Save"}
         </Button>
         {config.testable && (
           <Button type="button" size="sm" variant="outline" disabled={saving || testing} onClick={handleTest}>

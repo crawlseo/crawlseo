@@ -47,4 +47,17 @@ describe("api-keys provider allow-list", () => {
       "delete-key",
     ]);
   });
+
+  it("replacing the Bing key swaps it and keeps the synced Bing data", async () => {
+    vi.clearAllMocks();
+    const res = await POST(json("POST", { provider: "bing", apiKey: "new-key" }));
+    expect(res.status).toBe(201);
+    expect(db.apiKey.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { encryptedLogin: null, encryptedPassword: "enc:new-key" } })
+    );
+    expect(db.site.updateMany).not.toHaveBeenCalled();
+    expect(db.bingSearchWeekly.deleteMany).not.toHaveBeenCalled();
+    expect(db.bingDaily.deleteMany).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
 });

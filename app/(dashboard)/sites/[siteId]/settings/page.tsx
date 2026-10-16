@@ -95,19 +95,19 @@ export default async function SettingsPage({ params }: Props) {
         )}
 
         {/* Data summary */}
-        <div className="panel p-5">
-          <h3 className="text-[15px] leading-5 font-semibold text-text-strong">
+        <section aria-labelledby="stored-data-heading">
+          <h3 id="stored-data-heading" className="mb-3 text-[15px] leading-5 font-semibold text-text-strong">
             Stored data
           </h3>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <ul className="panel divide-y divide-border-soft">
             <DataStat label="Keyword records" value={site._count.keywords} />
             <DataStat label="Page records" value={site._count.pages} />
             <DataStat label="Crawls" value={site._count.crawls} />
             <DataStat label="Vitals reports" value={site._count.vitals} />
             <DataStat label="Alert rules" value={site._count.alerts} />
             <DataStat label="Saved keywords" value={site._count.savedKeywords} />
-          </div>
-        </div>
+          </ul>
+        </section>
 
         {/* Danger zone */}
         <div className="panel border-danger/30 p-5">
@@ -129,13 +129,9 @@ export default async function SettingsPage({ params }: Props) {
 
 function DataStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-bg px-3 py-2.5">
-      <p className="mono-label text-[11px] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 font-data text-lg font-medium text-text-strong">
-        {value.toLocaleString()}
-      </p>
-    </div>
+    <li className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-data font-medium text-text-strong">{value.toLocaleString()}</span>
+    </li>
   );
 }

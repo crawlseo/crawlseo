@@ -52,6 +52,18 @@ describe("site settings", () => {
     expect(html).toContain("Danger zone");
   });
 
+  it("lists stored data as rows in one bordered list, not cards", async () => {
+    const html = await render();
+    const start = html.indexOf(">Stored data<");
+    const list = html.slice(start, html.indexOf("Danger zone", start));
+    expect(list).toMatch(/<ul class="[^"]*panel[^"]*divide-y/);
+    const rows = [...list.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => m[1].replace(/<[^>]+>/g, "|"));
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toMatch(/Keyword records\|+1/);
+    expect(rows[5]).toMatch(/Saved keywords\|+6/);
+    expect(list).not.toContain("rounded-lg border");
+  });
+
   it("hides the Bing property picker without a Bing key and links to Settings", async () => {
     const html = await render();
     expect(html).not.toContain("Bing Webmaster property");

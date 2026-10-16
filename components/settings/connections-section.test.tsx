@@ -64,6 +64,22 @@ describe("ConnectionsSection", () => {
     expect(html).not.toContain("<input");
   });
 
+  it("offers Test connection for a saved key and Replace on every connected key row", () => {
+    const saved = { connected: true, updatedAt: "2026-10-01T00:00:00.000Z" };
+    const html = renderToStaticMarkup(
+      <ConnectionsSection
+        google={GOOGLE}
+        initialStatus={{ bing: saved, dataforseo: saved, google_pagespeed: saved }}
+      />
+    );
+    const labels = (provider: string) =>
+      [...row(html, provider).matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
+    expect(labels("bing")).toEqual(["Test connection", "Replace", "Disconnect"]);
+    expect(labels("dataforseo")).toEqual(["Test connection", "Replace", "Disconnect"]);
+    // PageSpeed has no connection test.
+    expect(labels("google_pagespeed")).toEqual(["Replace", "Disconnect"]);
+  });
+
   it("shows Google's access as labels and keeps the scope URLs behind Details", () => {
     const html = renderToStaticMarkup(<ConnectionsSection google={GOOGLE} initialStatus={NONE} />);
     const google = row(html, "google");

@@ -137,7 +137,9 @@ Search Console either anonymises or does not expose at all.
 3. In CrawlSEO, open **Settings** (the user menu at the bottom of the sidebar),
    then **Connections → Bing Webmaster Tools → Connect**, paste the key and
    save. The key is stored for your account and used by every site. **Test
-   connection** calls `GetUserSites`, which costs nothing and needs no site.
+   connection** calls `GetUserSites`, which costs nothing and needs no site; on
+   a connected row it tests the saved key. **Replace** swaps the key and keeps
+   the synced Bing data; **Disconnect** removes the key and that data.
 4. In the site's **Site settings**, under **Bing Webmaster property**, pick the
    property for this site and sync.
 
