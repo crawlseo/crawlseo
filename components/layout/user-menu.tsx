@@ -97,6 +97,7 @@ export function UserMenu({
             className="text-[11px] leading-4 font-medium text-text-strong underline underline-offset-2 hover:text-primary"
           >
             {`Update available: v${update.version}`}
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}
       </div>

@@ -61,7 +61,7 @@ describe("sidebar footer", () => {
     const url = "https://github.com/crawlseo/crawlseo/releases/tag/v9.0.0";
     const html = render({ name: "Mike", update: { version: "9.0.0", url } });
     expect(html).toContain(`href="${url}"`);
-    expect(html).toContain(">Update available: v9.0.0</a>");
+    expect(html).toContain('>Update available: v9.0.0<span class="sr-only"> (opens in a new tab)</span></a>');
 
     expect(render({ name: "Mike" })).not.toContain("Update available");
     expect(render({ name: "Mike", update: null })).not.toContain("Update available");

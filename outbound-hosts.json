@@ -1,8 +1,8 @@
 {
-  "$comment": "Every external https host that appears in lib/, app/ or mcp/. Keep it in step with the README section \"Your data stays yours\" (see CONTRIBUTING, Outbound connections). lib/outbound-hosts.test.ts fails on a host that is not listed here.",
+  "$comment": "Every external host in the app's code (lib/, app/, mcp/, components/ and root files). \"requests\" are the hosts the app contacts and must match the README section \"Your data stays yours\" (see CONTRIBUTING, Outbound connections). \"notRequested\" hosts only appear as links or plain strings, and only in the files listed. lib/outbound-hosts.test.ts fails on anything else.",
   "requests": {
-    "accounts.google.com": "Google sign-in (Auth.js Google provider, not a literal in our code)",
-    "oauth2.googleapis.com": "Google OAuth token refresh and revoke",
+    "accounts.google.com": "Google sign-in: Auth.js OIDC discovery and the browser redirect (not a literal in our code)",
+    "oauth2.googleapis.com": "Google OAuth tokens (sign-in, refresh) and revoke on disconnect",
     "www.googleapis.com": "Search Console and PageSpeed Insights APIs; also the OAuth scope names",
     "searchconsole.googleapis.com": "Search Console URL Inspection (index status)",
     "ssl.bing.com": "Bing Webmaster Tools API, only with the user's own key",
@@ -11,7 +11,29 @@
     "api.github.com": "Daily update check (CRAWLSEO_UPDATE_CHECK=false turns it off)"
   },
   "notRequested": {
-    "github.com": "Link to a release page in the sidebar footer, opened by the user",
-    "crawlseo.cloud": "Info URL inside the crawler User-Agent string"
+    "github.com": {
+      "reason": "Link to a release page in the sidebar footer, opened by the user",
+      "files": ["lib/update-check.ts"]
+    },
+    "crawlseo.cloud": {
+      "reason": "Info URL in the crawler User-Agent, and the sidebar card link",
+      "files": ["lib/crawler/engine.ts", "components/layout/cloud-promo.tsx"]
+    },
+    "www.bing.com": {
+      "reason": "Help link in Settings > Connections",
+      "files": ["components/settings/connections-section.tsx"]
+    },
+    "app.dataforseo.com": {
+      "reason": "Help link in Settings > Connections",
+      "files": ["components/settings/connections-section.tsx"]
+    },
+    "console.cloud.google.com": {
+      "reason": "Help link in Settings > Connections",
+      "files": ["components/settings/connections-section.tsx"]
+    },
+    "www.w3.org": {
+      "reason": "SVG namespace",
+      "files": ["components/brand/logo.tsx"]
+    }
   }
 }
