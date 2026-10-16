@@ -8,6 +8,12 @@ import { formatDay } from "@/lib/format";
 
 type ApiKeyStatus = Record<string, { connected: boolean; updatedAt?: string }>;
 
+// The key form stops at a reading width: the content area grows to 1600 px, and a key field as wide as that
+// is hard to scan. Labels, fields and messages share the cap; the buttons keep their own size.
+const FORM_MAX_WIDTH = "max-w-[560px]";
+const INPUT_CLASS =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none";
+
 export function ApiKeysSection({
   initialStatus,
 }: {
@@ -236,7 +242,7 @@ function ProviderCard({
           </button>
         </div>
       ) : (
-        <div className="mt-4 space-y-3">
+        <div className={`mt-4 ${FORM_MAX_WIDTH} space-y-3`}>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {loginLabel}
@@ -246,7 +252,7 @@ function ProviderCard({
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               placeholder={loginPlaceholder}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
+              className={INPUT_CLASS}
             />
           </div>
 
@@ -260,7 +266,7 @@ function ProviderCard({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={passwordPlaceholder}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none"
+                className={INPUT_CLASS}
               />
             </div>
           )}
