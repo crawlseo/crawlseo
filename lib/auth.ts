@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "./db";
 import { isSignInAllowed } from "./registration";
 import { storeSignInTokens } from "./google/token-store";
+import { syncGoogleProfile } from "./google/profile";
 
 // Skipped during `next build` so the Docker image can be built without real
 // credentials.  NEXT_PHASE is set by Next.js; SKIP_ENV_VALIDATION is a manual
@@ -42,7 +43,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
+      if (user?.email) {
+        // The adapter stores name and picture only when it creates the user.
+        try {
+          await syncGoogleProfile(db, user.email, profile);
+        } catch (error) {
+          console.error("Failed to update the profile:", error);
+        }
+      }
       if (account?.access_token && user?.email) {
         // Save Google OAuth tokens (encrypted) after user is created by adapter
         try {

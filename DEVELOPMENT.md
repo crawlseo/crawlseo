@@ -134,13 +134,15 @@ Search Console either anonymises or does not expose at all.
    the site.
 2. **Settings → API Access → API Key → Generate**. One key covers every verified
    site on the account, and generating a new one invalidates the old.
-3. In CrawlSEO, open a site's **Settings → External API Keys → Bing Webmaster
-   Tools**, paste the key and save. **Test Connection** calls `GetUserSites`,
-   which costs nothing and needs no site.
-4. Under **Bing Webmaster property**, pick the property for this site and sync.
+3. In CrawlSEO, open **Settings** (the user menu at the bottom of the sidebar),
+   then **Connections → Bing Webmaster Tools → Connect**, paste the key and
+   save. The key is stored for your account and used by every site. **Test
+   connection** calls `GetUserSites`, which costs nothing and needs no site.
+4. In the site's **Site settings**, under **Bing Webmaster property**, pick the
+   property for this site and sync.
 
-The property URL often differs from the Search Console one — Bing may know
-`https://example.com/` where Search Console knows `https://www.example.com/` —
+The property URL often differs from the Search Console one (Bing may know
+`https://example.com/` where Search Console knows `https://www.example.com/`),
 so the two are stored separately.
 
 Two things about Bing's data are worth knowing when reading the numbers:

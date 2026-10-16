@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Loader2, LogOut, Trash2, Unplug } from "lucide-react";
+import { Loader2, LogOut, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +18,7 @@ import {
   disconnectGoogleAction,
   signOutAction,
   type DeleteAccountState,
-} from "@/app/(dashboard)/account/actions";
+} from "@/app/(dashboard)/settings/actions";
 
 const INPUT_CLASS =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:bg-bg focus:outline-none";
@@ -58,9 +58,8 @@ export function SignOutButton() {
 export function DisconnectGoogleDialog({ disabled = false }: { disabled?: boolean }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="outline" disabled={disabled} />}>
-        <Unplug className="size-4" aria-hidden />
-        Disconnect Google
+      <DialogTrigger render={<Button size="sm" variant="outline" disabled={disabled} />}>
+        Disconnect
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">

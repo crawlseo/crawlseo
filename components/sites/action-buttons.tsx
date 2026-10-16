@@ -138,23 +138,17 @@ type VitalsStatus =
   | { kind: "ok" | "error"; text: string }
   | { kind: "quota" };
 
-export function VitalsStatusMessage({
-  siteId,
-  status,
-}: {
-  siteId: string;
-  status: VitalsStatus;
-}) {
+export function VitalsStatusMessage({ status }: { status: VitalsStatus }) {
   if (status.kind === "quota") {
     return (
       <p role="alert" className="max-w-2xl text-atom-caption text-danger">
         The PageSpeed Insights quota is exhausted. Add your own Google
         PageSpeed key in{" "}
         <Link
-          href={`/sites/${siteId}/settings#api-keys`}
+          href="/settings?connect=google_pagespeed#connections"
           className="text-link font-medium"
         >
-          Settings → API keys
+          Settings → Connections
         </Link>{" "}
         to keep checking vitals.
       </p>
@@ -184,7 +178,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
   useEffect(() => {
     if (!setHeaderStatus) return;
     setHeaderStatus(
-      status ? <VitalsStatusMessage siteId={siteId} status={status} /> : null
+      status ? <VitalsStatusMessage status={status} /> : null
     );
   }, [setHeaderStatus, siteId, status]);
   useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
@@ -215,7 +209,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
         {loading ? "Checking…" : "Check vitals"}
       </Button>
       {status && !setHeaderStatus && (
-        <VitalsStatusMessage siteId={siteId} status={status} />
+        <VitalsStatusMessage status={status} />
       )}
     </div>
   );

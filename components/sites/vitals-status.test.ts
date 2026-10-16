@@ -8,12 +8,12 @@ vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 import { VitalsStatusMessage } from "./action-buttons";
 
 describe("VitalsStatusMessage", () => {
-  it("explains an exhausted quota and links to the API keys settings", () => {
+  it("explains an exhausted quota and links to the PageSpeed connection in Settings", () => {
     const html = renderToString(
-      createElement(VitalsStatusMessage, { siteId: "site-1", status: { kind: "quota" } })
+      createElement(VitalsStatusMessage, { status: { kind: "quota" } })
     );
     expect(html).toContain("quota is exhausted");
-    expect(html).toContain('href="/sites/site-1/settings#api-keys"');
-    expect(html).toContain("API keys");
+    expect(html).toContain('href="/settings?connect=google_pagespeed#connections"');
+    expect(html).toContain("Connections");
   });
 });

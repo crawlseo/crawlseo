@@ -14,7 +14,7 @@ function errorMessage(error: string | string[] | undefined): string | null {
   return "Sign-in failed. Please try again.";
 }
 
-// Set by the account actions (app/(dashboard)/account/actions.ts) after they sign the user out.
+// Set by the account actions (app/(dashboard)/settings/actions.ts) after they sign the user out.
 const UNREVOKED =
   " Google did not confirm the revoke: to be sure, remove crawlseo at myaccount.google.com/permissions.";
 const NOTICES: Record<string, string> = {

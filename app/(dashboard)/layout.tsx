@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
+import { APP_VERSION } from "@/lib/version";
 
 export default async function DashboardLayout({
   children,
@@ -36,6 +37,8 @@ export default async function DashboardLayout({
     <AppShell
       email={session.user?.email}
       name={session.user?.name}
+      image={session.user?.image}
+      version={APP_VERSION}
       sites={sites.map((s) => ({ ...s, dataThrough: dataThrough[s.id] ?? null }))}
       showCloudPromo={process.env.CRAWLSEO_HIDE_CLOUD_PROMO?.trim().toLowerCase() !== "true"}
     >

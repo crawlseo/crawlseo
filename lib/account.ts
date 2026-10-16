@@ -4,7 +4,7 @@ import { openGoogleTokens } from "@/lib/google/token-store";
 
 /*
  * Account actions: disconnect Google and delete the account. Both act on the
- * user id the caller got from the session; app/(dashboard)/account/actions.ts
+ * user id the caller got from the session; app/(dashboard)/settings/actions.ts
  * is the only caller and never takes an id from the request.
  */
 

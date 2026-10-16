@@ -93,7 +93,7 @@ export function KeywordResearchClient({
             <p className="mt-0.5 text-muted-foreground">
               Add a DataForSEO API key in{" "}
               <Link
-                href={`/sites/${siteId}/settings`}
+                href="/settings?connect=dataforseo#connections"
                 className="text-link"
               >
                 Settings

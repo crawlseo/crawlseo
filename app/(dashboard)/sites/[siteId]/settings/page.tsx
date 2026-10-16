@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { DeleteSiteButton } from "@/components/sites/delete-site-button";
-import { ApiKeysSection } from "@/components/settings/api-keys-section";
 import { BingSiteSection } from "@/components/settings/bing-site-section";
 import { formatDay } from "@/lib/format";
 
@@ -37,28 +37,17 @@ export default async function SettingsPage({ params }: Props) {
   });
   if (!site || site.userId !== session?.user?.id) redirect("/sites");
 
-  // Check API key status
-  const apiKeys = await db.apiKey.findMany({
-    where: { userId: session.user.id },
-    select: { provider: true, updatedAt: true },
+  // The Bing key is stored per user, in Settings; this page only picks the property.
+  const bingKey = await db.apiKey.findUnique({
+    where: { userId_provider: { userId: session.user.id, provider: "bing" } },
+    select: { id: true },
   });
-  const apiKeyStatus: Record<string, { connected: boolean; updatedAt?: string }> = {
-    dataforseo: { connected: false },
-    google_pagespeed: { connected: false },
-    bing: { connected: false },
-  };
-  for (const key of apiKeys) {
-    apiKeyStatus[key.provider] = {
-      connected: true,
-      updatedAt: key.updatedAt.toISOString(),
-    };
-  }
 
   return (
     <div>
       <PageHeader
-        title="Settings"
-        description="Site configuration and data management."
+        title="Site settings"
+        description={`Configuration and stored data for ${site.domain}. API keys and Google live in Settings and apply to all sites.`}
       />
 
       <div className="space-y-6">
@@ -93,15 +82,17 @@ export default async function SettingsPage({ params }: Props) {
           </dl>
         </div>
 
-        {/* External API keys */}
-        <ApiKeysSection initialStatus={apiKeyStatus} />
-
-        {/* Bing Webmaster property */}
-        <BingSiteSection
-          siteId={siteId}
-          bingSite={site.bingSite}
-          keyConnected={apiKeyStatus.bing.connected}
-        />
+        {/* Bing Webmaster property: only with a Bing key */}
+        {bingKey ? (
+          <BingSiteSection siteId={siteId} bingSite={site.bingSite} />
+        ) : (
+          <p className="panel px-5 py-4 text-sm text-muted-foreground">
+            Bing Webmaster Tools is not connected.{" "}
+            <Link href="/settings?connect=bing#connections" className="text-link font-medium">
+              Connect Bing in Settings
+            </Link>
+          </p>
+        )}
 
         {/* Data summary */}
         <div className="panel p-5">

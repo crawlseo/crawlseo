@@ -84,7 +84,7 @@ export function SidebarNav({
         label: "Connect",
         items: [
           { href: `/sites/${activeSiteId}/mcp`, label: "AI & MCP", icon: Bot },
-          { href: `/sites/${activeSiteId}/settings`, label: "Settings", icon: Settings },
+          { href: `/sites/${activeSiteId}/settings`, label: "Site settings", icon: Settings },
         ],
       }
     : null;

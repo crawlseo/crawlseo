@@ -1,14 +1,10 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/encryption";
+import { API_KEY_PROVIDERS, apiKeyStatus, type ApiKeyProvider } from "@/lib/api-keys";
 
-// dataforseo takes a login + password pair. The others take one key, stored
-// in `encryptedPassword` with `encryptedLogin` left null.
-const SUPPORTED_PROVIDERS = ["dataforseo", "google_pagespeed", "bing"] as const;
-type Provider = (typeof SUPPORTED_PROVIDERS)[number];
-
-function isSupportedProvider(value: unknown): value is Provider {
-  return typeof value === "string" && SUPPORTED_PROVIDERS.includes(value as Provider);
+function isSupportedProvider(value: unknown): value is ApiKeyProvider {
+  return typeof value === "string" && API_KEY_PROVIDERS.includes(value as ApiKeyProvider);
 }
 
 export async function GET() {
@@ -18,24 +14,7 @@ export async function GET() {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const keys = await db.apiKey.findMany({
-      where: { userId: session.user.id },
-      select: { provider: true, createdAt: true, updatedAt: true },
-    });
-
-    const providers: Record<string, { connected: boolean; updatedAt?: string }> =
-      Object.fromEntries(
-        SUPPORTED_PROVIDERS.map((provider) => [provider, { connected: false }])
-      );
-
-    for (const key of keys) {
-      providers[key.provider] = {
-        connected: true,
-        updatedAt: key.updatedAt.toISOString(),
-      };
-    }
-
-    return Response.json(providers);
+    return Response.json(await apiKeyStatus(db, session.user.id));
   } catch (error) {
     console.error("API keys GET error:", error);
     return Response.json({ error: "Failed to load API keys" }, { status: 500 });

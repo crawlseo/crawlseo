@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 interface BingSite {
   url: string;
@@ -19,11 +19,9 @@ interface BingSite {
 export function BingSiteSection({
   siteId,
   bingSite,
-  keyConnected,
 }: {
   siteId: string;
   bingSite: string | null;
-  keyConnected: boolean;
 }) {
   const router = useRouter();
   const [sites, setSites] = useState<BingSite[]>([]);
@@ -52,9 +50,17 @@ export function BingSiteSection({
   }
 
   async function handleSave() {
-    setSaving(true);
     setError(null);
     setMessage(null);
+    if (!selected) {
+      setError("Choose a Bing property first.");
+      return;
+    }
+    if (selected === bingSite) {
+      setMessage("This property is already connected.");
+      return;
+    }
+    setSaving(true);
 
     try {
       const res = await fetch(`/api/sites/${siteId}`, {
@@ -132,67 +138,53 @@ export function BingSiteSection({
         )}
       </div>
 
-      {!keyConnected ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Add a Bing Webmaster Tools API key above first.
-        </p>
-      ) : (
-        <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={selected}
-              onValueChange={(value) => setSelected(String(value))}
-              onOpenChange={(open) => {
-                if (open) void loadSites();
-              }}
-            >
-              <SelectTrigger className="min-w-64">
-                <SelectValue
-                  placeholder={loading ? "Loading…" : "Choose a Bing property"}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((site) => (
-                  <SelectItem key={site.url} value={site.url}>
-                    {site.url}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="mt-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={selected}
+            onValueChange={(value) => setSelected(String(value))}
+            onOpenChange={(open) => {
+              if (open) void loadSites();
+            }}
+          >
+            <SelectTrigger className="min-w-64">
+              <SelectValue
+                placeholder={loading ? "Loading…" : "Choose a Bing property"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map((site) => (
+                <SelectItem key={site.url} value={site.url}>
+                  {site.url}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!selected || selected === bingSite || saving || syncing}
-              className={buttonVariants({ size: "sm" })}
-            >
-              {saving ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Save className="size-3" />
-              )}
-              Save
-            </button>
+          <Button type="button" size="sm" onClick={handleSave} disabled={saving || syncing}>
+            {saving ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Save className="size-3.5" aria-hidden />
+            )}
+            Save
+          </Button>
 
-            <button
-              type="button"
-              onClick={handleSync}
-              disabled={!bingSite || syncing}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-strong transition hover:bg-muted disabled:opacity-50"
-            >
+          {bingSite && (
+            <Button type="button" size="sm" variant="outline" onClick={handleSync} disabled={syncing || saving}>
               {syncing ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
               ) : (
-                <RefreshCw className="size-3" />
+                <RefreshCw className="size-3.5" aria-hidden />
               )}
               Sync Bing
-            </button>
-          </div>
-
-          {message && <p className="text-xs text-success">{message}</p>}
-          {error && <p className="text-xs text-danger">{error}</p>}
+            </Button>
+          )}
         </div>
-      )}
+
+        {message && <p className="text-xs text-success">{message}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
+      </div>
     </div>
   );
 }

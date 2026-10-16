@@ -31,7 +31,7 @@ export default async function AlertsPage({ params }: Props) {
     <div>
       <PageHeader
         title="Alerts"
-        description="Rules for traffic drops, position changes, crawl health and vitals."
+        description="Rules for traffic drops, position changes, crawl health and vitals. They are checked when you click Evaluate now, and the results show here."
         actions={<EvaluateAlertsButton />}
       />
 
@@ -46,10 +46,9 @@ export default async function AlertsPage({ params }: Props) {
                 {a.type.replaceAll("_", " ")}
               </p>
               <p className="text-xs text-muted-foreground">
-                Channel: {a.channel}
                 {a.lastFired
-                  ? ` · last fired ${formatDay(a.lastFired, { year: true, time: true })}`
-                  : " · never fired"}
+                  ? `Last fired ${formatDay(a.lastFired, { year: true, time: true })}`
+                  : "Never fired"}
               </p>
               <p className="mt-1 font-data text-[11px] text-muted-foreground">
                 {JSON.stringify(a.config)}

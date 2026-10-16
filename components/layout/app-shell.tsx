@@ -9,14 +9,17 @@ import { Logo } from "@/components/brand/logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
-import { PanelLeftClose, PanelLeftOpen, Menu, X, UserRound } from "lucide-react";
-import { signOutAction } from "@/app/(dashboard)/account/actions";
+import { UserMenu } from "@/components/layout/user-menu";
+import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 
 export type ShellSite = { id: string; domain: string; dataThrough: string | null };
 
 type AppShellProps = {
   email?: string | null;
   name?: string | null;
+  image?: string | null;
+  /** package.json version, shown under the user button. */
+  version: string;
   children: React.ReactNode;
   sites: ShellSite[];
   showCloudPromo: boolean;
@@ -41,8 +44,7 @@ function readCollapsed() {
   }
 }
 
-export function AppShell({ email, name, children, sites, showCloudPromo }: AppShellProps) {
-  const displayName = name || email?.split("@")[0] || "User";
+export function AppShell({ email, name, image, version, children, sites, showCloudPromo }: AppShellProps) {
   const pathname = usePathname();
 
   // The mobile drawer is open only on the path it was opened on, so a route change closes it.
@@ -114,37 +116,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           </div>
         )}
 
-        {collapsed ? (
-          <Link
-            href="/account"
-            title="Account"
-            aria-label="Account"
-            aria-current={pathname === "/account" ? "page" : undefined}
-            className="flex size-10 items-center justify-center self-center rounded-md text-muted-foreground transition-colors hover:bg-bg-section hover:text-text-strong"
-          >
-            <UserRound className="size-4" aria-hidden />
-          </Link>
-        ) : (
-          <div className="flex flex-col gap-2 px-2.5 text-[12px] leading-4">
-            <span className="truncate text-muted-foreground" title={email ?? displayName}>
-              {email ?? displayName}
-            </span>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/account"
-                aria-current={pathname === "/account" ? "page" : undefined}
-                className="text-link"
-              >
-                Account
-              </Link>
-              <form action={signOutAction}>
-                <button type="submit" className="text-link">
-                  Log out
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        <UserMenu name={name} email={email} image={image} version={version} collapsed={collapsed} />
       </div>
     </div>
   );
