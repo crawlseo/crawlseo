@@ -47,13 +47,16 @@ export async function POST(req: Request) {
       if (!stored) {
         return Response.json({ error: "No saved key" }, { status: 404 });
       }
+      if (provider === "dataforseo" && !stored.encryptedLogin) {
+        return Response.json({ success: false });
+      }
       let creds: { login?: string; password?: string; apiKey?: string };
       try {
         creds =
           provider === "bing"
             ? { apiKey: decrypt(stored.encryptedPassword) }
             : {
-                login: stored.encryptedLogin ? decrypt(stored.encryptedLogin) : "",
+                login: decrypt(stored.encryptedLogin ?? ""),
                 password: decrypt(stored.encryptedPassword),
               };
       } catch {

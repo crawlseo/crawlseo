@@ -56,6 +56,13 @@ describe("testing the saved key", () => {
     const res = await post({ provider: "bing", saved: true });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ success: false });
+    expect(testBingKey).not.toHaveBeenCalled();
+  });
+
+  it("fails a saved DataForSEO row without a login without calling the service", async () => {
+    db.apiKey.findUnique.mockResolvedValue({ encryptedLogin: null, encryptedPassword: "enc:pw" });
+    expect(await (await post({ provider: "dataforseo", saved: true })).json()).toEqual({ success: false });
+    expect(testConnection).not.toHaveBeenCalled();
   });
 });
 
@@ -64,5 +71,18 @@ describe("testing typed credentials (unchanged)", () => {
     expect(await (await post({ provider: "bing", apiKey: "typed" })).json()).toEqual({ success: true });
     expect(testBingKey).toHaveBeenCalledWith("typed");
     expect(db.apiKey.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("tests a typed DataForSEO login and password", async () => {
+    await post({ provider: "dataforseo", login: "me@x.test", password: "pw" });
+    expect(testConnection).toHaveBeenCalledWith("me@x.test", "pw");
+  });
+
+  it("answers 400 for missing typed credentials or a provider without a test", async () => {
+    expect((await post({ provider: "bing" })).status).toBe(400);
+    expect((await post({ provider: "dataforseo", login: "me@x.test" })).status).toBe(400);
+    expect((await post({ provider: "google_pagespeed", apiKey: "k" })).status).toBe(400);
+    expect(testBingKey).not.toHaveBeenCalled();
+    expect(testConnection).not.toHaveBeenCalled();
   });
 });

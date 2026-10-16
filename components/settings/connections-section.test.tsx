@@ -10,7 +10,7 @@ vi.mock("@/app/(dashboard)/settings/actions", () => ({
   signOutAction: vi.fn(),
 }));
 
-const { ConnectionsSection } = await import("./connections-section");
+const { ConnectionsSection, savedTestMessage } = await import("./connections-section");
 const { apiKeyStatus } = await import("@/lib/api-keys");
 
 const NONE = {
@@ -165,5 +165,21 @@ describe("ConnectionsSection", () => {
     expect(capped.match(/<label/g)).toHaveLength(2);
     expect(capped).not.toContain("<button");
     expect(html).not.toMatch(/<li[^>]*max-w-\[560px\]/);
+  });
+
+  it("puts focus back on Replace or Connect, and words saved-test results for people", () => {
+    const html = renderToStaticMarkup(
+      <ConnectionsSection
+        google={GOOGLE}
+        initialStatus={{ ...NONE, bing: { connected: true, updatedAt: "2026-10-01T00:00:00.000Z" } }}
+      />
+    );
+    expect(row(html, "bing")).toMatch(/data-return-focus=""[^>]*>Replace</);
+    expect(row(html, "dataforseo")).toMatch(/data-return-focus=""[^>]*>Connect</);
+    expect(savedTestMessage(200, true)).toEqual({ ok: true, text: "The saved key works." });
+    expect(savedTestMessage(401, undefined).text).toMatch(/Sign in again/);
+    expect(savedTestMessage(404, undefined).text).toMatch(/No key is saved/);
+    expect(savedTestMessage(200, false).text).toMatch(/did not accept/);
+    expect(savedTestMessage(500, undefined).text).toMatch(/could not run/);
   });
 });

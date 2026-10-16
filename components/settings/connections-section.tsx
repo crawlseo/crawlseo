@@ -330,10 +330,12 @@ function KeyRow({
   // Cancel, Save and Disconnect each replace the focused control: focus moves to the row's new action.
   const actionsRef = useRef<HTMLDivElement>(null);
   const refocus = useRef(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   useEffect(() => {
     if (!refocus.current) return;
     refocus.current = false;
-    actionsRef.current?.querySelector("button")?.focus();
+    const buttons = actionsRef.current;
+    (buttons?.querySelector<HTMLElement>("[data-return-focus]") ?? buttons?.querySelector("button"))?.focus();
   }, [connected, expanded]);
 
   return (
@@ -351,8 +353,16 @@ function KeyRow({
         actions={
           expanded ? null : connected ? (
             <>
-              {config.testable && <SavedKeyTest provider={config.provider} />}
-              <Button size="sm" variant="outline" onClick={() => onExpand(true)}>
+              {config.testable && <SavedKeyTest provider={config.provider} onResult={setTestResult} />}
+              <Button
+                size="sm"
+                variant="outline"
+                data-return-focus=""
+                onClick={() => {
+                  setTestResult(null);
+                  onExpand(true);
+                }}
+              >
                 Replace
               </Button>
               <DisconnectKeyDialog
@@ -365,12 +375,24 @@ function KeyRow({
               />
             </>
           ) : (
-            <Button size="sm" variant="outline" onClick={() => onExpand(true)}>
+            <Button size="sm" variant="outline" data-return-focus="" onClick={() => onExpand(true)}>
               Connect
             </Button>
           )
         }
       />
+      {connected && config.testable && (
+        <p
+          role="status"
+          className={cn(
+            "mt-2 text-xs sm:pl-[50px]",
+            testResult?.ok ? "text-success" : "text-danger",
+            !testResult && "sr-only"
+          )}
+        >
+          {testResult?.text}
+        </p>
+      )}
       {expanded && (
         <KeyForm
           id={formId}
@@ -392,54 +414,54 @@ function KeyRow({
   );
 }
 
+type TestResult = { ok: boolean; text: string };
+
+/** What a saved-key test means to the user, by response status. */
+export function savedTestMessage(status: number, success: boolean | undefined): TestResult {
+  if (success === true) return { ok: true, text: "The saved key works." };
+  if (status === 401) return { ok: false, text: "Your session ended. Sign in again to test the key." };
+  if (status === 404) return { ok: false, text: "No key is saved for this service." };
+  if (status === 200) return { ok: false, text: "The service did not accept the saved key. Replace it." };
+  return { ok: false, text: "The connection test could not run. Try again." };
+}
+
 /**
  * TEST CONNECTION on a connected row: the server tests the saved key
  * (POST /api/user/api-keys/test with `saved: true`) and answers only whether
  * it works. The key never comes back to the browser.
  */
-function SavedKeyTest({ provider }: { provider: KeyProvider }) {
+function SavedKeyTest({
+  provider,
+  onResult,
+}: {
+  provider: KeyProvider;
+  onResult: (result: TestResult | null) => void;
+}) {
   const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function handleTest() {
     setTesting(true);
-    setResult(null);
+    onResult(null);
     try {
       const res = await fetch("/api/user/api-keys/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, saved: true }),
       });
-      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
-      setResult(
-        data.success === true
-          ? { ok: true, text: "The saved key works." }
-          : { ok: false, text: data.error ?? "The service did not accept the saved key." }
-      );
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean };
+      onResult(savedTestMessage(res.status, data.success));
     } catch {
-      setResult({ ok: false, text: "The connection test could not run. Try again." });
+      onResult(savedTestMessage(0, false));
     } finally {
       setTesting(false);
     }
   }
 
   return (
-    <>
-      <Button size="sm" variant="outline" disabled={testing} onClick={handleTest}>
-        {testing && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-        Test connection
-      </Button>
-      <span
-        role="status"
-        className={cn(
-          "basis-full text-xs sm:order-first sm:basis-auto",
-          result?.ok ? "text-success" : "text-danger",
-          !result && "sr-only"
-        )}
-      >
-        {result?.text}
-      </span>
-    </>
+    <Button size="sm" variant="outline" disabled={testing} onClick={handleTest}>
+      {testing && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+      Test connection
+    </Button>
   );
 }
 
