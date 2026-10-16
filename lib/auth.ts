@@ -3,6 +3,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "./db";
 import { isSignInAllowed } from "./registration";
+import { storeSignInTokens } from "./google/token-store";
 
 // Skipped during `next build` so the Docker image can be built without real
 // credentials.  NEXT_PHASE is set by Next.js; SKIP_ENV_VALIDATION is a manual
@@ -43,24 +44,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     async signIn({ user, account }) {
       if (account?.access_token && user?.email) {
-        // Save Google OAuth tokens after user is created by adapter
+        // Save Google OAuth tokens (encrypted) after user is created by adapter
         try {
-          await db.user.update({
-            where: { email: user.email },
-            data: {
-              googleTokens: {
-                accessToken: account.access_token,
-                refreshToken: account.refresh_token,
-                // account.expires_at is Unix seconds; store ms to match
-                // refreshAccessToken() and getAccessToken()'s Date.now() checks.
-                expiresAt: account.expires_at
-                  ? account.expires_at * 1000
-                  : undefined,
-                tokenType: account.token_type,
-                scope: account.scope,
-              },
-            },
-          });
+          await storeSignInTokens(db, user.email, account);
         } catch (error) {
           console.error("Failed to save Google tokens:", error);
         }

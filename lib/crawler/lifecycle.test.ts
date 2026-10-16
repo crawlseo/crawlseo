@@ -20,6 +20,7 @@ import {
   recoverCrawlsOnStartup,
   recoverStaleCrawls,
   startSiteCrawl,
+  stopCrawls,
 } from "./lifecycle";
 import { register } from "@/instrumentation";
 
@@ -81,7 +82,7 @@ describe("stale crawl rule", () => {
     expect(result.started).toBe(true);
     expect(await statusOf("stale")).toBe("FAILED");
     if (!result.started) throw new Error("unreachable");
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, result.crawlId);
+    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, result.crawlId, expect.any(AbortSignal));
     const started = await db.crawl.findUniqueOrThrow({ where: { id: result.crawlId } });
     expect(started.status).toBe("PENDING");
     expect(started.lastProgressAt).not.toBeNull();
@@ -96,6 +97,27 @@ describe("stale crawl rule", () => {
     });
     expect(runSiteCrawl).not.toHaveBeenCalled();
     expect(await statusOf("live")).toBe("RUNNING");
+  });
+});
+
+describe("stopCrawls", () => {
+  it("aborts a crawl this process started, once", async () => {
+    let signal: AbortSignal | undefined;
+    runSiteCrawl.mockImplementationOnce(
+      (async (...args: unknown[]) => {
+        signal = args[4] as AbortSignal;
+        await new Promise((_, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)));
+      }) as unknown as () => Promise<object>
+    );
+
+    const result = await startSiteCrawl(db, { id: "s1", domain: "quilltab.app" });
+    if (!result.started) throw new Error("unreachable");
+    expect(signal?.aborted).toBe(false);
+
+    expect(stopCrawls([result.crawlId, "not-running"], "Stopped: test")).toBe(1);
+    expect(signal?.aborted).toBe(true);
+    expect((signal?.reason as Error).message).toBe("Stopped: test");
+    expect(stopCrawls([result.crawlId])).toBe(0);
   });
 });
 

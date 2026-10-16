@@ -1,12 +1,7 @@
 import { db } from "@/lib/db";
+import { openGoogleTokens, sealGoogleTokens } from "@/lib/google/token-store";
 
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
-
-interface GoogleTokens {
-  accessToken?: string;
-  refreshToken?: string;
-  expiresAt?: number;
-}
 
 export class ReauthRequiredError extends Error {
   constructor() {
@@ -70,11 +65,17 @@ export async function getAccessToken(userId: string): Promise<string> {
     select: { googleTokens: true },
   });
 
-  if (!user?.googleTokens) {
+  // Decrypted here; a legacy plain-text row is read as is. Tokens that no
+  // longer decrypt (NEXTAUTH_SECRET changed) need a new sign-in.
+  let tokens;
+  try {
+    tokens = openGoogleTokens(user?.googleTokens);
+  } catch {
+    throw new ReauthRequiredError();
+  }
+  if (!tokens) {
     throw new Error("User has no Google OAuth tokens");
   }
-
-  const tokens = user.googleTokens as unknown as GoogleTokens;
 
   if (!tokens.accessToken || !tokens.refreshToken) {
     throw new Error("Missing required Google OAuth tokens");
@@ -88,11 +89,12 @@ export async function getAccessToken(userId: string): Promise<string> {
     await db.user.update({
       where: { id: userId },
       data: {
-        googleTokens: {
+        // Written encrypted, which also re-encrypts a legacy plain-text row.
+        googleTokens: sealGoogleTokens({
           ...tokens,
           accessToken,
           expiresAt,
-        },
+        }),
       },
     });
 

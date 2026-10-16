@@ -74,7 +74,7 @@ describe("POST /api/sites/[siteId]/crawl (#57)", () => {
     const started = await db.crawl.findUniqueOrThrow({ where: { id: body.crawlId } });
     expect(started.status).toBe("PENDING");
     expect(started.maxPages).toBe(50);
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 50, body.crawlId);
+    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 50, body.crawlId, expect.any(AbortSignal));
   });
 
   it("a genuinely running crawl still returns 409", async () => {

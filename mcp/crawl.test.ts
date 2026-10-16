@@ -54,7 +54,7 @@ describe("MCP run_crawl (#57)", () => {
     const started = await db.crawl.findFirstOrThrow({ where: { siteId: "s1", status: "PENDING" } });
     expect(text).toContain(`Crawl ID: ${started.id}`);
     expect(started.maxPages).toBe(25);
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, started.id);
+    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, started.id, expect.any(AbortSignal));
   });
 
   it("refuses while a crawl with fresh progress is running", async () => {

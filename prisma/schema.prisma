@@ -15,7 +15,7 @@ model User {
   emailVerified DateTime?
   name          String?
   image         String?
-  googleTokens  Json?     // Encrypted GSC OAuth tokens
+  googleTokens  Json?     // Google OAuth tokens: accessToken and refreshToken encrypted (lib/google/token-store.ts), the rest plain
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

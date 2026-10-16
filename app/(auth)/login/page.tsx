@@ -14,6 +14,22 @@ function errorMessage(error: string | string[] | undefined): string | null {
   return "Sign-in failed. Please try again.";
 }
 
+// Set by the account actions (app/(dashboard)/account/actions.ts) after they sign the user out.
+const UNREVOKED =
+  " Google did not confirm the revoke: to be sure, remove crawlseo at myaccount.google.com/permissions.";
+const NOTICES: Record<string, string> = {
+  disconnected: "Google is disconnected and you are signed out. Sign in again to reconnect Search Console.",
+  "disconnected-unrevoked":
+    "You are signed out and the Google tokens were removed from this server." + UNREVOKED,
+  deleted: "Your account and all its data were deleted.",
+  "deleted-unrevoked": "Your account and all its data were deleted." + UNREVOKED,
+  "delete-failed": "Your account could not be deleted. Sign in and try again.",
+};
+
+function noticeMessage(notice: string | string[] | undefined): string | null {
+  return typeof notice === "string" ? (NOTICES[notice] ?? null) : null;
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -23,7 +39,9 @@ export default async function LoginPage({
   if (session) {
     redirect("/dashboard");
   }
-  const error = errorMessage((await searchParams).error);
+  const params = await searchParams;
+  const error = errorMessage(params.error);
+  const notice = noticeMessage(params.notice);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-soft px-5">
@@ -40,6 +58,12 @@ export default async function LoginPage({
           <p className="mt-2 text-atom-body text-muted-foreground">
             Connect Google Search Console with read-only access.
           </p>
+
+          {notice && (
+            <p role="status" className="mt-4 text-atom-body text-text-strong">
+              {notice}
+            </p>
+          )}
 
           {error && (
             <p role="alert" className="mt-4 text-atom-body text-danger">

@@ -9,7 +9,8 @@ import { Logo } from "@/components/brand/logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
-import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Menu, X, UserRound } from "lucide-react";
+import { signOutAction } from "@/app/(dashboard)/account/actions";
 
 export type ShellSite = { id: string; domain: string; dataThrough: string | null };
 
@@ -113,16 +114,35 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           </div>
         )}
 
-        {!collapsed && (
-          <div className="flex items-center justify-between gap-2 px-2.5 text-[12px] leading-4">
+        {collapsed ? (
+          <Link
+            href="/account"
+            title="Account"
+            aria-label="Account"
+            aria-current={pathname === "/account" ? "page" : undefined}
+            className="flex size-10 items-center justify-center self-center rounded-md text-muted-foreground transition-colors hover:bg-bg-section hover:text-text-strong"
+          >
+            <UserRound className="size-4" aria-hidden />
+          </Link>
+        ) : (
+          <div className="flex flex-col gap-2 px-2.5 text-[12px] leading-4">
             <span className="truncate text-muted-foreground" title={email ?? displayName}>
               {email ?? displayName}
             </span>
-            {/* An Auth.js API route, not a page: it needs a full page load, which next/link would skip. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/api/auth/signout" className="text-link shrink-0">
-              Log out
-            </a>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/account"
+                aria-current={pathname === "/account" ? "page" : undefined}
+                className="text-link"
+              >
+                Account
+              </Link>
+              <form action={signOutAction}>
+                <button type="submit" className="text-link">
+                  Log out
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>

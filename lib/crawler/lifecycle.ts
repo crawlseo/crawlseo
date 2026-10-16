@@ -100,6 +100,26 @@ export async function recoverCrawlsOnStartup(db: Db, log: (msg: string) => void 
   }
 }
 
+/** Crawls this process is running, so they can be stopped (account deletion). */
+const runningCrawls = new Map<string, AbortController>();
+
+/**
+ * Stops the crawls with these ids that run in this process. A crawl another
+ * process runs (the MCP server) is not reached; it fails at its next write once
+ * its rows are gone.
+ */
+export function stopCrawls(crawlIds: string[], reason = "Stopped"): number {
+  let stopped = 0;
+  for (const id of crawlIds) {
+    const controller = runningCrawls.get(id);
+    if (!controller) continue;
+    controller.abort(new Error(reason));
+    runningCrawls.delete(id);
+    stopped++;
+  }
+  return stopped;
+}
+
 export type StartCrawlResult =
   | { started: true; crawlId: string }
   | { started: false; runningCrawlId: string };
@@ -132,9 +152,14 @@ export async function startSiteCrawl(
   });
 
   // Fire-and-forget: the crawl runs in this process, on the row created above.
-  runSiteCrawl(site.id, site.domain, maxPages, crawl.id).catch((error) => {
-    console.error(`Background crawl failed for site ${site.id}:`, error);
-  });
+  const controller = new AbortController();
+  runningCrawls.set(crawl.id, controller);
+  runSiteCrawl(site.id, site.domain, maxPages, crawl.id, controller.signal)
+    .catch((error) => {
+      if (controller.signal.aborted) return;
+      console.error(`Background crawl failed for site ${site.id}:`, error);
+    })
+    .finally(() => runningCrawls.delete(crawl.id));
 
   return { started: true, crawlId: crawl.id };
 }

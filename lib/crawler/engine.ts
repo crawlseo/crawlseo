@@ -958,7 +958,9 @@ export async function runSiteCrawl(
   siteId: string,
   domain: string,
   maxPages: number = 200,
-  existingCrawlId?: string
+  existingCrawlId?: string,
+  /** Stops the crawl: no new request starts and the one in flight is aborted. */
+  signal?: AbortSignal
 ): Promise<CrawlResult> {
   const effectiveMax = Math.max(1, Math.min(maxPages, ABSOLUTE_MAX_PAGES));
   const seed = domain.startsWith("http") ? domain : `https://${domain}`;
@@ -981,7 +983,7 @@ export async function runSiteCrawl(
       });
 
   try {
-    return await executeCrawl(crawl.id, siteId, seedUrl, origin, effectiveMax);
+    return await executeCrawl(crawl.id, siteId, seedUrl, origin, effectiveMax, signal);
   } catch (err) {
     // Mark crawl as failed on any unhandled error
     await db.crawl
@@ -1022,7 +1024,8 @@ async function executeCrawl(
   _siteId: string,
   seedUrl: string,
   origin: string,
-  maxPages: number
+  maxPages: number,
+  signal?: AbortSignal
 ): Promise<CrawlResult> {
   const recordProgress = progressRecorder(crawlId);
   const issues: IssueInput[] = [];
@@ -1044,6 +1047,7 @@ async function executeCrawl(
   const hooks: HopHooks = {
     guard: (url) => robots.guard(url),
     pace: (url) => robots.pace(url),
+    signal,
   };
   /** True when robots.txt lets the crawler fetch `url`; counts it otherwise. */
   const allowed = async (url: string) => {
@@ -1116,6 +1120,7 @@ async function executeCrawl(
   };
 
   for (const smUrl of sitemapCandidates) {
+    signal?.throwIfAborted();
     const xml = await sitemapText(smUrl);
     if (!xml) continue;
     if (xml.includes("<sitemapindex")) {
@@ -1153,6 +1158,7 @@ async function executeCrawl(
 
   /* ---- Crawl loop with batch concurrency ---- */
   while (queue.length > 0 && pages.length < maxPages) {
+    signal?.throwIfAborted();
     if (Date.now() >= deadline) {
       const remaining = new Set<string>();
       for (const u of queue) {
