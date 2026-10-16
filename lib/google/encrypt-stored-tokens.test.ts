@@ -50,6 +50,7 @@ describe("encryptStoredGoogleTokens", () => {
       accountsWithTokens: 2,
       accountsCleared: 1,
       accountsKept: 1,
+      unreadableUsers: 0,
       applied: false,
     });
     expect(isSealed(await tokensOf("legacy"))).toBe(false);
@@ -66,6 +67,21 @@ describe("encryptStoredGoogleTokens", () => {
     expect(await accountOf("g-legacy")).toMatchObject({ access_token: null, refresh_token: null });
     // The only copy is kept.
     expect((await accountOf("g-only")).refresh_token).toBe("1//only");
+  });
+
+  it("leaves a row it cannot decrypt alone and keeps its Account copy", async () => {
+    await db.user.create({
+      data: { id: "rotated", email: "rotated@quilltab.app", googleTokens: { accessToken: "enc:v1:a:b:c", refreshToken: "enc:v1:a:b:c" } },
+    });
+    await db.account.create({
+      data: { userId: "rotated", type: "oidc", provider: "google", providerAccountId: "g-rotated", refresh_token: "1//rot" },
+    });
+
+    const report = await encryptStoredGoogleTokens(db, { apply: true });
+    expect(report).toMatchObject({ unreadableUsers: 1, accountsCleared: 0, accountsKept: 2 });
+    expect((await accountOf("g-rotated")).refresh_token).toBe("1//rot");
+
+    await db.user.delete({ where: { id: "rotated" } });
   });
 
   it("a second run is a no-op", async () => {
@@ -85,6 +101,7 @@ describe("report", () => {
       accountsWithTokens: 2,
       accountsCleared: 1,
       accountsKept: 1,
+      unreadableUsers: 0,
       applied: false,
     });
     expect(lines[0]).toMatch(/^Dry run, nothing written/);

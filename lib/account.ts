@@ -10,7 +10,7 @@ import { openGoogleTokens } from "@/lib/google/token-store";
 
 export const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 
-type Db = Pick<PrismaClient, "user" | "account" | "crawl">;
+type Db = Pick<PrismaClient, "user" | "account" | "crawl" | "session">;
 
 export type RevokeResult = { revoked: boolean };
 
@@ -57,8 +57,9 @@ export async function revokeGoogleToken(token: string | null): Promise<RevokeRes
 }
 
 /**
- * Revokes the Google grant and forgets the tokens: `User.googleTokens` and the
- * token columns of the Google Account row. The Account row itself is kept, so
+ * Revokes the Google grant, forgets the tokens (`User.googleTokens` and the
+ * token columns of the Google Account row) and ends every session of the user,
+ * so no other browser keeps working without tokens. The Account row is kept, so
  * the user can sign in again with DISABLE_REGISTRATION=true (lib/registration.ts).
  * The local tokens are cleared even when Google could not be reached.
  */
@@ -69,6 +70,7 @@ export async function disconnectGoogle(db: Db, userId: string): Promise<RevokeRe
     where: { userId, provider: "google" },
     data: { access_token: null, refresh_token: null, id_token: null, expires_at: null },
   });
+  await db.session.deleteMany({ where: { userId } });
   return result;
 }
 

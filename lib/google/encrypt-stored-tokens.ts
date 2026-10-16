@@ -17,8 +17,10 @@ export type EncryptReport = {
   accountsWithTokens: number;
   /** Of those, rows whose tokens were (or would be) cleared: the user has a refresh token in googleTokens. */
   accountsCleared: number;
-  /** Rows left as they are: the user has no refresh token in googleTokens, so this is the only copy. */
+  /** Rows left as they are: the user has no readable refresh token in googleTokens, so this is the only copy. */
   accountsKept: number;
+  /** Users whose stored tokens do not decrypt with this secret: left as they are. */
+  unreadableUsers: number;
   applied: boolean;
 };
 
@@ -33,13 +35,19 @@ export async function encryptStoredGoogleTokens(
 
   const hasRefreshToken = new Set<string>();
   let plainUsers = 0;
+  let unreadableUsers = 0;
   for (const user of users) {
-    const stored = user.googleTokens as { refreshToken?: unknown } | null;
-    // Checked without decrypting, so a row this secret cannot read stops nothing.
-    if (typeof stored?.refreshToken === "string" && stored.refreshToken) hasRefreshToken.add(user.id);
+    let tokens;
+    try {
+      tokens = openGoogleTokens(user.googleTokens);
+    } catch {
+      // Sealed with another secret: neither rewritten nor counted as a usable copy.
+      unreadableUsers++;
+      continue;
+    }
+    if (tokens?.refreshToken) hasRefreshToken.add(user.id);
     if (isSealed(user.googleTokens)) continue;
     plainUsers++;
-    const tokens = openGoogleTokens(user.googleTokens);
     if (apply && tokens) {
       await db.user.update({ where: { id: user.id }, data: { googleTokens: sealGoogleTokens(tokens) } });
     }
@@ -63,6 +71,7 @@ export async function encryptStoredGoogleTokens(
     accountsWithTokens: accounts.length,
     accountsCleared: clear.length,
     accountsKept: accounts.length - clear.length,
+    unreadableUsers,
     applied: apply,
   };
 }
@@ -76,6 +85,7 @@ export function reportLines(r: EncryptReport): string[] {
     `  plain text, ${verb}encrypted: ${r.plainUsers}`,
     `Google Account rows holding tokens: ${r.accountsWithTokens}`,
     `  ${verb}cleared: ${r.accountsCleared}`,
-    `  kept (only copy, the user has no refresh token in googleTokens): ${r.accountsKept}`,
+    `  kept (only copy, the user has no readable refresh token in googleTokens): ${r.accountsKept}`,
+    `Users whose tokens do not decrypt with this secret, left alone: ${r.unreadableUsers}`,
   ];
 }

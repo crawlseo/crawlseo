@@ -134,6 +134,8 @@ describe("disconnectGoogle", () => {
     expect((await db.user.findUniqueOrThrow({ where: { id: "u1" } })).googleTokens).toBeNull();
     const account = await db.account.findFirstOrThrow({ where: { userId: "u1" } });
     expect(account).toMatchObject({ access_token: null, refresh_token: null, providerAccountId: "g-u1" });
+    // Every session ends, not only the one that asked.
+    expect(await db.session.count({ where: { userId: "u1" } })).toBe(0);
   });
 
   it("still lets the user sign in again with registration closed", async () => {

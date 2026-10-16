@@ -69,16 +69,16 @@ describe("with a session", () => {
     expect(signOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
 
-  it("disconnect acts on the session user and signs out", async () => {
-    await disconnectGoogleAction();
+  it("disconnect signs out, then acts on the session user", async () => {
+    await expect(disconnectGoogleAction()).rejects.toThrow("REDIRECT /login?notice=disconnected");
     expect(disconnectGoogle).toHaveBeenCalledWith(expect.anything(), "user-1");
-    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/login?notice=disconnected" });
+    expect(signOut).toHaveBeenCalledWith({ redirect: false });
+    expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(disconnectGoogle.mock.invocationCallOrder[0]);
   });
 
   it("disconnect says so when the revoke failed", async () => {
     disconnectGoogle.mockResolvedValueOnce({ revoked: false });
-    await disconnectGoogleAction();
-    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/login?notice=disconnected-unrevoked" });
+    await expect(disconnectGoogleAction()).rejects.toThrow("REDIRECT /login?notice=disconnected-unrevoked");
   });
 
   it("delete needs the account email typed", async () => {
@@ -95,6 +95,7 @@ describe("with a session", () => {
     expect(deleteAccount).toHaveBeenCalledTimes(1);
     expect(deleteAccount).toHaveBeenCalledWith(expect.anything(), "user-1");
     expect(signOut).toHaveBeenCalledWith({ redirect: false });
+    expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(deleteAccount.mock.invocationCallOrder[0]);
   });
 
   it("delete reports a failure on the login page", async () => {

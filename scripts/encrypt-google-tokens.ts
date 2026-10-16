@@ -8,7 +8,8 @@
  * googleTokens holds a refresh token. Safe to run again: encrypted rows are
  * left alone. Prints counts only, never a token.
  *
- * Needs DATABASE_URL and the same NEXTAUTH_SECRET (or AUTH_SECRET) as the app.
+ * Needs DATABASE_URL and the same NEXTAUTH_SECRET (or AUTH_SECRET) as the app,
+ * from the environment or from a .env file in the working directory.
  *
  * Usage:
  *   npx tsx scripts/encrypt-google-tokens.ts          # dry run: print counts only
@@ -19,6 +20,10 @@ import { PrismaClient } from "@prisma/client";
 import { encryptStoredGoogleTokens, reportLines } from "../lib/google/encrypt-stored-tokens";
 
 async function main() {
+  try {
+    // Fills in what the environment does not set; there is no .env in the Docker image.
+    process.loadEnvFile();
+  } catch {}
   const apply = process.argv.includes("--apply");
   const db = new PrismaClient();
   try {

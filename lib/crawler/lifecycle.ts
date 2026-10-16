@@ -100,8 +100,13 @@ export async function recoverCrawlsOnStartup(db: Db, log: (msg: string) => void 
   }
 }
 
-/** Crawls this process is running, so they can be stopped (account deletion). */
-const runningCrawls = new Map<string, AbortController>();
+/**
+ * Crawls this process is running, so they can be stopped (account deletion).
+ * On globalThis like the Prisma client in lib/db.ts: a route handler and a
+ * server action may load separate copies of this module.
+ */
+const crawlRegistry = globalThis as unknown as { crawlseoRunningCrawls?: Map<string, AbortController> };
+const runningCrawls = (crawlRegistry.crawlseoRunningCrawls ??= new Map<string, AbortController>());
 
 /**
  * Stops the crawls with these ids that run in this process. A crawl another

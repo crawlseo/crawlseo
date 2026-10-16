@@ -24,8 +24,10 @@ export async function signOutAction(): Promise<void> {
 
 export async function disconnectGoogleAction(): Promise<void> {
   const user = await sessionUser();
+  // Signed out first: disconnectGoogle ends every session of the user, this one included.
+  await signOut({ redirect: false });
   const { revoked } = await disconnectGoogle(db, user.id);
-  await signOut({ redirectTo: `/login?notice=${revoked ? "disconnected" : "disconnected-unrevoked"}` });
+  redirect(`/login?notice=${revoked ? "disconnected" : "disconnected-unrevoked"}`);
 }
 
 export type DeleteAccountState = { error: string | null };
