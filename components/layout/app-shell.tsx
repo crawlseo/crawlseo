@@ -10,6 +10,7 @@ import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
 import { UserMenu } from "@/components/layout/user-menu";
+import type { AvailableUpdate } from "@/lib/update-check";
 import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 
 export type ShellSite = { id: string; domain: string; dataThrough: string | null };
@@ -20,6 +21,8 @@ type AppShellProps = {
   image?: string | null;
   /** package.json version, shown under the user button. */
   version: string;
+  /** A newer GitHub release, from the daily update check. */
+  update?: AvailableUpdate | null;
   children: React.ReactNode;
   sites: ShellSite[];
   showCloudPromo: boolean;
@@ -44,7 +47,7 @@ function readCollapsed() {
   }
 }
 
-export function AppShell({ email, name, image, version, children, sites, showCloudPromo }: AppShellProps) {
+export function AppShell({ email, name, image, version, update, children, sites, showCloudPromo }: AppShellProps) {
   const pathname = usePathname();
 
   // The mobile drawer is open only on the path it was opened on, so a route change closes it.
@@ -116,7 +119,7 @@ export function AppShell({ email, name, image, version, children, sites, showClo
           </div>
         )}
 
-        <UserMenu name={name} email={email} image={image} version={version} collapsed={collapsed} />
+        <UserMenu name={name} email={email} image={image} version={version} update={update} collapsed={collapsed} />
       </div>
     </div>
   );

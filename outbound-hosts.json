@@ -1,0 +1,17 @@
+{
+  "$comment": "Every external https host that appears in lib/, app/ or mcp/. Keep it in step with the README section \"Your data stays yours\" (see CONTRIBUTING, Outbound connections). lib/outbound-hosts.test.ts fails on a host that is not listed here.",
+  "requests": {
+    "accounts.google.com": "Google sign-in (Auth.js Google provider, not a literal in our code)",
+    "oauth2.googleapis.com": "Google OAuth token refresh and revoke",
+    "www.googleapis.com": "Search Console and PageSpeed Insights APIs; also the OAuth scope names",
+    "searchconsole.googleapis.com": "Search Console URL Inspection (index status)",
+    "ssl.bing.com": "Bing Webmaster Tools API, only with the user's own key",
+    "api.dataforseo.com": "DataForSEO API, only with the user's own key",
+    "suggestqueries.google.com": "Google autocomplete keyword suggestions",
+    "api.github.com": "Daily update check (CRAWLSEO_UPDATE_CHECK=false turns it off)"
+  },
+  "notRequested": {
+    "github.com": "Link to a release page in the sidebar footer, opened by the user",
+    "crawlseo.cloud": "Info URL inside the crawler User-Agent string"
+  }
+}

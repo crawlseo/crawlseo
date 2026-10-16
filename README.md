@@ -44,6 +44,25 @@ Google Search Console, a site crawler, Core Web Vitals and an MCP server in one 
 
 In **Domain overview**, enter a competitor's domain or full website URL and choose **Compare** to query DataForSEO for that domain. Search Console fallback data is only used for your own site; unavailable competitor metrics are shown as unavailable.
 
+## Your data stays yours
+
+crawlseo runs on your server. Your sites, keywords, crawl results and Google tokens stay in your database. We never receive them, and the app sends no usage statistics.
+
+The app talks to outside services only in these cases:
+
+| Destination | When | What is sent | How to turn it off |
+|---|---|---|---|
+| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections |
+| Bing Webmaster Tools | Only if you add your own Bing API key | Requests for your own Bing sites | Remove the key in Settings > Connections |
+| DataForSEO | Only if you add your own DataForSEO key | The keyword and domain queries you run | Remove the key in Settings > Connections |
+| Google autocomplete | Keyword suggestions when DataForSEO is not set up | The seed keyword you typed | Don't use keyword suggestions |
+| Sites you crawl | When you start a crawl | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl |
+| GitHub releases API | Once a day | A request for the latest crawlseo release. No data about you or your instance. GitHub sees your server's IP address | `CRAWLSEO_UPDATE_CHECK=false` |
+
+Nothing else leaves your server. Alerts are shown in the app only.
+
+The hosts behind these rows are `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `ssl.bing.com`, `api.dataforseo.com`, `suggestqueries.google.com` and `api.github.com`. The list the tests check new code against is [`outbound-hosts.json`](outbound-hosts.json). Your Google profile picture, if you have one, is loaded by your browser from Google, not by the server.
+
 ## Features
 
 ### 🔍 GSC Analytics
@@ -262,11 +281,12 @@ npm start
 | `NEXTAUTH_URL` | No | Public base URL of the app, e.g. `https://seo.example.com`. Set it on a server; locally the request host is used |
 | `DISABLE_REGISTRATION` | No | Set to `true` to close sign-up: a Google account that has never signed in on this instance is refused, while accounts that already signed in keep signing in |
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
+| `CRAWLSEO_UPDATE_CHECK` | No | Set to `false` to turn off the daily update check: no request to GitHub is made and the sidebar shows no update notice |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
 
 ### The crawlseo.cloud card
 
-The sidebar shows one card about [crawlseo.cloud](https://crawlseo.cloud), the hosted AI visibility product from the same team. It is a plain link to the crawlseo.cloud home page (with `utm_source=oss` in the URL): the app makes no request for it, loads no image and sends no analytics. Each user can hide it with the × button (remembered in that browser), and `CRAWLSEO_HIDE_CLOUD_PROMO=true` removes it for everyone on the instance.
+The sidebar shows one card about [crawlseo.cloud](https://crawlseo.cloud), the hosted AI visibility product from the same team. It is a plain link to the crawlseo.cloud home page with `utm_source=oss` in the URL (plus `utm_medium=app` and `utm_campaign=sidebar`). The app makes no request for it, loads no image and reports nothing about it. Each user can hide it with the × button (remembered in that browser), and `CRAWLSEO_HIDE_CLOUD_PROMO=true` removes it for everyone on the instance.
 
 ## Contributing
 

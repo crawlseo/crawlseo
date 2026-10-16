@@ -7,25 +7,29 @@ import { ChevronsUpDown, Loader2, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/account/avatar";
 import { signOutAction } from "@/app/(dashboard)/settings/actions";
+import type { AvailableUpdate } from "@/lib/update-check";
 
 const ITEM_CLASS =
   "flex h-9 w-full cursor-default items-center gap-2.5 rounded-sm px-2.5 text-[14px] text-text-strong outline-none select-none data-highlighted:bg-bg-section";
 
 /**
  * Sidebar footer: the signed-in user as a button that opens Settings and
- * Sign out, and the app version under it. Collapsed, only the avatar shows.
+ * Sign out, and the app version under it, with a link to a newer release
+ * when the update check found one. Collapsed, only the avatar shows.
  */
 export function UserMenu({
   name,
   email,
   image,
   version,
+  update,
   collapsed = false,
 }: {
   name?: string | null;
   email?: string | null;
   image?: string | null;
   version: string;
+  update?: AvailableUpdate | null;
   collapsed?: boolean;
 }) {
   const label = name?.trim() || email || "Account";
@@ -81,12 +85,21 @@ export function UserMenu({
           </Menu.Positioner>
         </Menu.Portal>
       </Menu.Root>
-      <span
-        className={cn("font-data text-[11px] leading-4 text-muted-foreground", !collapsed && "px-2")}
-        title="crawlseo version"
-      >
-        v{version}
-      </span>
+      <div className={cn("flex flex-wrap items-baseline gap-x-2", !collapsed && "px-2")}>
+        <span className="font-data text-[11px] leading-4 text-muted-foreground" title="crawlseo version">
+          v{version}
+        </span>
+        {update && !collapsed && (
+          <a
+            href={update.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] leading-4 font-medium text-text-strong underline underline-offset-2 hover:text-primary"
+          >
+            {`Update available: v${update.version}`}
+          </a>
+        )}
+      </div>
     </div>
   );
 }

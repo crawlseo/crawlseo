@@ -14,7 +14,12 @@ vi.mock("@/app/(dashboard)/settings/actions", () => ({ signOutAction: vi.fn() })
 const { AppShell } = await import("./app-shell");
 const { APP_VERSION } = await import("@/lib/version");
 
-function render(props: { name?: string | null; email?: string | null; image?: string | null }) {
+function render(props: {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  update?: { version: string; url: string } | null;
+}) {
   return renderToStaticMarkup(
     <AppShell {...props} version={APP_VERSION} sites={[]} showCloudPromo={false}>
       <p>page</p>
@@ -50,5 +55,15 @@ describe("sidebar footer", () => {
     const html = render({ name: "Mike", email: "mike@quilltab.app" });
     expect(html).not.toContain('href="/account"');
     expect(html).not.toContain("Log out");
+  });
+
+  it("links a newer release next to the version, and shows nothing without one", () => {
+    const url = "https://github.com/crawlseo/crawlseo/releases/tag/v9.0.0";
+    const html = render({ name: "Mike", update: { version: "9.0.0", url } });
+    expect(html).toContain(`href="${url}"`);
+    expect(html).toContain(">Update available: v9.0.0</a>");
+
+    expect(render({ name: "Mike" })).not.toContain("Update available");
+    expect(render({ name: "Mike", update: null })).not.toContain("Update available");
   });
 });

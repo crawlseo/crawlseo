@@ -14,6 +14,10 @@ The paid cloud layer covers the following, and PRs adding them will be closed:
 
 Not sure? Open an issue before writing code.
 
+### Outbound connections
+
+The app must not contact any host the user did not configure, except the ones listed in the README "Your data stays yours" table. A PR that adds an outbound request must add a row to that table and an env var to turn it off. PRs that add usage statistics, analytics or any phone-home are closed.
+
 ## Getting Started
 
 1. **Fork** the repository on GitHub
