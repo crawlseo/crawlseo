@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getTopKeywords } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Search } from "lucide-react";
 import { SyncButton } from "@/components/sites/sync-button";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { KeywordsTable } from "@/components/sites/keywords-table";
@@ -44,7 +43,7 @@ export default async function KeywordsPage({ params }: KeywordsPageProps) {
 
       {keywords.length === 0 ? (
         <EmptyState
-          icon={Search}
+          illustration="empty-keywords"
           title="No keywords yet"
           description="Sync Google Search Console to populate query-level performance."
         />

@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CirclePlus } from "lucide-react";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { SyncButton } from "@/components/sites/sync-button";
 import { formatCompact } from "@/lib/seo-metrics";
@@ -40,7 +39,7 @@ export default async function SitesPage() {
 
       {sites.length === 0 ? (
         <EmptyState
-          icon={CirclePlus}
+          illustration="empty-sites"
           title="Connect your first property"
           description="Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally."
         />

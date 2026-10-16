@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getTopPages } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText } from "lucide-react";
 import { SyncButton } from "@/components/sites/sync-button";
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { PagesTable } from "@/components/sites/pages-table";
@@ -43,7 +42,7 @@ export default async function PagesPage({ params }: PagesPageProps) {
 
       {pages.length === 0 ? (
         <EmptyState
-          icon={FileText}
+          illustration="empty-pages"
           title="No pages yet"
           description="Sync GSC to pull page-level clicks, impressions, and positions."
         />

@@ -30,6 +30,7 @@ export default async function OpportunitiesPage({ params }: Props) {
           description="Quick wins from your GSC data."
         />
         <EmptyState
+          illustration="empty-gsc-wait"
           title="Sync GSC first"
           description="Opportunities are computed from keyword and page performance."
           actionLabel="Back to overview"

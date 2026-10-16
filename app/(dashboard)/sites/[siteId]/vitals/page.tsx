@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Gauge } from "lucide-react";
 import { VitalsButton, IndexCheckButton } from "@/components/sites/action-buttons";
 import { VitalsTable } from "@/components/sites/vitals-table";
 
@@ -37,7 +36,7 @@ export default async function VitalsPage({ params }: Props) {
 
       {reports.length === 0 ? (
         <EmptyState
-          icon={Gauge}
+          illustration="empty-vitals"
           title="No vitals yet"
           description="Run a check on your top landing pages (mobile Lighthouse)."
         />
