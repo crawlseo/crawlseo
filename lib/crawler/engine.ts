@@ -581,6 +581,8 @@ type HopHooks = {
   guard?: (url: string) => Promise<void>;
   /** Waits until the origin accepts a request; returns the function that marks it done. */
   pace?: (url: string) => Promise<() => void>;
+  /** Aborts the request in flight; no later hop, guard or pace starts once it is aborted. */
+  signal?: AbortSignal;
 };
 
 type PublicResponse = {
@@ -598,7 +600,7 @@ type PublicResponse = {
  * fetch() that follows redirects itself, up to MAX_REDIRECTS, so every hop,
  * not just the first URL, is checked against private/reserved IPs and against
  * the hooks. Each request has its own FETCH_TIMEOUT_MS, started after any
- * Crawl-delay wait.
+ * Crawl-delay wait. Once `hooks.signal` aborts, it throws the signal's reason.
  */
 async function fetchPublic(
   url: string,
@@ -607,15 +609,22 @@ async function fetchPublic(
 ): Promise<PublicResponse> {
   let currentUrl = url;
   let priorMs = 0;
+  const outer = hooks.signal;
 
   for (let redirects = 0; ; redirects++) {
+    outer?.throwIfAborted();
     // A URL that is not http(s), or whose host does not resolve or is
     // private, fails here as a fetch error (a broken link), before robots.txt
     // is consulted: there is no robots.txt to read for it.
     if (!isHttpUrl(currentUrl)) throw new Error(`Unsupported URL: ${currentUrl}`);
     await assertPublicUrl(currentUrl);
     await hooks.guard?.(currentUrl);
+    outer?.throwIfAborted();
     const release = (await hooks.pace?.(currentUrl)) ?? (() => {});
+    if (outer?.aborted) {
+      release();
+      outer.throwIfAborted();
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     const started = Date.now();
@@ -628,7 +637,7 @@ async function fetchPublic(
     try {
       res = await fetch(currentUrl, {
         headers,
-        signal: controller.signal,
+        signal: outer ? AbortSignal.any([controller.signal, outer]) : controller.signal,
         redirect: "manual",
         dispatcher: crawlerDispatcher,
       } as RequestInit);
@@ -722,7 +731,7 @@ export async function fetchText(url: string, hooks: HopHooks = {}): Promise<stri
  * One origin's robots.txt: up to MAX_REDIRECTS redirects, at most
  * ROBOTS_MAX_BYTES parsed. robots.txt itself is never subject to robots.txt.
  */
-async function fetchRobotsTxt(origin: string): Promise<RobotsFetch> {
+async function fetchRobotsTxt(origin: string, signal?: AbortSignal): Promise<RobotsFetch> {
   const url = `${origin}/robots.txt`;
   try {
     await assertPublicUrl(url);
@@ -732,7 +741,7 @@ async function fetchRobotsTxt(origin: string): Promise<RobotsFetch> {
   }
   let r: PublicResponse;
   try {
-    r = await fetchPublic(url, { "User-Agent": USER_AGENT });
+    r = await fetchPublic(url, { "User-Agent": USER_AGENT }, { signal });
   } catch (err) {
     // Its own host refused at connect time (a record the pre-flight check did
     // not see): the same answer as a failed pre-flight check.

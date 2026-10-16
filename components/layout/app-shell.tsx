@@ -191,7 +191,7 @@ export function AppShell({ email, name, children, sites, showCloudPromo }: AppSh
           </button>
         </header>
 
-        <main className="w-full max-w-[1320px] flex-1 px-5 py-6 md:px-10 md:py-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1600px] flex-1 px-5 py-6 md:px-10 md:py-8">{children}</main>
       </div>
     </div>
   );
