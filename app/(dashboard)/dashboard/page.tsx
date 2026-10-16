@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getSitePeriodMetrics, formatCompact } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ArrowRight, Globe } from "lucide-react";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { formatDeltaPercent } from "@/lib/format";
@@ -50,7 +51,7 @@ export default async function DashboardPage() {
           hasCrawled={false}
         />
         <EmptyState
-          icon="↗"
+          icon={Globe}
           title="No sites connected"
           description="Import a GSC property to start monitoring organic search performance. Read-only access only."
           actionLabel="Add site"
@@ -116,9 +117,10 @@ export default async function DashboardPage() {
                   {site.gscProperty}
                 </p>
               </div>
-              <span aria-hidden className="text-muted-foreground transition-colors group-hover:text-text-strong">
-                →
-              </span>
+              <ArrowRight
+                aria-hidden
+                className="mt-1 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-text-strong"
+              />
             </div>
 
             {!metrics ? (

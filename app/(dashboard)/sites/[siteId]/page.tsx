@@ -7,6 +7,7 @@ import { TrafficChart } from "@/components/dashboard/traffic-chart";
 import { TopKeywords } from "@/components/dashboard/top-keywords";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RefreshCw } from "lucide-react";
 import { SyncButton } from "@/components/sites/sync-button";
 import {
   CrawlButton,
@@ -85,7 +86,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
 
       {!hasData ? (
         <EmptyState
-          icon="↻"
+          icon={RefreshCw}
           title="Waiting for GSC data"
           description="Run a sync to pull keywords, pages, and traffic for the last 28 days."
         />

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Star } from "lucide-react";
 import { SaveKeywordForm } from "@/components/sites/saved-keyword-actions";
 import { SavedKeywordsTable } from "@/components/sites/saved-keywords-table";
 import { getDateRange } from "@/lib/date-utils";
@@ -63,7 +64,7 @@ export default async function SavedKeywordsPage({ params }: Props) {
 
       {saved.length === 0 ? (
         <EmptyState
-          icon="⭐"
+          icon={Star}
           title="No saved keywords"
           description="Save keywords you want to track closely. Use the form above to add your first keyword."
         />

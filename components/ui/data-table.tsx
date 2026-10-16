@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { positionBand, formatPosition, formatCtr } from "@/lib/seo-metrics";
 
@@ -51,7 +52,7 @@ export function useTableSort(initial: SortState) {
 /** Human label for the active sort, for footers ("Score", not "perfScore"). */
 export function sortLabel(headers: MetricHeader[], sort: SortState): string {
   const label = headers.find((h) => h.sortKey === sort.key)?.label ?? sort.key;
-  return `${label.toLowerCase()} ${sort.dir === "asc" ? "↑" : "↓"}`;
+  return `${label.toLowerCase()} ${sort.dir === "asc" ? "ascending" : "descending"}`;
 }
 
 /** Generic comparator: numbers numerically, strings via localeCompare, null/undefined last. */
@@ -113,9 +114,15 @@ export function MetricTable({
                         title={`Sort by ${h.label}`}
                       >
                         {h.label}
-                        <span aria-hidden className={cn("text-[10px]", !active && "text-text-faint")}>
-                          {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
-                        </span>
+                        {active ? (
+                          sort!.dir === "asc" ? (
+                            <ChevronUp className="size-3" aria-hidden />
+                          ) : (
+                            <ChevronDown className="size-3" aria-hidden />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="size-3 text-text-faint" aria-hidden />
+                        )}
                       </button>
                     ) : (
                       h.label

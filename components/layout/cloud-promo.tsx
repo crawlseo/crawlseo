@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { X } from "lucide-react";
+import { ArrowUpRight, X } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +76,8 @@ export function CloudPromo() {
         rel="noopener noreferrer"
         className={cn(buttonVariants({ size: "sm" }), "mt-1 h-9 w-full")}
       >
-        See crawlseo.cloud{" "}↗
+        See crawlseo.cloud
+        <ArrowUpRight aria-hidden />
       </a>
       <button
         type="button"

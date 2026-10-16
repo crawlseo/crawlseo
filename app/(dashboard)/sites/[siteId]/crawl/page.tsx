@@ -91,7 +91,6 @@ export default async function CrawlPage({ params }: Props) {
 
       {!latest ? (
         <EmptyState
-          icon="◎"
           title="No crawl yet"
           description="Run a crawl to check titles, H1s, canonicals, broken pages, sitemap coverage, and on-page content scores."
         />
