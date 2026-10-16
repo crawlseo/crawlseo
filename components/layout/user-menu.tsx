@@ -60,7 +60,7 @@ export function UserMenu({
                   {email}
                 </p>
               )}
-              <Menu.LinkItem render={<Link href="/settings" />} className={ITEM_CLASS}>
+              <Menu.LinkItem render={<Link href="/settings" />} closeOnClick className={ITEM_CLASS}>
                 <Settings className="size-4 text-muted-foreground" aria-hidden />
                 Settings
               </Menu.LinkItem>

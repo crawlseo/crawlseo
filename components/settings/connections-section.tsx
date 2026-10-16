@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import {
@@ -42,6 +42,8 @@ export type GoogleConnection = {
   /** True when the stored tokens are encrypted. */
   sealed: boolean;
 };
+
+const GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Sign-in",
@@ -178,12 +180,14 @@ function RowHead({
   connected,
   description,
   actions,
+  actionsRef,
 }: {
   icon: LucideIcon;
   name: string;
   connected: boolean;
   description: React.ReactNode;
   actions: React.ReactNode;
+  actionsRef?: React.Ref<HTMLDivElement>;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -199,7 +203,9 @@ function RowHead({
           <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{description}</p>
         </div>
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 pl-[50px] sm:pl-0">{actions}</div>}
+      <div ref={actionsRef} className="flex shrink-0 flex-wrap items-center gap-2 empty:hidden pl-[50px] sm:pl-0">
+        {actions}
+      </div>
     </div>
   );
 }
@@ -209,33 +215,45 @@ function GoogleRow({ google }: { google: GoogleConnection }) {
   const [connecting, setConnecting] = useState(false);
   const detailsId = useId();
   const labels = [...new Set(google.scopes.map((s) => SCOPE_LABELS[s] ?? "Other"))];
+  // Rows stored before scopes were kept have none listed: those count as granted.
+  const gscGranted = google.connected && (google.scopes.length === 0 || google.scopes.includes(GSC_SCOPE));
+  const connect = (
+    <Button
+      size="sm"
+      disabled={connecting}
+      onClick={() => {
+        setConnecting(true);
+        void signIn("google", { redirectTo: "/settings" });
+      }}
+    >
+      {connecting && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+      Connect
+    </Button>
+  );
 
   return (
     <li className="px-5 py-4" data-provider="google">
       <RowHead
         icon={SearchCheck}
         name="Google Search Console"
-        connected={google.connected}
+        connected={gscGranted}
         description={
-          google.connected
+          gscGranted
             ? "Your Google sign-in reads Search Console for your sites."
-            : "No Google tokens are stored, so Search Console cannot sync. Connect to grant access again."
+            : google.connected
+              ? "Search Console access was not granted at sign-in. Connect to grant it."
+              : "No Google tokens are stored, so Search Console cannot sync. Connect to grant access again."
         }
         actions={
-          google.connected ? (
+          gscGranted ? (
             <DisconnectGoogleDialog />
+          ) : google.connected ? (
+            <>
+              {connect}
+              <DisconnectGoogleDialog />
+            </>
           ) : (
-            <Button
-              size="sm"
-              disabled={connecting}
-              onClick={() => {
-                setConnecting(true);
-                void signIn("google", { redirectTo: "/settings" });
-              }}
-            >
-              {connecting && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-              Connect
-            </Button>
+            connect
           )
         }
       />
@@ -309,10 +327,19 @@ function KeyRow({
   const router = useRouter();
   const connected = status?.connected ?? false;
   const formId = useId();
+  // Cancel, Save and Disconnect each replace the focused control: focus moves to the row's new action.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    actionsRef.current?.querySelector("button")?.focus();
+  }, [connected, expanded]);
 
   return (
     <li className="px-5 py-4" data-provider={config.provider}>
       <RowHead
+        actionsRef={actionsRef}
         icon={config.icon}
         name={config.name}
         connected={connected}
@@ -326,12 +353,13 @@ function KeyRow({
             <DisconnectKeyDialog
               config={config}
               onDisconnected={() => {
+                refocus.current = true;
                 onStatusChange(config.provider, false);
                 router.refresh();
               }}
             />
           ) : expanded ? null : (
-            <Button size="sm" variant="outline" aria-expanded={false} onClick={() => onExpand(true)}>
+            <Button size="sm" variant="outline" onClick={() => onExpand(true)}>
               Connect
             </Button>
           )
@@ -341,8 +369,12 @@ function KeyRow({
         <KeyForm
           id={formId}
           config={config}
-          onCancel={() => onExpand(false)}
+          onCancel={() => {
+            refocus.current = true;
+            onExpand(false);
+          }}
           onSaved={() => {
+            refocus.current = true;
             onStatusChange(config.provider, true);
             onExpand(false);
             router.refresh();

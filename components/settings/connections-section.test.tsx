@@ -83,6 +83,20 @@ describe("ConnectionsSection", () => {
     expect(google).not.toContain(">Details");
   });
 
+  it("does not call Google connected when Search Console access was not granted", () => {
+    const html = renderToStaticMarkup(
+      <ConnectionsSection
+        google={{ connected: true, sealed: true, scopes: ["openid", "https://www.googleapis.com/auth/userinfo.email"] }}
+        initialStatus={NONE}
+      />
+    );
+    const google = row(html, "google");
+    expect(badge(google)).toBe("NOT CONNECTED");
+    expect(google).toContain("Search Console access was not granted");
+    expect(google).toContain(">Connect<");
+    expect(google).toContain(">Disconnect<");
+  });
+
   it("expands the Bing form with help text and a link, never a placeholder", () => {
     const html = renderToStaticMarkup(
       <ConnectionsSection google={GOOGLE} initialStatus={NONE} initialOpen="bing" />
