@@ -56,6 +56,23 @@ describe("fetchPublic abort signal", () => {
     expect(calls.every((c) => !c.signal.aborted)).toBe(true);
   });
 
+  it("without a signal, a hung request still ends at its own per-hop timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      respond = (_url, signal) => hang(signal);
+      let settled = false;
+      const result = fetchText("https://a.example/").finally(() => (settled = true));
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(settled).toBe(false);
+      expect(calls[0].signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await result).toBeNull();
+      expect(calls[0].signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("with a signal that never aborts, behaves the same", async () => {
     respond = () => new Response("body");
     expect(await fetchText("https://a.example/", { signal: new AbortController().signal })).toBe("body");
