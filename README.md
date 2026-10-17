@@ -297,6 +297,9 @@ when a job is queued, running or waiting to retry.
 | One container, or `npm start` | `inline` (the default): the app runs them | none |
 | Vercel | `inline`: see [Vercel](#vercel) | none |
 
+The MCP server queues crawls too. When no worker and no app in inline mode is
+running jobs, it runs the crawl itself; keep it running until the crawl is done.
+
 An install upgraded from 0.2.x with its old `docker-compose.yml` keeps working
 without changes: the app has no `WORKER_MODE`, so it runs the jobs itself, as
 it ran crawls before. To move to the worker, take the `worker` service and the
@@ -311,10 +314,11 @@ process died without stopping is taken back after `JOB_STALE_SECONDS`.
 **The schedule.** For every site the app queues a GSC sync and, with a Bing
 property and key, a Bing sync each day, then an alert evaluation after each
 sync. Each site also gets a crawl (with the page count of its last crawl) and a
-vitals check each week. After an upgrade or for a new site, the first
-scheduled crawl and vitals check are spread over the first week, never sooner
-than a week after the site's last crawl or check, so an upgrade does not crawl
-every site at once. Set the intervals with the `SCHEDULE_*` variables (0 turns
+vitals check each week. After an upgrade, for a new site, or when crawls or
+vitals checks are turned on (or a worker is added to a Vercel database), the
+first scheduled crawl and vitals check are spread over the first week, never
+sooner than a week after the site's last crawl or check, so none of these
+crawls every site at once. Set the intervals with the `SCHEDULE_*` variables (0 turns
 one off), or turn the schedule off with `SCHEDULER_ENABLED=false`; the buttons
 keep working either way.
 
@@ -323,7 +327,11 @@ keep working either way.
 There is no long-running process on Vercel, so:
 
 - A button runs its job in the same request after the response, within the
-  route's time limit. The routes set `maxDuration = 300`, the most the Hobby plan
+  route's time limit. A sync whose attempt fails for a reason a retry can fix
+  is tried again in that request while time is left; if it still fails, the
+  button shows when the next attempt is due and offers Retry. A crawl or
+  vitals check that fails or is cut off fails with its reason; run it again
+  with its button. The routes set `maxDuration = 300`, the most the Hobby plan
   allows ([function duration limits](https://vercel.com/docs/functions/configuring-functions/duration)).
   A crawl stops at that limit and keeps the pages it reached, so large crawls
   are cut short on Vercel; use Docker for them.

@@ -66,3 +66,47 @@ export async function startWorker(
 
   return { loop, shutdown };
 }
+
+/** How long an uncaught exception may spend putting held jobs back before the process exits. */
+const CRASH_RELEASE_MS = 5_000;
+
+/**
+ * Process-level error handlers. An unhandled rejection is logged and the
+ * worker keeps going. An uncaught exception leaves the process in an unknown
+ * state: the jobs it holds go back to the queue at once (instead of waiting
+ * JOB_STALE_SECONDS for recovery), then it exits non-zero so the container
+ * restarts it.
+ */
+export function crashHandlers(
+  current: () => Worker | undefined,
+  opts: { log?: (msg: string) => void; exit: (code: number) => void }
+) {
+  const log = opts.log ?? console.error;
+  const describe = (e: unknown) => (e instanceof Error ? (e.stack ?? e.message) : String(e));
+  let crashing = false;
+  return {
+    unhandledRejection(reason: unknown) {
+      log(`[worker] unhandled rejection: ${describe(reason)}`);
+    },
+    async uncaughtException(err: unknown) {
+      log(`[worker] uncaught exception: ${describe(err)}`);
+      if (crashing) return;
+      crashing = true;
+      try {
+        const worker = current();
+        if (worker) {
+          const released = await Promise.race([
+            worker.loop.runner.forceReleaseAll(),
+            new Promise<number>((resolve) => setTimeout(() => resolve(-1), CRASH_RELEASE_MS)),
+          ]);
+          log(released < 0 ? "[worker] could not put jobs back in time" : `[worker] put ${released} job(s) back in the queue`);
+        }
+      } catch (releaseErr) {
+        log(`[worker] putting jobs back failed: ${describe(releaseErr)}`);
+      } finally {
+        opts.exit(1);
+      }
+    },
+  };
+}
+

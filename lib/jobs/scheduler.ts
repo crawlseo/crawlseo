@@ -17,10 +17,13 @@ import { requestCrawl } from "./site-jobs";
  * does not skip a day). A site with no job of a type yet:
  * - GSC and Bing syncs are due at once.
  * - Crawl and vitals are due at a fixed offset into the first interval after
- *   the scheduler first saw the site (its first run on this database, or the
- *   site's creation if later), and never sooner than one interval after the
- *   site's last crawl or vitals check from before. An upgrade therefore does
- *   not start crawling every site at once.
+ *   the scheduler first saw the site for that type, and never sooner than one
+ *   interval after the site's last crawl or vitals check from before. "First
+ *   saw" is the first pass on this database that could schedule the type (it
+ *   was enabled and allowed on that host), or the site's creation if later.
+ *   An upgrade, turning a type on after weeks off, or moving from a
+ *   serverless host to Docker therefore does not start crawling every site
+ *   at once.
  */
 
 type Db = PrismaClient;
@@ -28,8 +31,9 @@ type Db = PrismaClient;
 /** Processes share one scheduling pass per this interval. */
 export const SCHEDULER_EVERY_MS = 10 * 60_000;
 
-const FIRST_RUN_KEY = "firstRunAt";
 const LAST_RUN_KEY = "lastRunAt";
+/** Per job type: the first pass that could schedule that type. */
+const firstSeenKey = (type: string) => `firstSeenAt:${type}`;
 
 /** Up to 2 hours, and at most a tenth of the interval. */
 export function slackMs(intervalMs: number): number {
@@ -78,13 +82,7 @@ function schedules(config: ScheduleConfig): Schedule[] {
  * UPDATE sees the first one's timestamp and changes nothing.
  */
 async function takePass(db: Db, now: Date, force: boolean): Promise<boolean> {
-  await db.schedulerState.createMany({
-    data: [
-      { key: FIRST_RUN_KEY, at: now },
-      { key: LAST_RUN_KEY, at: new Date(0) },
-    ],
-    skipDuplicates: true,
-  });
+  await db.schedulerState.createMany({ data: [{ key: LAST_RUN_KEY, at: new Date(0) }], skipDuplicates: true });
   const { count } = await db.schedulerState.updateMany({
     where: { key: LAST_RUN_KEY, ...(!force && { at: { lte: new Date(now.getTime() - SCHEDULER_EVERY_MS) } }) },
     data: { at: now },
@@ -128,7 +126,6 @@ export async function runScheduler(
   const deleted = await deleteOldJobs(db, now, config.retentionMs);
   if (!config.enabled) return { ran: true, queued, deleted };
 
-  const firstRun = await db.schedulerState.findUniqueOrThrow({ where: { key: FIRST_RUN_KEY } });
   const sites: Site[] = await db.site.findMany({
     select: { id: true, userId: true, createdAt: true, gscProperty: true, bingSite: true },
     orderBy: { createdAt: "asc" },
@@ -140,7 +137,8 @@ export async function runScheduler(
 
   for (const schedule of schedules(config)) {
     if (schedule.intervalMs <= 0 || !allowed.has(schedule.type)) continue;
-    const due = await dueSites(db, schedule, sites, { now, firstRunAt: firstRun.at, bingKeyUsers });
+    const firstSeenAt = await firstSeen(db, schedule.type, now);
+    const due = await dueSites(db, schedule, sites, { now, firstSeenAt, bingKeyUsers });
     for (const site of due) {
       try {
         const created = await queueScheduled(db, schedule.type, site);
@@ -153,11 +151,23 @@ export async function runScheduler(
   return { ran: true, queued, deleted };
 }
 
+/**
+ * When the scheduler first could schedule this type here, recorded on the
+ * first such pass. Only called for a type that is enabled and allowed on this
+ * pass, so a pass that skips it (scheduler or type off, or a serverless host
+ * for LONG types) never starts its clock.
+ */
+async function firstSeen(db: Db, type: string, now: Date): Promise<Date> {
+  const key = firstSeenKey(type);
+  await db.schedulerState.createMany({ data: [{ key, at: now }], skipDuplicates: true });
+  return (await db.schedulerState.findUniqueOrThrow({ where: { key } })).at;
+}
+
 async function dueSites(
   db: Db,
   schedule: Schedule,
   sites: Site[],
-  ctx: { now: Date; firstRunAt: Date; bingKeyUsers: Set<string> }
+  ctx: { now: Date; firstSeenAt: Date; bingKeyUsers: Set<string> }
 ): Promise<Site[]> {
   const { type, intervalMs } = schedule;
   const latest = new Map(
@@ -175,8 +185,8 @@ async function dueSites(
     const last = latest.get(site.id);
     if (last) return now - last.getTime() >= intervalMs - slack;
     if (!schedule.spreadFirst) return true;
-    const firstSeen = Math.max(ctx.firstRunAt.getTime(), site.createdAt.getTime());
-    let dueAt = firstSeen + firstRunOffsetMs(site.id, type, intervalMs);
+    const seen = Math.max(ctx.firstSeenAt.getTime(), site.createdAt.getTime());
+    let dueAt = seen + firstRunOffsetMs(site.id, type, intervalMs);
     const previous = before.get(site.id);
     if (previous) dueAt = Math.max(dueAt, previous.getTime() + intervalMs - slack);
     return now >= dueAt;

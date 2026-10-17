@@ -107,6 +107,45 @@ describe("first runs after an upgrade", () => {
   }, 60_000);
 });
 
+describe("first-seen time per job type", () => {
+  const crawlsQueued = () => db.job.count({ where: { type: "crawl" } });
+
+  it("a scheduler that was off for weeks queues no crawl burst when turned on", async () => {
+    for (let day = 0; day < 21; day++) {
+      await runScheduler(db, { now: at(day * DAY), config: { ...config, enabled: false }, force: true });
+    }
+    expect(await db.schedulerState.count({ where: { key: { startsWith: "firstSeenAt:" } } })).toBe(0);
+
+    const { queued } = await runScheduler(db, { now: at(21 * DAY), config, force: true });
+    expect(queued.crawl ?? 0).toBeLessThanOrEqual(1);
+    expect(queued.vitals ?? 0).toBeLessThanOrEqual(1);
+    expect(await crawlsQueued()).toBeLessThanOrEqual(1);
+  });
+
+  it("crawls turned off for weeks queue no burst when turned on", async () => {
+    for (let day = 0; day < 21; day++) {
+      await runScheduler(db, { now: at(day * DAY), config: { ...config, crawlMs: 0 }, force: true });
+    }
+    const { queued } = await runScheduler(db, { now: at(21 * DAY), config, force: true });
+    expect(queued.crawl ?? 0).toBeLessThanOrEqual(1);
+  });
+
+  it("serverless passes, then a Docker pass, queue no crawl burst", async () => {
+    // A serverless host schedules SHORT types only, for two weeks.
+    for (let day = 0; day < 14; day++) {
+      await runScheduler(db, { now: at(day * DAY), config, types: jobTypes("SHORT"), force: true });
+    }
+    expect(await crawlsQueued()).toBe(0);
+    expect(await db.schedulerState.findUnique({ where: { key: "firstSeenAt:crawl" } })).toBeNull();
+    expect(await db.schedulerState.findUnique({ where: { key: "firstSeenAt:gsc-sync" } })).not.toBeNull();
+
+    // Then the same database gets a worker.
+    const { queued } = await runScheduler(db, { now: at(14 * DAY), config, force: true });
+    expect(queued.crawl ?? 0).toBeLessThanOrEqual(1);
+    expect((await db.schedulerState.findUniqueOrThrow({ where: { key: "firstSeenAt:crawl" } })).at).toEqual(at(14 * DAY));
+  });
+});
+
 describe("regular runs", () => {
   it("queues the next run one interval after the last job, with slack for a daily run that drifts", async () => {
     const day = { ...config, crawlMs: 0, vitalsMs: 0 };

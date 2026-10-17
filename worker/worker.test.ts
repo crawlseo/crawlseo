@@ -15,7 +15,7 @@ vi.mock("@/lib/db", async () => {
 import { createTestDb, type TestDb } from "@/lib/testing/pglite";
 import { registerJobHandler } from "@/lib/jobs/handlers";
 import { enqueueJob } from "@/lib/jobs/queue";
-import { startWorker } from "./worker";
+import { crashHandlers, startWorker } from "./worker";
 
 let t: TestDb;
 let db: PrismaClient;
@@ -79,4 +79,40 @@ describe("startWorker", () => {
     await worker.shutdown("SIGTERM");
     release?.();
   });
+
+  it("an uncaught exception puts the held jobs back and exits non-zero", async () => {
+    vi.stubEnv("WORKER_MODE", "worker");
+    const { job } = await enqueueJob(db, { type: "w-crawl", siteId: "s1", source: "manual" });
+    const worker = await startWorker(db, { healthFile, log: quiet });
+    // Held by this process's runner, not only claimed in the database.
+    await vi.waitFor(() => expect(worker.loop.runner.count()).toBe(1));
+
+    const exit = vi.fn();
+    const logs: string[] = [];
+    const crash = crashHandlers(() => worker, { exit, log: (m) => logs.push(m) });
+    await crash.uncaughtException(new Error("boom"));
+
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ status: "QUEUED", attempts: 0 });
+    expect(logs.some((l) => l.includes("uncaught exception") && l.includes("boom"))).toBe(true);
+    await worker.shutdown("test");
+    release?.();
+  });
+
+  it("an unhandled rejection is logged and does not exit", async () => {
+    const exit = vi.fn();
+    const logs: string[] = [];
+    const crash = crashHandlers(() => undefined, { exit, log: (m) => logs.push(m) });
+    crash.unhandledRejection(new Error("lost promise"));
+    expect(logs[0]).toContain("unhandled rejection");
+    expect(logs[0]).toContain("lost promise");
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it("an uncaught exception before the worker started still exits non-zero", async () => {
+    const exit = vi.fn();
+    await crashHandlers(() => undefined, { exit, log: quiet }).uncaughtException(new Error("early"));
+    expect(exit).toHaveBeenCalledWith(1);
+  });
 });
+
