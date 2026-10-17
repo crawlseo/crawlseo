@@ -24,6 +24,43 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-crawlseo}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-crawlseo}
+      # The worker service below runs crawls, syncs and the schedule; the app
+      # only queues them. Without a worker, remove this line (the default,
+      # inline, runs jobs in the app).
+      WORKER_MODE: "off"
+
+  # Runs queued jobs (crawls, vitals checks, GSC and Bing syncs, alerts) and
+  # the schedule, from the same image. Serves no HTTP.
+  worker:
+    image: ${CRAWLSEO_IMAGE:-ghcr.io/crawlseo/crawlseo:latest}
+    restart: always
+    command: ["node", "worker.cjs"]
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      # The app runs the database migrations when it starts.
+      app:
+        condition: service_healthy
+    # SIGTERM lets running syncs finish (WORKER_SHUTDOWN_GRACE_SECONDS, 25 s by
+    # default) and puts a running crawl back in the queue.
+    stop_grace_period: 40s
+    healthcheck:
+      # The worker touches this file while it reaches the database.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "process.exit(Date.now()-require('fs').statSync('/tmp/worker-alive').mtimeMs<60000?0:1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crawlseo}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-crawlseo}
+      WORKER_MODE: worker
 
   db:
     image: postgres:16-alpine

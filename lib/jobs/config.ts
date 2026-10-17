@@ -36,6 +36,12 @@ function positiveInt(raw: string | undefined, fallback: number): number {
   return raw?.trim() && Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
 }
 
+/** A whole number of at least 0 (0 turns the thing off), or the fallback. */
+function nonNegativeInt(raw: string | undefined, fallback: number): number {
+  const n = Number(raw?.trim());
+  return raw?.trim() && Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+}
+
 export type QueueConfig = {
   longConcurrency: number;
   shortConcurrency: number;
@@ -61,3 +67,28 @@ export function queueConfig(env: Env = process.env): QueueConfig {
  */
 export const SERVERLESS_MAX_DURATION_S = 300;
 export const SERVERLESS_JOB_BUDGET_MS = (SERVERLESS_MAX_DURATION_S - 30) * 1000;
+
+const HOUR = 60 * 60_000;
+const DAY = 24 * HOUR;
+
+/** How often the scheduler queues work per site. An interval of 0 turns that job off. */
+export type ScheduleConfig = {
+  enabled: boolean;
+  gscSyncMs: number;
+  bingSyncMs: number;
+  crawlMs: number;
+  vitalsMs: number;
+  retentionMs: number;
+};
+
+export function scheduleConfig(env: Env = process.env): ScheduleConfig {
+  return {
+    enabled: env.SCHEDULER_ENABLED?.trim().toLowerCase() !== "false",
+    gscSyncMs: nonNegativeInt(env.SCHEDULE_GSC_SYNC_HOURS, 24) * HOUR,
+    bingSyncMs: nonNegativeInt(env.SCHEDULE_BING_SYNC_HOURS, 24) * HOUR,
+    crawlMs: nonNegativeInt(env.SCHEDULE_CRAWL_DAYS, 7) * DAY,
+    vitalsMs: nonNegativeInt(env.SCHEDULE_VITALS_DAYS, 7) * DAY,
+    retentionMs: positiveInt(env.JOB_RETENTION_DAYS, 30) * DAY,
+  };
+}
+

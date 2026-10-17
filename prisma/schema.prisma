@@ -470,3 +470,12 @@ model WorkerHeartbeat {
   @@index([lastSeenAt])
 }
 
+
+// The scheduler's own timestamps (lib/jobs/scheduler.ts). Holds no user data.
+// "firstRunAt": when the scheduler first ran on this database; a site's first
+// scheduled crawl and vitals check are spread over the interval after it.
+// "lastRunAt": the last scheduling pass, so processes share one pass.
+model SchedulerState {
+  key String   @id
+  at  DateTime
+}

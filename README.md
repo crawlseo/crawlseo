@@ -52,11 +52,11 @@ The app talks to outside services only in these cases:
 
 | Destination | When | What is sent | How to turn it off |
 |---|---|---|---|
-| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections |
-| Bing Webmaster Tools | Only if you add your own Bing API key | Requests for your own Bing sites | Remove the key in Settings > Connections |
+| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google. Also on the schedule: a GSC sync per site each day and a vitals check per site each week | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections. For the schedule: `SCHEDULE_GSC_SYNC_HOURS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false` |
+| Bing Webmaster Tools | Only if you add your own Bing API key; then also a sync per site each day | Requests for your own Bing sites | Remove the key in Settings > Connections, or `SCHEDULE_BING_SYNC_HOURS=0` |
 | DataForSEO | Only if you add your own DataForSEO key | The keyword and domain queries you run | Remove the key in Settings > Connections |
 | Google autocomplete | Keyword suggestions when DataForSEO is not set up | The seed keyword you typed | Don't use keyword suggestions |
-| Sites you crawl | When you start a crawl | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl |
+| Sites you crawl | When you start a crawl, and on the schedule a crawl of each site each week (Docker) | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl; `SCHEDULE_CRAWL_DAYS=0` or `SCHEDULER_ENABLED=false` for the schedule |
 | GitHub releases API | Once a day | A request for the latest crawlseo release. No data about you or your instance. GitHub sees your server's IP address | `CRAWLSEO_UPDATE_CHECK=false` |
 
 Nothing else leaves your server. Alerts are shown in the app only.
@@ -203,6 +203,11 @@ credentials are only needed at runtime. Images support `linux/amd64` and
 `linux/arm64`, and database migrations run automatically when the container
 starts.
 
+Compose starts three services from that image: `app` (the web app), `worker`
+and `db`. The app queues crawls, vitals checks and syncs; the worker runs them,
+plus the schedule below, so a long crawl never slows the web app down. See
+[Background jobs](#background-jobs).
+
 Image tags:
 
 | Tag | What it is |
@@ -270,6 +275,70 @@ npm run build
 npm start
 ```
 
+`npm start` runs jobs in the app process (`WORKER_MODE=inline`, the default).
+To run them in a separate process instead, set `WORKER_MODE=off` for the app
+and run `npm run build:worker` once, then `WORKER_MODE=worker node dist/worker.cjs`
+next to it.
+
+### Background jobs
+
+Crawls, vitals checks, GSC and Bing syncs and alert evaluation run as jobs in a
+queue in your Postgres database. A job that fails for a reason a retry can fix
+(a timeout, a network error) is retried after 1, 5 and 25 minutes. One that
+cannot be fixed by waiting (an expired Google connection, a missing key, an
+exhausted PageSpeed quota) fails at once with its reason. The buttons show
+when a job is queued, running or waiting to retry.
+
+**Who runs the jobs** is set by `WORKER_MODE`:
+
+| Setup | App | Worker |
+|---|---|---|
+| Docker Compose from this repository (recommended) | `off` | `worker` service, `node worker.cjs` |
+| One container, or `npm start` | `inline` (the default): the app runs them | none |
+| Vercel | `inline`: see [Vercel](#vercel) | none |
+
+An install upgraded from 0.2.x with its old `docker-compose.yml` keeps working
+without changes: the app has no `WORKER_MODE`, so it runs the jobs itself, as
+it ran crawls before. To move to the worker, take the `worker` service and the
+app's `WORKER_MODE: "off"` line from the current `docker-compose.yml`. If the
+worker is not running, the buttons say that queued jobs are not being picked up.
+
+On `docker compose stop` (SIGTERM) the worker lets a running sync finish
+(up to `WORKER_SHUTDOWN_GRACE_SECONDS`, 25 s by default) and puts a running
+crawl back in the queue; it starts again when the worker does. A job whose
+process died without stopping is taken back after `JOB_STALE_SECONDS`.
+
+**The schedule.** For every site the app queues a GSC sync and, with a Bing
+property and key, a Bing sync each day, then an alert evaluation after each
+sync. Each site also gets a crawl (with the page count of its last crawl) and a
+vitals check each week. After an upgrade or for a new site, the first
+scheduled crawl and vitals check are spread over the first week, never sooner
+than a week after the site's last crawl or check, so an upgrade does not crawl
+every site at once. Set the intervals with the `SCHEDULE_*` variables (0 turns
+one off), or turn the schedule off with `SCHEDULER_ENABLED=false`; the buttons
+keep working either way.
+
+### Vercel
+
+There is no long-running process on Vercel, so:
+
+- A button runs its job in the same request after the response, within the
+  route's time limit. The routes set `maxDuration = 300`, the most the Hobby plan
+  allows ([function duration limits](https://vercel.com/docs/functions/configuring-functions/duration)).
+  A crawl stops at that limit and keeps the pages it reached, so large crawls
+  are cut short on Vercel; use Docker for them.
+- `vercel.json` adds a [cron job](https://vercel.com/docs/cron-jobs) that calls
+  `/api/cron/tick` once a day. It queues and runs the daily syncs and alert
+  evaluation. Scheduled crawls and vitals checks need the worker, so they run
+  on Docker only.
+- Set `CRON_SECRET` (a random string of at least 16 characters) in the project's
+  environment variables. Vercel sends it with every cron request and the route
+  refuses requests without it ([securing cron jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs)).
+- The Hobby plan runs cron jobs at most once a day, at some point within the
+  scheduled hour ([cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing)).
+  On Pro you can change the schedule in `vercel.json` to run more often, for
+  example `*/15 * * * *`.
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -285,6 +354,19 @@ npm start
 | `CRAWLSEO_UPDATE_CHECK` | No | Set to `false` to turn off the daily update check: no request to GitHub is made and the sidebar shows no update notice |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
 | `CRAWL_MAX_PAGES` | No | Most pages one crawl may fetch (default `2000`). The server applies it to every crawl, from the web app and from MCP, whatever page count the request asks for |
+| `WORKER_MODE` | No | Who runs queued jobs: `inline` (default, the app process), `off` (this process only queues), `worker` (the worker process). See [Background jobs](#background-jobs) |
+| `WORKER_LONG_CONCURRENCY` | No | Crawls and vitals checks one process runs at once (default `1`) |
+| `WORKER_SHORT_CONCURRENCY` | No | Syncs and alert evaluations one process runs at once (default `2`) |
+| `WORKER_POLL_SECONDS` | No | How often an idle process looks for queued jobs (default `5`) |
+| `WORKER_SHUTDOWN_GRACE_SECONDS` | No | How long the worker lets running syncs finish on SIGTERM (default `25`). Keep it below the container's stop timeout |
+| `JOB_STALE_SECONDS` | No | A running job whose process sent no heartbeat for this long is taken back (default `180`) |
+| `JOB_RETENTION_DAYS` | No | Finished jobs are deleted after this many days (default `30`) |
+| `SCHEDULER_ENABLED` | No | Set to `false` to stop all scheduled jobs. Buttons keep working |
+| `SCHEDULE_GSC_SYNC_HOURS` | No | Hours between GSC syncs of a site (default `24`, `0` turns them off) |
+| `SCHEDULE_BING_SYNC_HOURS` | No | Hours between Bing syncs of a site (default `24`, `0` turns them off) |
+| `SCHEDULE_CRAWL_DAYS` | No | Days between scheduled crawls of a site (default `7`, `0` turns them off). Docker only |
+| `SCHEDULE_VITALS_DAYS` | No | Days between scheduled vitals checks of a site (default `7`, `0` turns them off). Docker only |
+| `CRON_SECRET` | Vercel | Protects `/api/cron/tick`. Without it the route refuses every request |
 
 ### The crawlseo.cloud card
 

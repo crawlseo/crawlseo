@@ -110,6 +110,41 @@ jobs:
           echo "--- smoke-app logs ---"
           docker logs smoke-app
           exit 1
+
+      # The worker service starts the same image with `node worker.cjs`. Its
+      # heartbeat row proves the bundle resolves its modules (Prisma included)
+      # inside the image and reaches the database the app migrated; a clean
+      # exit on SIGTERM proves the graceful stop removes it again.
+      - name: Worker smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke-worker --network smoke \
+            -e DATABASE_URL=postgresql://crawlseo:smoke@smoke-db:5432/crawlseo \
+            -e NEXTAUTH_SECRET=smoke-test-only \
+            -e WORKER_MODE=worker \
+            crawlseo-smoke:${{ github.sha }} node worker.cjs
+          rows() {
+            docker exec smoke-db psql -U crawlseo -d crawlseo -tAc \
+              "SELECT count(*) FROM \"WorkerHeartbeat\" WHERE mode = 'worker'"
+          }
+          for i in $(seq 1 30); do
+            [ "$(rows)" = "1" ] && break
+            sleep 2
+          done
+          if [ "$(rows)" != "1" ]; then
+            echo "::error::${{ matrix.arch }} worker did not register within 60s"
+            echo "--- smoke-worker logs ---"
+            docker logs smoke-worker
+            exit 1
+          fi
+          docker stop -t 30 smoke-worker
+          code=$(docker inspect -f '{{.State.ExitCode}}' smoke-worker)
+          docker logs smoke-worker
+          if [ "$code" != "0" ] || [ "$(rows)" != "0" ]; then
+            echo "::error::${{ matrix.arch }} worker did not stop cleanly (exit $code)"
+            exit 1
+          fi
+          echo "worker smoke test (${{ matrix.arch }}): OK"
       # ---------------------------------------------------------------------
 
       - name: Push image by digest

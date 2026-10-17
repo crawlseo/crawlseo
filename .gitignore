@@ -49,3 +49,6 @@ docs/launch/
 # playwright
 /test-results/
 /playwright-report/
+
+# worker bundle (npm run build:worker)
+/dist

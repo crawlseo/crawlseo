@@ -1,6 +1,12 @@
 {
   "framework": "nextjs",
   "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/tick",
+      "schedule": "0 5 * * *"
+    }
+  ],
   "functions": {
     "app/api/sites/[siteId]/crawl/route.ts": {
       "maxDuration": 300
@@ -15,6 +21,9 @@
       "maxDuration": 300
     },
     "app/api/bing/sync/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/tick/route.ts": {
       "maxDuration": 300
     }
   }

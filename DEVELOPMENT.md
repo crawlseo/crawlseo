@@ -77,6 +77,8 @@ src/
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm run worker` - Run the worker process from source (set `DATABASE_URL`)
+- `npm run build:worker` - Bundle the worker to `dist/worker.cjs` (the Docker image runs it as `worker.cjs`)
 
 ## Database
 
@@ -225,7 +227,9 @@ kill -9 <PID>
 ### Background jobs
 - Crawls, vitals checks, GSC and Bing syncs and alert evaluation run as jobs in a Postgres queue (`lib/jobs`, `Job` model)
 - Job types are registered in `lib/jobs/handlers.ts`: each declares its class (LONG or SHORT), attempts and permanent errors
-- `WORKER_MODE=inline` (the default) runs the queue in the app process
+- `WORKER_MODE=inline` (the default) runs the queue in the app process; `npm run dev` does that too
+- The worker process: `WORKER_MODE=worker npm run worker` (with `DATABASE_URL` set), and `WORKER_MODE=off` for the app
+- The scheduler (`lib/jobs/scheduler.ts`) runs in whichever process runs the queue, at most one pass per 10 minutes across processes
 
 ### GSC Data
 - Synced as a job
