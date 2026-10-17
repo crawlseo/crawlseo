@@ -77,3 +77,6 @@ export const RELEASED_MESSAGE =
 
 export const INTERRUPTED_JOB_MESSAGE =
   "Interrupted: the process running this job stopped responding";
+
+/** A LONG job interrupted on a serverless host, where nothing runs it again by itself. */
+export const INTERRUPTED_RUN_AGAIN_MESSAGE = "Interrupted. Run it again.";

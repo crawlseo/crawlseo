@@ -5,26 +5,50 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 
 const { SyncButton, syncJobOutcome, syncOutcome } = await import("./sync-button");
+type JobView = import("@/lib/jobs/client").JobView;
 const { PageHeader } = await import("@/components/ui/page-header");
+
+const job = (over: Partial<JobView>): JobView => ({
+  id: "j1",
+  type: "gsc-sync",
+  status: "QUEUED",
+  attempts: 0,
+  maxAttempts: 3,
+  runAt: "2026-10-17T12:05:00.000Z",
+  startedAt: null,
+  finishedAt: null,
+  lastError: null,
+  errorCode: null,
+  result: null,
+  crawl: null,
+  stalled: false,
+  waiting: false,
+  nextAttemptAt: null,
+  ...over,
+});
 
 describe("syncJobOutcome", () => {
   it("reads a finished sync job like the old response", () => {
-    expect(
-      syncJobOutcome({ status: "SUCCEEDED", result: { keywordsInserted: 3, pagesInserted: 2 }, lastError: null, errorCode: null })
-    ).toEqual({ tone: "success", text: "Synced 3 keywords · 2 pages" });
+    expect(syncJobOutcome(job({ status: "SUCCEEDED", result: { keywordsInserted: 3, pagesInserted: 2 } }))).toEqual({
+      tone: "success",
+      text: "Synced 3 keywords · 2 pages",
+    });
   });
 
   it("maps an expired Google token to the reconnect prompt", () => {
-    expect(
-      syncJobOutcome({ status: "FAILED", result: null, lastError: "Google access expired", errorCode: "REAUTH_REQUIRED" }).tone
-    ).toBe("reauth");
+    expect(syncJobOutcome(job({ status: "FAILED", lastError: "Google access expired", errorCode: "REAUTH_REQUIRED" })).tone).toBe("reauth");
   });
 
   it("shows the job's error otherwise", () => {
-    expect(syncJobOutcome({ status: "FAILED", result: null, lastError: "socket hang up", errorCode: null })).toEqual({
-      tone: "error",
-      text: "socket hang up",
-    });
+    expect(syncJobOutcome(job({ status: "FAILED", lastError: "socket hang up" }))).toEqual({ tone: "error", text: "socket hang up" });
+  });
+
+  it("a sync waiting for an attempt nothing will start stops spinning and offers a retry", () => {
+    const outcome = syncJobOutcome(
+      job({ attempts: 1, lastError: "socket hang up", waiting: true, nextAttemptAt: "2026-10-17T12:05:00.000Z" })
+    );
+    expect(outcome.tone).toBe("waiting");
+    expect(outcome.text).toMatch(/^Attempt 1 of 3 failed: socket hang up\. Next attempt at 17 Oct 12:05\b.*, or retry now\.$/);
   });
 });
 

@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { hostname } from "os";
 import type { Job, Prisma, PrismaClient } from "@prisma/client";
+import { isServerless } from "./config";
 import { getJobHandler } from "./handlers";
 import {
   enqueueJob,
@@ -114,7 +115,10 @@ export class JobRunner {
     }
 
     const failure = { message: errorMessage(err), code: err instanceof JobError ? err.code : undefined };
-    if (handler.isPermanent(err) || job.attempts >= job.maxAttempts) {
+    // On a serverless host nothing runs a LONG job later; a queued one would
+    // only block the next request for it.
+    const noLaterRun = handler.class === "LONG" && isServerless();
+    if (handler.isPermanent(err) || job.attempts >= job.maxAttempts || noLaterRun) {
       const ok = await markFailed(this.db, job, this.workerId, failure);
       this.log(`${job.type} ${job.id} failed (attempt ${job.attempts}/${job.maxAttempts}): ${failure.message}`);
       return ok ? "failed" : "lost";

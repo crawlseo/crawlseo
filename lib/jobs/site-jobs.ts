@@ -1,4 +1,4 @@
-import type { Job, PrismaClient } from "@prisma/client";
+import type { Job, Prisma, PrismaClient } from "@prisma/client";
 import { recoverStaleCrawls } from "@/lib/crawler/lifecycle";
 import { isServerless } from "./config";
 import { CRAWL_JOB } from "./handlers";
@@ -18,11 +18,28 @@ export type CrawlRequest =
   | { status: "active"; job: Job }
   | { status: "refused"; reason: string; httpStatus: number };
 
+const isPerson = (source: JobSource) => source === "manual" || source === "mcp";
+
+/**
+ * A person asked for work that is already waiting in the queue (scheduled, or
+ * in backoff after a failed attempt): it runs now, before scheduled work, and
+ * a crawl uses the page count they asked for. Only while it is still QUEUED;
+ * a running job is left alone.
+ */
+async function takeOver(db: Db, job: Job, payload?: Prisma.InputJsonValue): Promise<Job> {
+  const { count } = await db.job.updateMany({
+    where: { id: job.id, status: "QUEUED" },
+    data: { priority: MANUAL_PRIORITY, runAt: new Date(), ...(payload !== undefined && { payload }) },
+  });
+  return count === 1 ? db.job.findUniqueOrThrow({ where: { id: job.id } }) : job;
+}
+
 /**
  * The one way to ask for a crawl (crawl route, MCP, scheduler): clamp the page
  * count, ask the policy, then queue a crawl job. A crawl job already queued or
- * running for the site is returned instead (`active`). A job whose process
- * died does not count: it is recovered first (#57).
+ * running for the site is returned instead (`active`); a person's request
+ * takes over a queued one (takeOver). A job whose process died does not
+ * count: it is recovered first (#57).
  */
 export async function requestCrawl(
   db: Db,
@@ -41,7 +58,8 @@ export async function requestCrawl(
     payload: { maxPages },
     priority: opts.source === "schedule" ? 0 : MANUAL_PRIORITY,
   });
-  return created ? { status: "queued", job, maxPages } : { status: "active", job };
+  if (created) return { status: "queued", job, maxPages };
+  return { status: "active", job: isPerson(opts.source) ? await takeOver(db, job, { maxPages }) : job };
 }
 
 /** Queues a job of another type for a site, or returns the active one. */
@@ -50,12 +68,14 @@ export async function requestSiteJob(
   opts: { type: string; siteId: string; source: JobSource }
 ): Promise<{ job: Job; created: boolean }> {
   await recoverStaleJobs(db, { siteId: opts.siteId });
-  return enqueueJob(db, {
+  const result = await enqueueJob(db, {
     type: opts.type,
     siteId: opts.siteId,
     source: opts.source,
-    priority: opts.source === "schedule" || opts.source === "chain" ? 0 : MANUAL_PRIORITY,
+    priority: isPerson(opts.source) ? MANUAL_PRIORITY : 0,
   });
+  if (result.created || !isPerson(opts.source)) return result;
+  return { job: await takeOver(db, result.job), created: false };
 }
 
 /**
@@ -91,6 +111,9 @@ export async function getCrawlActivity(db: Db, siteId: string, lastCompletedAt: 
 /** A queued job that waits this long with no process seen picking jobs up counts as stalled. */
 export const STALLED_AFTER_MS = 2 * 60_000;
 
+/** A running job sends a heartbeat every 15 s; this many missed ones count as stalled. */
+export const HEARTBEAT_LATE_MS = 60_000;
+
 /** Whether any process that runs jobs sent a heartbeat recently. */
 export async function workerSeen(db: Db, now: Date = new Date()): Promise<boolean> {
   const n = await db.workerHeartbeat.count({
@@ -121,8 +144,19 @@ export type JobView = {
     error: string | null;
     finishedAt: string | null;
   } | null;
-  /** Queued for a while and no process is picking jobs up: the worker is probably not running. */
+  /**
+   * Nothing is moving it: queued for a while with no process picking jobs up
+   * (the worker is probably not running), or running with no heartbeat for a
+   * while (its process is probably gone; recovery takes it back).
+   */
   stalled: boolean;
+  /**
+   * An attempt failed and the next one is due at `nextAttemptAt`, but no
+   * process will start it (serverless host, or no worker). The UI stops
+   * waiting and offers to retry now.
+   */
+  waiting: boolean;
+  nextAttemptAt: string | null;
 };
 
 /** The job as the UI sees it, and its site (for the ownership check). */
@@ -149,9 +183,13 @@ export async function jobView(
   });
   if (!job) return null;
 
-  const waiting = job.status === "QUEUED" && job.runAt.getTime() < now.getTime() - STALLED_AFTER_MS;
+  const t = now.getTime();
+  const seen = isServerless() ? false : await workerSeen(db, now);
   // On a serverless host no process polls; queued jobs wait for a request or the cron.
-  const stalled = waiting && !isServerless() && !(await workerSeen(db, now));
+  const queuedTooLong = job.status === "QUEUED" && job.runAt.getTime() < t - STALLED_AFTER_MS && !isServerless() && !seen;
+  const heartbeatGone =
+    job.status === "RUNNING" && (job.heartbeatAt ?? job.lockedAt ?? job.startedAt ?? now).getTime() < t - HEARTBEAT_LATE_MS;
+  const waiting = job.status === "QUEUED" && job.attempts > 0 && job.runAt.getTime() > t && !seen;
 
   const view: JobView = {
     id: job.id,
@@ -169,7 +207,9 @@ export async function jobView(
       ...job.crawl,
       finishedAt: job.crawl.finishedAt?.toISOString() ?? null,
     },
-    stalled,
+    stalled: queuedTooLong || heartbeatGone,
+    waiting,
+    nextAttemptAt: waiting ? job.runAt.toISOString() : null,
   };
   return { siteId: job.siteId, view };
 }

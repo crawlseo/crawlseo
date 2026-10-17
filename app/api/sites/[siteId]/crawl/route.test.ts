@@ -100,23 +100,41 @@ describe("POST /api/sites/[siteId]/crawl", () => {
     expect(after).not.toHaveBeenCalled();
   });
 
-  it("a crawl job queued or running returns 409 with its job id", async () => {
-    const first = (await (await runCrawl()).json()) as { jobId: string };
+  it("a crawl job already queued runs next with the new page limit (202, alreadyActive)", async () => {
+    const first = (await (await runCrawl(30)).json()) as { jobId: string };
+    await db.job.update({ where: { id: first.jobId }, data: { priority: 0 } }); // e.g. a scheduled one
+    const res = await runCrawl(80);
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ jobId: first.jobId, status: "QUEUED", maxPages: 80, alreadyActive: true });
+    expect(await db.job.findUniqueOrThrow({ where: { id: first.jobId } })).toMatchObject({ priority: 10, payload: { maxPages: 80 } });
+    expect(await db.job.count()).toBe(1);
+  });
+
+  it("a person's request runs a crawl job waiting in backoff now", async () => {
+    const first = (await (await runCrawl(30)).json()) as { jobId: string };
+    const later = new Date(Date.now() + 25 * 60_000);
+    await db.job.update({ where: { id: first.jobId }, data: { runAt: later, attempts: 1, lastError: "timeout" } });
+
+    const before = Date.now();
+    expect((await runCrawl(30)).status).toBe(202);
+    const row = await db.job.findUniqueOrThrow({ where: { id: first.jobId } });
+    expect(row.runAt.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(row.runAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  it("a running crawl job returns 409 with its job id", async () => {
+    const job = await runningCrawlJob({ heartbeatAt: new Date(), attempts: 1 });
     const res = await runCrawl();
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: "A crawl is already queued or running",
-      jobId: first.jobId,
-      crawlId: null,
-    });
-    expect(await db.job.count()).toBe(1);
+    expect(await res.json()).toEqual({ error: "A crawl is already running", jobId: job.id, crawlId: "c-old" });
   });
 
   it("#57: a crawl job whose process died is queued again; its crawl row is marked failed", async () => {
     const stuck = await runningCrawlJob({ heartbeatAt: new Date(Date.now() - 3 * HOUR), attempts: 1 });
 
     const res = await runCrawl();
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ jobId: stuck.id, alreadyActive: true });
     const job = await db.job.findUniqueOrThrow({ where: { id: stuck.id } });
     expect(job.status).toBe("QUEUED");
     expect(job.errorCode).toBe("INTERRUPTED");
@@ -143,7 +161,7 @@ describe("POST /api/sites/[siteId]/crawl", () => {
     expect(after).toHaveBeenCalledTimes(1);
   });
 
-  it("on a serverless host a crawl job left queued is run by the next request instead of blocking it", async () => {
+  it("on a serverless host a crawl job left queued is run by the next request", async () => {
     vi.stubEnv("VERCEL", "1");
     const first = (await (await runCrawl()).json()) as { jobId: string };
     after.mockClear();

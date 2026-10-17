@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { visibleIssueFilter } from "@/lib/crawler/issue-filter";
-import { isServerless, workerMode } from "@/lib/jobs/config";
 import { dispatchJob } from "@/lib/jobs/dispatch";
 import { requestCrawl } from "@/lib/jobs/site-jobs";
 
@@ -47,14 +46,13 @@ export async function POST(
       return Response.json({ error: result.reason }, { status: result.httpStatus });
     }
 
-    // One crawl per site at a time. On a serverless host nothing polls the
-    // queue, so a crawl job left QUEUED there is run by this request instead
-    // of blocking every new one.
+    // One crawl per site at a time. A crawl job that is only queued (scheduled,
+    // or waiting to retry) now runs next with this request's page count; on a
+    // serverless host, where nothing polls the queue, this request runs it.
     const { job } = result;
-    const runsHere = job.status === "QUEUED" && workerMode() === "inline" && isServerless();
-    if (result.status === "active" && !runsHere) {
+    if (result.status === "active" && job.status === "RUNNING") {
       return Response.json(
-        { error: "A crawl is already queued or running", jobId: job.id, crawlId: job.crawlId },
+        { error: "A crawl is already running", jobId: job.id, crawlId: job.crawlId },
         { status: 409 }
       );
     }

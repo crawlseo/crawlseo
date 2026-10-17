@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFinished, pendingNote, type JobView } from "./client";
+import { isFinished, isSettled, pendingNote, type JobView } from "./client";
 
 const base: JobView = {
   id: "j1",
@@ -15,6 +15,8 @@ const base: JobView = {
   result: null,
   crawl: null,
   stalled: false,
+  waiting: false,
+  nextAttemptAt: null,
 };
 
 describe("job client helpers", () => {
@@ -38,5 +40,14 @@ describe("job client helpers", () => {
     const note = pendingNote({ ...base, attempts: 1, lastError: "socket hang up" });
     expect(note).toContain("Attempt 1 of 3 failed: socket hang up.");
     expect(note).toContain("Trying again at 17 Oct 12:05");
+  });
+
+  it("stops waiting for a job that waits for an attempt nothing will start, and says when it is due", () => {
+    const waiting = { ...base, attempts: 2, lastError: "timeout", waiting: true, nextAttemptAt: "2026-10-17T12:30:00.000Z" };
+    expect(isSettled(waiting)).toBe(true);
+    expect(isSettled(base)).toBe(false);
+    const note = pendingNote(waiting)!;
+    expect(note).toMatch(/^Attempt 2 of 3 failed: timeout\. Next attempt at 17 Oct 12:30\b/);
+    expect(note).toMatch(/, or retry now\.$/);
   });
 });

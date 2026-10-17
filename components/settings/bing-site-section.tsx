@@ -32,6 +32,7 @@ export function BingSiteSection({
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
 
   async function loadSites() {
     setLoading(true);
@@ -86,6 +87,7 @@ export function BingSiteSection({
     setSyncing(true);
     setError(null);
     setMessage(null);
+    setCanRetry(false);
 
     try {
       const res = await fetch("/api/bing/sync", {
@@ -99,6 +101,12 @@ export function BingSiteSection({
       const job = await waitForJob(queued.jobId, {
         onUpdate: (j) => setMessage(pendingNote(j) ?? (j.status === "RUNNING" ? "Syncing…" : "Queued…")),
       });
+      if (job.waiting) {
+        setMessage(null);
+        setError(pendingNote(job));
+        setCanRetry(true);
+        return;
+      }
       if (job.status === "FAILED") throw new Error(job.lastError || "Sync failed");
       const data = (job.result ?? {}) as {
         daysUpserted?: number;
@@ -194,7 +202,19 @@ export function BingSiteSection({
         </div>
 
         {message && <p className="text-xs text-success">{message}</p>}
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && (
+          <p className="text-xs text-danger">
+            {error}
+            {canRetry && (
+              <>
+                {" "}
+                <button type="button" onClick={() => void handleSync()} className="text-link font-medium">
+                  Retry
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

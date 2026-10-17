@@ -272,4 +272,28 @@ describe("recoverStaleJobs", () => {
     expect((await db.job.findUniqueOrThrow({ where: { id: job.id } })).status).toBe("RUNNING");
     spy.mockRestore();
   });
+
+  it("on a serverless host a dead LONG job fails instead of holding the site's slot", async () => {
+    const job = await running("s1", "q-long", at(-10 * MIN), 1);
+    const short = await running("s2", "q-short", at(-10 * MIN), 1);
+    expect(await recoverStaleJobs(db, { now: at(0), staleMs: 3 * MIN, requeueLong: false })).toEqual({ requeued: 1, failed: 1 });
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({
+      status: "FAILED",
+      activeKey: null,
+      lastError: "Interrupted. Run it again.",
+    });
+    expect((await db.job.findUniqueOrThrow({ where: { id: short.id } })).status).toBe("QUEUED");
+  });
+
+  it("decides that from VERCEL by default", async () => {
+    vi.stubEnv("VERCEL", "1");
+    try {
+      const job = await running("s1", "q-long", at(-10 * MIN), 1);
+      await recoverStaleJobs(db, { now: at(0), staleMs: 3 * MIN });
+      expect((await db.job.findUniqueOrThrow({ where: { id: job.id } })).status).toBe("FAILED");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
+

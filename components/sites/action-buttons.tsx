@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -91,7 +91,11 @@ export function CrawlButton({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Crawl failed");
       // The crawl page shows the queued job and its progress from here on.
-      setMsg(`Crawl queued (${data.maxPages} pages max)`);
+      setMsg(
+        data.alreadyActive
+          ? `A crawl was already queued; it runs next (${data.maxPages} pages max)`
+          : `Crawl queued (${data.maxPages} pages max)`
+      );
       router.refresh();
     } catch (e) {
       setErr(true);
@@ -157,9 +161,22 @@ export function CrawlButton({
 
 type VitalsStatus =
   | { kind: "ok" | "error"; text: string }
+  | { kind: "waiting"; text: string }
   | { kind: "quota" };
 
-export function VitalsStatusMessage({ status }: { status: VitalsStatus }) {
+export function VitalsStatusMessage({ status, onRetry }: { status: VitalsStatus; onRetry?: () => void }) {
+  if (status.kind === "waiting") {
+    return (
+      <p role="status" className="max-w-2xl break-words text-atom-caption text-warning">
+        {status.text}{" "}
+        {onRetry && (
+          <button type="button" onClick={onRetry} className="text-link font-medium">
+            Retry
+          </button>
+        )}
+      </p>
+    );
+  }
   if (status.kind === "quota") {
     return (
       <p role="alert" className="max-w-2xl text-atom-caption text-danger">
@@ -194,17 +211,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
   const [loading, setLoading] = useState<false | "queued" | "running">(false);
   const [status, setStatus] = useState<VitalsStatus | null>(null);
 
-  // Inside a PageHeader the message goes on its own full-width row under the
-  // header; next to the button it would squeeze the title column.
-  useEffect(() => {
-    if (!setHeaderStatus) return;
-    setHeaderStatus(
-      status ? <VitalsStatusMessage status={status} /> : null
-    );
-  }, [setHeaderStatus, siteId, status]);
-  useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
-
-  async function run() {
+  const run = useCallback(async () => {
     setLoading("queued");
     setStatus(null);
     try {
@@ -219,6 +226,10 @@ export function VitalsButton({ siteId }: { siteId: string }) {
           setStatus(note ? { kind: "ok", text: note } : null);
         },
       });
+      if (job.waiting) {
+        setStatus({ kind: "waiting", text: pendingNote(job) ?? "Vitals failed, retry now." });
+        return;
+      }
       if (job.errorCode === "QUOTA_EXCEEDED") {
         setStatus({ kind: "quota" });
         return;
@@ -232,7 +243,17 @@ export function VitalsButton({ siteId }: { siteId: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [siteId, router]);
+
+  // Inside a PageHeader the message goes on its own full-width row under the
+  // header; next to the button it would squeeze the title column.
+  useEffect(() => {
+    if (!setHeaderStatus) return;
+    setHeaderStatus(
+      status ? <VitalsStatusMessage status={status} onRetry={() => void run()} /> : null
+    );
+  }, [setHeaderStatus, status, run]);
+  useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
 
   return (
     <div className="space-y-1">
@@ -240,7 +261,7 @@ export function VitalsButton({ siteId }: { siteId: string }) {
         {loading === "queued" ? "Queued…" : loading ? "Checking…" : "Check vitals"}
       </Button>
       {status && !setHeaderStatus && (
-        <VitalsStatusMessage status={status} />
+        <VitalsStatusMessage status={status} onRetry={() => void run()} />
       )}
     </div>
   );

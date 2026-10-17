@@ -21,7 +21,12 @@ export async function fetchJob(jobId: string): Promise<JobView | null> {
   return (await res.json()) as JobView;
 }
 
-/** Polls until the job succeeded or failed. `onUpdate` sees every state on the way. */
+/** Done waiting: it finished, or it waits for an attempt that nothing will start (see JobView.waiting). */
+export function isSettled(job: Pick<JobView, "status" | "waiting">): boolean {
+  return isFinished(job) || job.waiting;
+}
+
+/** Polls until the job succeeded, failed, or waits with nothing to run it. `onUpdate` sees every state on the way. */
 export async function waitForJob(
   jobId: string,
   { onUpdate, intervalMs = JOB_POLL_MS }: { onUpdate?: (job: JobView) => void; intervalMs?: number } = {}
@@ -33,7 +38,7 @@ export async function waitForJob(
     });
     if (job) {
       onUpdate?.(job);
-      if (isFinished(job)) return job;
+      if (isSettled(job)) return job;
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
@@ -46,6 +51,12 @@ export async function waitForJob(
 export function pendingNote(job: JobView): string | null {
   if (job.stalled) {
     return "Queued, but no worker is processing jobs. Check that the worker service is running.";
+  }
+  if (job.waiting) {
+    return (
+      `Attempt ${job.attempts} of ${job.maxAttempts} failed: ${job.lastError ?? "unknown error"}. ` +
+      `Next attempt at ${formatDay(job.nextAttemptAt ?? job.runAt, { time: true })}, or retry now.`
+    );
   }
   if (job.status === "QUEUED" && job.attempts > 0 && job.lastError) {
     return (

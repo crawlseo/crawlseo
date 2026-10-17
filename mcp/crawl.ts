@@ -3,10 +3,12 @@ import { recoverStaleCrawls } from "../lib/crawler/lifecycle";
 import { CRAWL_JOB } from "../lib/jobs/handlers";
 import { recoverStaleJobs } from "../lib/jobs/queue";
 import { requestCrawl } from "../lib/jobs/site-jobs";
+import { runHereIfNoWorker } from "../lib/jobs/standalone";
 
 // The run_crawl and get_crawl_status tools. run_crawl queues a crawl job with
-// the same rules as the web app (lib/jobs/site-jobs.ts requestCrawl); the app
-// (WORKER_MODE=inline) or the worker runs it. The MCP server never runs jobs.
+// the same rules as the web app (lib/jobs/site-jobs.ts requestCrawl). The app
+// (WORKER_MODE=inline) or the worker runs it; when neither is seen, this MCP
+// process runs it itself (runHereIfNoWorker).
 
 type Db = PrismaClient;
 
@@ -22,16 +24,25 @@ export async function runCrawl(
 
   const result = await requestCrawl(db, site, { maxPages, source: "mcp" });
   if (result.status === "refused") return `Crawl not started: ${result.reason}`;
-  if (result.status === "active") {
+  if (result.status === "active" && result.job.status === "RUNNING") {
     return (
-      `A crawl is already ${result.job.status === "QUEUED" ? "queued" : "running"} for ${site.domain}.\n` +
+      `A crawl is already running for ${site.domain}.\n` +
       `Job ID: ${result.job.id}\n\n` +
       `Use get_crawl_status with the job ID to check progress.`
     );
   }
+
+  const here = await runHereIfNoWorker(db, result.job, { log: (m) => console.error(m) });
+  const pages = (result.job.payload as { maxPages?: number } | null)?.maxPages;
+  const head =
+    result.status === "active"
+      ? `A crawl was already queued for ${site.domain}; it now runs next with this page limit.`
+      : "Crawl queued.";
   return (
-    `Crawl queued.\nJob ID: ${result.job.id}\nPage limit: ${result.maxPages}\n\n` +
-    `It runs when the crawlseo app or its worker picks it up. ` +
+    `${head}\nJob ID: ${result.job.id}\nPage limit: ${pages}\n\n` +
+    (here
+      ? "No crawlseo app or worker is running jobs, so this MCP server runs the crawl itself. Keep it running until the crawl is done. "
+      : "It runs when the crawlseo app or its worker picks it up. ") +
     `Use get_crawl_status with the job ID to check progress.`
   );
 }

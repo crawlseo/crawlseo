@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { fetchJob, isFinished, pendingNote, type JobView } from "@/lib/jobs/client";
+import { fetchJob, isFinished, isSettled, pendingNote, type JobView } from "@/lib/jobs/client";
 import { CrawlFailedNotice } from "./crawl-failed-notice";
 
 /**
@@ -26,11 +26,13 @@ export function CrawlStatusPoller({ jobId, status }: { jobId: string; status: "Q
   }, [jobId, router]);
 
   const done = job ? isFinished(job) : false;
+  // Waiting for an attempt nothing will start: stop polling; Run crawl retries now.
+  const settled = job ? isSettled(job) : false;
 
   useEffect(() => {
     // Stop once the job has finished or failed (a job whose process died is
     // queued again or failed by recovery, #57).
-    if (done) return;
+    if (settled) return;
     // First poll right away (from a timer, so no state is set during the effect), then every 3 s.
     const first = setTimeout(poll, 0);
     const interval = setInterval(poll, 3000);
@@ -38,7 +40,7 @@ export function CrawlStatusPoller({ jobId, status }: { jobId: string; status: "Q
       clearTimeout(first);
       clearInterval(interval);
     };
-  }, [poll, done]);
+  }, [poll, settled]);
 
   if (job?.status === "FAILED") {
     return (

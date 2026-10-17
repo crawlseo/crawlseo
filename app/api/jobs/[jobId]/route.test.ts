@@ -37,7 +37,19 @@ beforeEach(async () => {
 
 const get = (jobId: string) => GET(new Request("http://localhost"), { params: Promise.resolve({ jobId }) });
 
-function job(siteId: string, data: Partial<{ runAt: Date; status: "QUEUED" | "FAILED"; errorCode: string; lastError: string }> = {}) {
+function job(
+  siteId: string,
+  data: Partial<{
+    runAt: Date;
+    status: "QUEUED" | "RUNNING" | "FAILED";
+    errorCode: string;
+    lastError: string;
+    attempts: number;
+    heartbeatAt: Date;
+    lockedBy: string;
+    activeKey: string;
+  }> = {}
+) {
   return db.job.create({ data: { siteId, type: "gsc-sync", source: "manual", maxAttempts: 3, ...data } });
 }
 
@@ -78,4 +90,40 @@ describe("GET /api/jobs/[jobId]", () => {
     const j = await job("s1", { runAt: new Date(Date.now() - 5 * 60_000) });
     expect((await (await get(j.id)).json()).stalled).toBe(false);
   });
+
+  it("reports a job waiting for an attempt nothing will start, with its next attempt time", async () => {
+    vi.stubEnv("VERCEL", "1");
+    const next = new Date(Date.now() + 25 * 60_000);
+    const j = await job("s1", { attempts: 1, lastError: "socket hang up", runAt: next });
+    expect(await (await get(j.id)).json()).toMatchObject({
+      status: "QUEUED",
+      waiting: true,
+      nextAttemptAt: next.toISOString(),
+      stalled: false,
+    });
+  });
+
+  it("does not report waiting while a process that runs jobs is seen", async () => {
+    await db.workerHeartbeat.create({
+      data: { id: "w2", mode: "worker", hostname: "h", version: "0", startedAt: new Date(), lastSeenAt: new Date() },
+    });
+    const j = await job("s1", { attempts: 1, lastError: "x", runAt: new Date(Date.now() + 60_000) });
+    expect(await (await get(j.id)).json()).toMatchObject({ waiting: false, nextAttemptAt: null });
+  });
+
+  it("recovers the site's dead jobs before answering", async () => {
+    const dead = new Date(Date.now() - 10 * 60_000);
+    const j = await job("s1", { status: "RUNNING", attempts: 1, heartbeatAt: dead, lockedBy: "gone", activeKey: "gsc-sync:s1" });
+    expect(await (await get(j.id)).json()).toMatchObject({ status: "QUEUED", errorCode: "INTERRUPTED" });
+  });
+
+  it("reports a running job with a late heartbeat as stalled", async () => {
+    const late = new Date(Date.now() - 90_000); // late, but not yet past JOB_STALE_SECONDS
+    const j = await job("s1", { status: "RUNNING", attempts: 1, heartbeatAt: late, lockedBy: "slow" });
+    expect(await (await get(j.id)).json()).toMatchObject({ status: "RUNNING", stalled: true });
+
+    await db.job.update({ where: { id: j.id }, data: { heartbeatAt: new Date() } });
+    expect((await (await get(j.id)).json()).stalled).toBe(false);
+  });
 });
+

@@ -24,6 +24,10 @@ let db: PrismaClient;
 const ran = vi.fn(async () => ({ ok: true }));
 registerJobHandler({ type: "d-test", class: "SHORT", maxAttempts: 1, isPermanent: () => false, followUps: () => ["d-next"], run: ran });
 registerJobHandler({ type: "d-next", class: "SHORT", maxAttempts: 1, isPermanent: () => false, run: async () => ({ next: true }) });
+const flaky = vi.fn<() => Promise<unknown>>();
+registerJobHandler({ type: "d-flaky", class: "SHORT", maxAttempts: 3, isPermanent: () => false, run: () => flaky() as never });
+const flakyLong = vi.fn<() => Promise<unknown>>();
+registerJobHandler({ type: "d-flaky-long", class: "LONG", maxAttempts: 2, isPermanent: () => false, run: () => flakyLong() as never });
 
 beforeAll(async () => {
   t = await createTestDb();
@@ -100,4 +104,41 @@ describe("runJobNow", () => {
     await runJobNow(db, job.id, { deadline: Date.now() + 270_000 });
     expect(ran).not.toHaveBeenCalled();
   });
+
+  it("retries a SHORT job inside the request while the budget allows", async () => {
+    flaky.mockRejectedValueOnce(new Error("socket hang up")).mockRejectedValueOnce(new Error("socket hang up")).mockResolvedValueOnce({ ok: 1 });
+    const sleep = vi.fn<(ms: number) => Promise<void>>(async () => {});
+    const { job } = await enqueueJob(db, { type: "d-flaky", siteId: "s1", source: "manual" });
+
+    await runJobNow(db, job.id, { deadline: Date.now() + 270_000, sleep });
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ status: "SUCCEEDED", attempts: 3 });
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([2_000, 10_000]);
+  });
+
+  it("leaves a SHORT job queued for its next attempt when the budget is spent", async () => {
+    flaky.mockRejectedValue(new Error("socket hang up"));
+    const sleep = vi.fn<(ms: number) => Promise<void>>(async () => {});
+    const { job } = await enqueueJob(db, { type: "d-flaky", siteId: "s1", source: "manual" });
+
+    await runJobNow(db, job.id, { deadline: Date.now() + 61_000, sleep });
+    const row = await db.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(row).toMatchObject({ status: "QUEUED", attempts: 1, lastError: "socket hang up" });
+    expect(row.runAt.getTime()).toBeGreaterThan(Date.now());
+    expect(sleep).not.toHaveBeenCalled();
+    flaky.mockReset();
+  });
+
+  it("on a serverless host a LONG job that fails is not left queued: it fails", async () => {
+    vi.stubEnv("VERCEL", "1");
+    flakyLong.mockRejectedValueOnce(new Error("timeout"));
+    const { job } = await enqueueJob(db, { type: "d-flaky-long", siteId: "s1", source: "manual" });
+    await runJobNow(db, job.id, { deadline: Date.now() + 270_000, sleep: async () => {} });
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({
+      status: "FAILED",
+      attempts: 1,
+      activeKey: null,
+      lastError: "timeout",
+    });
+  });
 });
+

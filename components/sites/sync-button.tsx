@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 
 export type SyncOutcome =
   | { tone: "success" | "empty" | "error"; text: string }
-  | { tone: "reauth"; text: string };
+  | { tone: "reauth"; text: string }
+  | { tone: "waiting"; text: string };
 
 type SyncResponse = {
   error?: string;
@@ -43,7 +44,9 @@ export function syncOutcome(status: number, data: SyncResponse): SyncOutcome {
 }
 
 /** The outcome of a finished sync job, in the same terms as the old synchronous response. */
-export function syncJobOutcome(job: Pick<JobView, "status" | "result" | "lastError" | "errorCode">): SyncOutcome {
+export function syncJobOutcome(job: JobView): SyncOutcome {
+  // An attempt failed and nothing will start the next one by itself.
+  if (job.waiting) return { tone: "waiting", text: pendingNote(job) ?? "Sync failed, retry now." };
   if (job.status === "SUCCEEDED") return syncOutcome(200, (job.result ?? {}) as SyncResponse);
   if (job.errorCode === "REAUTH_REQUIRED") return syncOutcome(401, { code: "REAUTH_REQUIRED" });
   return syncOutcome(500, { error: job.lastError ?? undefined });
@@ -54,6 +57,7 @@ const TONE: Record<SyncOutcome["tone"], string> = {
   empty: "text-muted-foreground",
   error: "text-danger",
   reauth: "text-warning",
+  waiting: "text-warning",
 };
 
 /**
@@ -83,7 +87,10 @@ export function SyncButton({
   const handleSync = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    await runSync();
+  };
 
+  const runSync = async () => {
     setLoading("queued");
     setOutcome(null);
 
@@ -123,6 +130,14 @@ export function SyncButton({
   const message = outcome && (
     <>
       {outcome.text}
+      {outcome.tone === "waiting" && (
+        <>
+          {" "}
+          <button type="button" onClick={() => void runSync()} className="text-link font-medium">
+            Retry
+          </button>
+        </>
+      )}
       {outcome.tone === "reauth" && (
         <>
           {" "}

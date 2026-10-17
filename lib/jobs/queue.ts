@@ -1,7 +1,7 @@
 import { Prisma, type Job, type PrismaClient } from "@prisma/client";
-import { queueConfig } from "./config";
+import { isServerless, queueConfig } from "./config";
 import { getJobHandler } from "./handlers";
-import { INTERRUPTED_JOB_MESSAGE, type JobSource } from "./types";
+import { INTERRUPTED_JOB_MESSAGE, INTERRUPTED_RUN_AGAIN_MESSAGE, type JobSource } from "./types";
 
 /*
  * The Postgres job queue. Every state change that a process makes to a job it
@@ -261,7 +261,7 @@ export async function releaseJob(
  */
 export async function recoverStaleJobs(
   db: Db,
-  opts: { now?: Date; staleMs?: number; siteId?: string; random?: () => number } = {}
+  opts: { now?: Date; staleMs?: number; siteId?: string; random?: () => number; requeueLong?: boolean } = {}
 ): Promise<{ requeued: number; failed: number }> {
   const now = opts.now ?? new Date();
   const cutoff = new Date(now.getTime() - (opts.staleMs ?? queueConfig().staleMs));
@@ -273,10 +273,15 @@ export async function recoverStaleJobs(
     },
   });
 
+  // On a serverless host nothing runs a LONG job later, so a queued one would
+  // only hold the site's slot: it fails, and the person runs it again.
+  const requeueLong = opts.requeueLong ?? !isServerless();
   let requeued = 0;
   let failed = 0;
   for (const job of stale) {
-    const retry = job.attempts < job.maxAttempts;
+    const isLong = getJobHandler(job.type)?.class === "LONG";
+    const retry = job.attempts < job.maxAttempts && (requeueLong || !isLong);
+    const message = !retry && isLong && !requeueLong ? INTERRUPTED_RUN_AGAIN_MESSAGE : INTERRUPTED_JOB_MESSAGE;
     const { count } = await db.job.updateMany({
       where: { id: job.id, status: "RUNNING", lockedBy: job.lockedBy, heartbeatAt: job.heartbeatAt },
       data: retry
@@ -286,7 +291,7 @@ export async function recoverStaleJobs(
             lockedBy: null,
             lockedAt: null,
             heartbeatAt: null,
-            lastError: INTERRUPTED_JOB_MESSAGE,
+            lastError: message,
             errorCode: "INTERRUPTED",
           }
         : {
@@ -294,7 +299,7 @@ export async function recoverStaleJobs(
             finishedAt: now,
             activeKey: null,
             heartbeatAt: null,
-            lastError: INTERRUPTED_JOB_MESSAGE,
+            lastError: message,
             errorCode: "INTERRUPTED",
           },
     });

@@ -7,6 +7,10 @@ import { requestSiteJob } from "@/lib/jobs/site-jobs";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 import { siteDomainFromProperty } from "@/lib/site-domain";
 
+// On a serverless host the first GSC sync runs after the response, within this
+// limit (SERVERLESS_MAX_DURATION_S in lib/jobs/config.ts; Next needs a literal here).
+export const maxDuration = 300;
+
 export async function GET() {
   try {
     const session = await auth();
@@ -115,11 +119,13 @@ export async function POST(req: Request) {
     await ensureDefaultAlerts(session.user.id, site.id);
 
     // The first GSC sync runs as a job, so the response does not wait for it.
-    try {
-      const { job } = await requestSiteJob(db, { type: GSC_SYNC_JOB, siteId: site.id, source: "site-added" });
-      dispatchJob(db, job);
-    } catch (err) {
-      console.error("Could not queue the initial GSC sync:", err);
+    if (site.gscProperty) {
+      try {
+        const { job } = await requestSiteJob(db, { type: GSC_SYNC_JOB, siteId: site.id, source: "site-added" });
+        dispatchJob(db, job);
+      } catch (err) {
+        console.error("Could not queue the initial GSC sync:", err);
+      }
     }
 
     return Response.json(site, { status: 201 });
