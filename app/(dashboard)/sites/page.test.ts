@@ -52,7 +52,9 @@ vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 vi.mock("@/components/sites/add-site-modal", () => ({
   AddSiteModal: ({ triggerLabel = "Add site" }: { triggerLabel?: string }) => `[add-site:${triggerLabel}]`,
 }));
-vi.mock("@/components/sites/sync-button", () => ({ SyncButton: () => null }));
+vi.mock("@/components/sites/sync-button", () => ({
+  SyncButton: ({ variant, size }: { variant?: string; size?: string }) => `[sync:${variant ?? "default"}:${size ?? "default"}]`,
+}));
 
 import AllSitesPage from "./page";
 
@@ -72,6 +74,9 @@ describe("All sites home", () => {
     expect(html).toContain("1.2K keyword rows");
     expect(html).toContain("3 crawls");
     expect(html).toContain("[add-site:Add site]");
+    // ADD SITE is the only primary button: Sync GSC on a card is small and outlined.
+    expect(html).toContain("[sync:outline:sm]");
+    expect(html).not.toContain("[sync:default");
   });
 
   it("keeps the illustrated empty state with the add-site action when there are no sites", async () => {

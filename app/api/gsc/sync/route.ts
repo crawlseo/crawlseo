@@ -41,6 +41,9 @@ export async function POST(req: Request) {
       success: true,
       keywordsInserted: result.keywordsInserted,
       pagesInserted: result.pagesInserted,
+      // The window that was asked for, so an empty result can say which days were empty.
+      startDate: result.startDate,
+      endDate: result.endDate,
     });
   } catch (error) {
     if (error instanceof ReauthRequiredError) {

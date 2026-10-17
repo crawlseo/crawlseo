@@ -157,7 +157,7 @@ export default async function AllSitesPage() {
             </Link>
 
             <div className="mt-4 border-t border-border pt-4">
-              <SyncButton siteId={site.id} fullWidth />
+              <SyncButton siteId={site.id} variant="outline" size="sm" messageSide="end" />
             </div>
           </div>
         ))}

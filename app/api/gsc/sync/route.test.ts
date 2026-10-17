@@ -117,7 +117,13 @@ describe("POST /api/gsc/sync", () => {
   it("keeps its response shape", async () => {
     const res = await POST(syncRequest());
 
-    expect(await res.json()).toEqual({ success: true, keywordsInserted: 1, pagesInserted: 1 });
+    expect(await res.json()).toEqual({
+      success: true,
+      keywordsInserted: 1,
+      pagesInserted: 1,
+      startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
   });
 
   it("still rejects a site owned by someone else without fetching", async () => {

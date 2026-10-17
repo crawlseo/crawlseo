@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { Dialog } from "@base-ui/react/dialog";
+import { AddSiteModal } from "@/components/sites/add-site-modal";
 import {
   Globe,
   Link2,
@@ -40,6 +42,8 @@ export function OnboardingChecklist({
   firstSiteId,
 }: OnboardingChecklistProps) {
   const [dismissed, setDismissed] = useState(false);
+  // With no site yet, "Add site" opens the add-site dialog here instead of linking away.
+  const [addSite] = useState(() => Dialog.createHandle());
 
   const allDone = hasSites && hasGscConnected && hasSyncedData && hasCrawled;
   if (allDone || dismissed) return null;
@@ -149,18 +153,30 @@ export function OnboardingChecklist({
               <p className="text-[13px] leading-5 text-muted-foreground">{step.description}</p>
             </div>
 
-            {!step.done && (
-              <Link
-                href={step.href}
+            {!step.done && step.id === "add-site" ? (
+              <button
+                type="button"
+                onClick={() => addSite.open(null)}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 {step.actionLabel}
                 <ChevronRight className="size-3" aria-hidden />
-              </Link>
+              </button>
+            ) : (
+              !step.done && (
+                <Link
+                  href={step.href}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  {step.actionLabel}
+                  <ChevronRight className="size-3" aria-hidden />
+                </Link>
+              )
             )}
           </div>
         ))}
       </div>
+      {!hasSites && <AddSiteModal handle={addSite} />}
     </div>
   );
 }
