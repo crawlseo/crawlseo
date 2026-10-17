@@ -28,8 +28,7 @@ type NavItem = {
 };
 
 type NavGroup = {
-  /** Shown above the items; the first group has none, its items speak for themselves. */
-  label?: string;
+  label: string;
   items: NavItem[];
 };
 
@@ -44,13 +43,6 @@ export function SidebarNav({
   const match = pathname.match(/\/sites\/([^/]+)/);
   const activeSiteId =
     match?.[1] && sites.some((s) => s.id === match[1]) ? match[1] : undefined;
-
-  const overviewNav: NavGroup = {
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/sites", label: "Sites", icon: Globe, exact: true },
-    ],
-  };
 
   const workspaceNav: NavGroup | null = activeSiteId
     ? {
@@ -89,15 +81,19 @@ export function SidebarNav({
       }
     : null;
 
-  const groups = [overviewNav, workspaceNav, researchNav, connectNav].filter(
+  // The home (All sites, or any page outside a site) has no site groups: the
+  // workspace switcher above is the way into a site.
+  const groups = [workspaceNav, researchNav, connectNav].filter(
     (g): g is NavGroup => g !== null
   );
+
+  if (groups.length === 0) return null;
 
   return (
     <nav aria-label="Main" className={cn("flex flex-col gap-[22px]", collapsed && "items-center")}>
       {groups.map((group) => (
-        <div key={group.label ?? "main"} className="flex flex-col gap-0.5">
-          {!collapsed && group.label && (
+        <div key={group.label} className="flex flex-col gap-0.5">
+          {!collapsed && (
             <p className="px-2.5 pb-1.5 text-[12px] leading-4 text-muted-foreground">
               {group.label}
             </p>

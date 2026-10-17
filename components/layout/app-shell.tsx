@@ -9,6 +9,7 @@ import { Logo } from "@/components/brand/logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { CloudPromo } from "@/components/layout/cloud-promo";
 import { SiteSwitcher } from "@/components/sites/site-switcher";
+import { ALL_SITES_HREF } from "@/lib/site-routes";
 import { UserMenu } from "@/components/layout/user-menu";
 import type { AvailableUpdate } from "@/lib/update-check";
 import { PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
@@ -82,7 +83,7 @@ export function AppShell({ email, name, image, version, update, children, sites,
       <div className="flex flex-col gap-3.5">
         <div className={cn("flex items-center", collapsed ? "flex-col gap-3" : "justify-between")}>
           <Link
-            href="/dashboard"
+            href={ALL_SITES_HREF}
             aria-label="crawlseo"
             className={cn("flex h-8 items-center text-text-strong", !collapsed && "px-2.5")}
           >
@@ -102,7 +103,7 @@ export function AppShell({ email, name, image, version, update, children, sites,
             )}
           </button>
         </div>
-        {sites.length > 0 && !collapsed && <SiteSwitcher sites={sites} />}
+        <SiteSwitcher sites={sites} collapsed={collapsed} />
       </div>
 
       <SidebarNav sites={sites} collapsed={collapsed} />
@@ -170,7 +171,7 @@ export function AppShell({ email, name, image, version, update, children, sites,
         {/* Mobile top bar */}
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-bg px-3 md:hidden">
           <Link
-            href="/dashboard"
+            href={ALL_SITES_HREF}
             aria-label="crawlseo"
             className="flex h-11 items-center px-2 text-text-strong"
           >

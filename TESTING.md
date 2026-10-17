@@ -109,8 +109,8 @@
   - [ ] All elements aligned properly
 
 - [ ] **Main navigation**
-  - [ ] "Overview" link navigates to /dashboard
-  - [ ] "Sites" link navigates to /sites
+  - [ ] Workspace switcher: "All sites" navigates to /sites, a site keeps the open sub-page
+  - [ ] /dashboard answers 308 to /sites
   - [ ] Active page highlighted
 
 - [ ] **Responsive Design**
@@ -121,7 +121,7 @@
 
 ### Protected Routes ✅
 - [ ] **Middleware works**
-  - [ ] Logged-out user trying to access /dashboard redirected to /login
+  - [ ] Logged-out user trying to access /dashboard lands on /login (308 to /sites first)
   - [ ] Logged-out user trying to access /sites redirected to /login
   - [ ] Login page accessible without auth
 

@@ -34,9 +34,11 @@ describe("Select triggers show labels, not raw values", () => {
   ];
 
   it("site switcher shows the domain of the site in the path", () => {
+    // The switcher is a menu now, not a Select; its trigger must still show the domain.
     const html = renderToString(createElement(SiteSwitcher, { sites }));
-    expect(triggerText(html)).toContain("b.example");
-    expect(triggerText(html)).not.toContain("site-b");
+    const trigger = html.match(/<button[^>]*aria-label="Workspace: [^"]*"[^>]*>([\s\S]*?)<\/button>/)?.[1] ?? "";
+    expect(trigger.replace(/<[^>]+>/g, "")).toContain("b.example");
+    expect(trigger).not.toContain("site-b");
   });
 
   it("crawl page-limit select shows the label of the default preset", () => {

@@ -37,7 +37,7 @@ export default async function LoginPage({
 }) {
   const session = await auth();
   if (session) {
-    redirect("/dashboard");
+    redirect("/sites");
   }
   const params = await searchParams;
   const error = errorMessage(params.error);
@@ -75,7 +75,7 @@ export default async function LoginPage({
             className="mt-6"
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/dashboard" });
+              await signIn("google", { redirectTo: "/sites" });
             }}
           >
             <Button type="submit" size="lg" className="w-full">

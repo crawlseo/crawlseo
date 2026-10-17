@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,8 +27,11 @@ interface GSCProperty {
 
 export function AddSiteModal({
   triggerLabel = "Add site",
+  handle,
 }: {
   triggerLabel?: string;
+  /** Opened from elsewhere (the workspace switcher): no button of its own. */
+  handle?: DialogPrimitive.Handle<unknown>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -118,8 +122,8 @@ export function AddSiteModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button />}>{triggerLabel}</DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange} handle={handle}>
+      {!handle && <DialogTrigger render={<Button />}>{triggerLabel}</DialogTrigger>}
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getSitePeriodMetrics, formatCompact } from "@/lib/seo-metrics";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ArrowRight } from "lucide-react";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
 import { SyncButton } from "@/components/sites/sync-button";
-import { formatCompact } from "@/lib/seo-metrics";
-import { formatDay } from "@/lib/format";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+import { formatDay, formatDeltaPercent } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
-export default async function SitesPage() {
+/** The home: onboarding, then every site with its last 28 days. */
+export default async function AllSitesPage() {
   const session = await auth();
 
   const sites = await db.site.findMany({
@@ -18,88 +22,179 @@ export default async function SitesPage() {
       domain: true,
       gscProperty: true,
       createdAt: true,
-      _count: {
-        select: {
-          keywords: true,
-          pages: true,
-          crawls: true,
-        },
-      },
+      _count: { select: { keywords: true, pages: true, crawls: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { domain: "asc" },
   });
+
+  // Search Console anonymises the query dimension on low-traffic sites, so a
+  // synced site can have pages but no keywords. Either one means data arrived.
+  const hasData = (s: (typeof sites)[number]) =>
+    s._count.keywords > 0 || s._count.pages > 0;
+
+  if (sites.length === 0) {
+    return (
+      <div>
+        <PageHeader
+          title="All sites"
+          description="Connect Google Search Console properties to track rankings, traffic, and opportunity."
+        />
+        <OnboardingChecklist
+          hasSites={false}
+          hasGscConnected={false}
+          hasSyncedData={false}
+          hasCrawled={false}
+        />
+        <EmptyState
+          illustration="empty-sites"
+          title="No sites connected"
+          description="Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally and asks for read-only access."
+          action={<AddSiteModal triggerLabel="Connect first site" />}
+        />
+      </div>
+    );
+  }
+
+  const siteCards = await Promise.all(
+    sites.map(async (site) => {
+      // Metrics are computed from the Page model (see seo-metrics), so a site
+      // whose sync stored pages but no keywords still has real data to show.
+      if (!hasData(site)) {
+        return {
+          site,
+          metrics: null as Awaited<ReturnType<typeof getSitePeriodMetrics>> | null,
+        };
+      }
+      try {
+        const metrics = await getSitePeriodMetrics(site.id, 28);
+        return { site, metrics };
+      } catch {
+        return { site, metrics: null };
+      }
+    })
+  );
 
   return (
     <div>
       <PageHeader
-        title="Sites"
-        description="Connect and sync Google Search Console properties."
+        title="All sites"
+        description={`${sites.length} site${sites.length === 1 ? "" : "s"} · last 28 days vs prior period`}
         actions={<AddSiteModal />}
       />
 
-      {sites.length === 0 ? (
-        <EmptyState
-          illustration="empty-sites"
-          title="Connect your first property"
-          description="Choose a domain or URL-prefix property from Search Console. crawlseo stores your metrics locally."
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sites.map((site) => (
-            <div key={site.id} className="panel flex h-full flex-col p-5">
-              <Link href={`/sites/${site.id}`} className="group block min-w-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="truncate font-data text-[17px] leading-6 font-medium text-text-strong decoration-brand-500 underline-offset-4 group-hover:underline">
-                      {site.domain}
-                    </h2>
-                    <p className="mt-1 truncate font-data text-xs text-muted-foreground">
-                      {site.gscProperty}
-                    </p>
-                  </div>
+      <OnboardingChecklist
+        hasSites
+        hasGscConnected={sites.some((s) => s.gscProperty)}
+        hasSyncedData={sites.some(hasData)}
+        hasCrawled={sites.some((s) => s._count.crawls > 0)}
+        firstSiteId={sites[0].id}
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {siteCards.map(({ site, metrics }) => (
+          <div key={site.id} className="panel flex h-full flex-col p-5">
+            <Link href={`/sites/${site.id}`} className="group block min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate font-data text-[17px] leading-6 font-medium text-text-strong decoration-brand-500 underline-offset-4 group-hover:underline">
+                    {site.domain}
+                  </h2>
+                  <p className="mt-0.5 truncate font-data text-[12px] text-muted-foreground">
+                    {site.gscProperty}
+                  </p>
                 </div>
-
-                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4">
-                  <MiniStat
-                    label="Keyword rows"
-                    value={formatCompact(site._count.keywords)}
-                  />
-                  <MiniStat
-                    label="Page rows"
-                    value={formatCompact(site._count.pages)}
-                  />
-                  <MiniStat
-                    label="Crawls"
-                    value={String(site._count.crawls)}
-                  />
-                </div>
-
-                <p className="mt-4 text-xs text-muted-foreground">
-                  Added{" "}
-                  {formatDay(site.createdAt, { year: true })}
-                </p>
-              </Link>
-
-              <div className="mt-4 border-t border-border pt-4">
-                <SyncButton siteId={site.id} fullWidth />
+                <ArrowRight
+                  aria-hidden
+                  className="mt-1 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-text-strong"
+                />
               </div>
+
+              {!metrics ? (
+                <div className="mt-5 rounded-md border border-dashed border-line-strong px-3 py-4 text-sm text-muted-foreground">
+                  Waiting for first GSC sync…
+                </div>
+              ) : (
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Stat
+                    label="Clicks"
+                    value={formatCompact(metrics.current.clicks)}
+                    delta={formatDeltaPercent(metrics.deltas.clicks)}
+                    positive={metrics.deltas.clicks >= 0}
+                  />
+                  <Stat
+                    label="Impressions"
+                    value={formatCompact(metrics.current.impressions)}
+                    delta={formatDeltaPercent(metrics.deltas.impressions)}
+                    positive={metrics.deltas.impressions >= 0}
+                  />
+                  <Stat
+                    label="Avg position"
+                    value={
+                      metrics.current.avgPosition > 0
+                        ? metrics.current.avgPosition.toFixed(1)
+                        : "n/a"
+                    }
+                    delta={
+                      metrics.deltas.avgPosition === 0
+                        ? "0"
+                        : `${metrics.deltas.avgPosition > 0 ? "+" : ""}${metrics.deltas.avgPosition.toFixed(1)}`
+                    }
+                    positive={metrics.deltas.avgPosition >= 0}
+                  />
+                  <Stat
+                    label="Keywords"
+                    value={metrics.current.uniqueKeywords.toLocaleString()}
+                  />
+                </div>
+              )}
+
+              <p className="mt-4 font-data text-[12px] text-muted-foreground">
+                {`${formatCompact(site._count.keywords)} keyword rows · ${formatCompact(site._count.pages)} page rows · ${site._count.crawls} crawl${site._count.crawls === 1 ? "" : "s"}`}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Added {formatDay(site.createdAt, { year: true })}
+              </p>
+            </Link>
+
+            <div className="mt-4 border-t border-border pt-4">
+              <SyncButton siteId={site.id} fullWidth />
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  delta,
+  positive,
+}: {
+  label: string;
+  value: string;
+  delta?: string;
+  positive?: boolean;
+}) {
   return (
-    <div>
+    <div className="rounded-md border border-border-soft bg-bg-soft px-3 py-2.5">
       <p className="mono-label text-[11px] text-muted-foreground">
         {label}
       </p>
-      <p className="font-data mt-0.5 text-[14px] font-medium text-text-strong">
-        {value}
-      </p>
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <p className="font-data text-[16px] font-medium text-text-strong">{value}</p>
+        {delta !== undefined && (
+          <span
+            className={cn(
+              "font-data text-[12px]",
+              positive ? "text-success" : "text-danger"
+            )}
+          >
+            {delta}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

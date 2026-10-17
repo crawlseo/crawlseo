@@ -17,6 +17,7 @@ export function EmptyState({
   description,
   actionLabel,
   actionHref,
+  action,
   icon: Icon = CircleDot,
   illustration,
   className,
@@ -25,6 +26,8 @@ export function EmptyState({
   description: string;
   actionLabel?: string;
   actionHref?: string;
+  /** A control in place of the link, such as a button that opens a dialog. */
+  action?: React.ReactNode;
   icon?: LucideIcon;
   /** Illustration file name or path; replaces the icon when set. */
   illustration?: string;
@@ -52,7 +55,9 @@ export function EmptyState({
       )}
       <h3 className="text-atom-subheader font-medium text-text-strong">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-atom-body text-muted-foreground">{description}</p>
-      {actionLabel && actionHref && (
+      {action ? (
+        <div className="mt-6 flex justify-center">{action}</div>
+      ) : actionLabel && actionHref && (
         <Link href={actionHref} className={cn(buttonVariants(), "mt-6")}>
           {actionLabel}
         </Link>

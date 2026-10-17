@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "crawlseo",
     short_name: "crawlseo",
     description: "Self-hosted SEO monitoring: GSC, crawl health, Core Web Vitals",
-    start_url: "/dashboard",
+    start_url: "/sites",
     display: "standalone",
     theme_color: "#FFFFFF",
     background_color: "#FFFFFF",
