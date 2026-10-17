@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { useHeaderStatus } from "@/components/ui/header-status";
 import { formatDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -48,10 +49,10 @@ const TONE: Record<SyncOutcome["tone"], string> = {
 };
 
 /**
- * Sync GSC with its result in a fixed slot beside the button, so a message
- * never moves the button or the layout around it. In a page header the slot
- * sits before the button (two lines); on a card, after it (three lines,
- * reserved).
+ * Sync GSC with its result in a fixed slot, so a message never moves the
+ * button or the layout around it. In a page header the message goes to the
+ * header's status row (PageHeader reserveStatus keeps that row's height); on a
+ * card it sits after the button (three lines, reserved).
  */
 export function SyncButton({
   siteId,
@@ -67,6 +68,7 @@ export function SyncButton({
   messageSide?: "start" | "end";
 }) {
   const router = useRouter();
+  const setHeaderStatus = useHeaderStatus();
   const [loading, setLoading] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
 
@@ -97,6 +99,46 @@ export function SyncButton({
     }
   };
 
+  const message = outcome && (
+    <>
+      {outcome.text}
+      {outcome.tone === "reauth" && (
+        <>
+          {" "}
+          <button type="button" onClick={() => signIn("google")} className="text-link font-medium">
+            Reconnect
+          </button>
+        </>
+      )}
+    </>
+  );
+
+  useEffect(() => {
+    if (!setHeaderStatus) return;
+    setHeaderStatus(
+      outcome ? (
+        <p
+          role="status"
+          title={outcome.text}
+          className={cn("line-clamp-2 text-[12px] leading-4 sm:line-clamp-1", TONE[outcome.tone])}
+        >
+          {message}
+        </p>
+      ) : null
+    );
+    // message is derived from outcome.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setHeaderStatus, outcome]);
+  useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
+
+  const button = (
+    <Button onClick={handleSync} disabled={loading} variant={variant} size={size} className={className}>
+      {loading ? "Syncing…" : "Sync GSC"}
+    </Button>
+  );
+
+  if (setHeaderStatus) return button;
+
   return (
     <div
       className={cn(
@@ -104,28 +146,18 @@ export function SyncButton({
         messageSide === "start" ? "flex-row-reverse items-center" : "flex-row items-start"
       )}
     >
-      <Button onClick={handleSync} disabled={loading} variant={variant} size={size} className={className}>
-        {loading ? "Syncing…" : "Sync GSC"}
-      </Button>
+      {button}
       <p
         role="status"
         title={outcome?.text}
         className={cn(
           "min-w-0 max-w-[340px] flex-1 text-[12px] leading-4",
-          // Header: two lines fit beside the 38px button. Card: three lines are always reserved under the top of the button.
+          // Beside the button: two lines fit the 38px height. Card: three lines are always reserved under the top of the button.
           messageSide === "start" ? "line-clamp-2 text-right" : "line-clamp-3 h-12",
           outcome && TONE[outcome.tone]
         )}
       >
-        {outcome?.text}
-        {outcome?.tone === "reauth" && (
-          <>
-            {" "}
-            <button type="button" onClick={() => signIn("google")} className="text-link font-medium">
-              Reconnect
-            </button>
-          </>
-        )}
+        {message}
       </p>
     </div>
   );

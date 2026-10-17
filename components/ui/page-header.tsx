@@ -10,6 +10,7 @@ export function PageHeader({
   meta,
   description,
   actions,
+  reserveStatus = false,
   className,
 }: {
   title: string;
@@ -18,11 +19,13 @@ export function PageHeader({
   /** A sentence of explanation in plain text. */
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  /** Always keep room for the status row, for headers whose actions report back (Sync GSC). */
+  reserveStatus?: boolean;
   className?: string;
 }) {
   return (
     <div className={cn("mb-6 sm:mb-[22px]", className)}>
-      <HeaderStatus>
+      <HeaderStatus reserve={reserveStatus}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-col gap-1.5">
             <h1 className="text-[26px] leading-[1.2] font-medium tracking-[-0.03em] break-words text-text-strong">

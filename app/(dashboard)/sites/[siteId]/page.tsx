@@ -74,6 +74,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
         title="Overview"
         meta="Last 28 days vs the previous 28 days"
         description={<span className="font-data">{site.gscProperty || site.domain}</span>}
+        reserveStatus
         actions={
           <>
             <SyncButton siteId={siteId} />

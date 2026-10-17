@@ -32,6 +32,7 @@ export default async function PagesPage({ params }: PagesPageProps) {
       <PageHeader
         title="Pages"
         description="Landing pages from Search Console, aggregated over the last 28 days."
+        reserveStatus
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <CsvExportButton siteId={siteId} type="pages" />

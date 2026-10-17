@@ -5,6 +5,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 
 const { SyncButton, syncOutcome } = await import("./sync-button");
+const { PageHeader } = await import("@/components/ui/page-header");
 
 describe("syncOutcome", () => {
   it("reports rows synced as a success", () => {
@@ -59,5 +60,21 @@ describe("SyncButton layout", () => {
     expect(html).toContain("h-8");
     expect(html).not.toContain("bg-button-primary");
     expect(html).not.toContain("w-full");
+  });
+
+  it("in a page header renders just the button and reserves the status row under the header", () => {
+    const html = renderToStaticMarkup(
+      <PageHeader title="Keywords" reserveStatus actions={<SyncButton siteId="s" />} />
+    );
+    // No message slot beside the button, so nothing in the actions row can grow.
+    expect(html).not.toContain('role="status"');
+    // The empty row keeps its height: two lines on phones, one from sm up.
+    expect(html).toContain('class="mt-3 space-y-1 min-h-8 sm:min-h-4"');
+  });
+
+  it("leaves headers without reserveStatus as they were", () => {
+    const html = renderToStaticMarkup(<PageHeader title="Settings" actions={<span>x</span>} />);
+    expect(html).not.toContain("min-h-8");
+    expect(html).not.toContain("mt-3");
   });
 });

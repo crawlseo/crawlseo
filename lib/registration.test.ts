@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { findUnique } = vi.hoisted(() => ({ findUnique: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: { account: { findUnique } } }));
 
-import { isSignInAllowed } from "./registration";
+import {
+  DEFAULT_REGISTRATION_CLOSED_MESSAGE,
+  isSignInAllowed,
+  registrationClosedMessage,
+} from "./registration";
 
 const google = { provider: "google", providerAccountId: "1234567890" };
 
@@ -50,5 +54,43 @@ describe("isSignInAllowed", () => {
 
     expect(await isSignInAllowed(null)).toBe(false);
     expect(findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("registrationClosedMessage", () => {
+  const saved = process.env.REGISTRATION_CLOSED_MESSAGE;
+
+  afterEach(() => {
+    if (saved === undefined) delete process.env.REGISTRATION_CLOSED_MESSAGE;
+    else process.env.REGISTRATION_CLOSED_MESSAGE = saved;
+  });
+
+  it("uses the default line when the variable is unset", () => {
+    delete process.env.REGISTRATION_CLOSED_MESSAGE;
+    expect(registrationClosedMessage()).toBe(
+      "This instance is not accepting new accounts. Ask its owner to sign you up."
+    );
+  });
+
+  it("uses a custom message, trimmed", () => {
+    process.env.REGISTRATION_CLOSED_MESSAGE =
+      "  crawlseo cloud is in private beta. Join the waitlist at crawlseo.cloud.  ";
+    expect(registrationClosedMessage()).toBe(
+      "crawlseo cloud is in private beta. Join the waitlist at crawlseo.cloud."
+    );
+  });
+
+  it("falls back to the default when the variable is blank", () => {
+    process.env.REGISTRATION_CLOSED_MESSAGE = "";
+    expect(registrationClosedMessage()).toBe(DEFAULT_REGISTRATION_CLOSED_MESSAGE);
+    process.env.REGISTRATION_CLOSED_MESSAGE = "   \n\t ";
+    expect(registrationClosedMessage()).toBe(DEFAULT_REGISTRATION_CLOSED_MESSAGE);
+  });
+
+  it("keeps it to one line of at most 200 characters", () => {
+    process.env.REGISTRATION_CLOSED_MESSAGE = "Closed.\nAsk the owner.";
+    expect(registrationClosedMessage()).toBe("Closed. Ask the owner.");
+    process.env.REGISTRATION_CLOSED_MESSAGE = "x".repeat(250);
+    expect(registrationClosedMessage()).toHaveLength(200);
   });
 });

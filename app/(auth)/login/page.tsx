@@ -2,14 +2,15 @@ import { signIn, auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
+import { registrationClosedMessage } from "@/lib/registration";
 
 // Auth.js sends a refused sign-in back here as ?error=AccessDenied, which only
-// the signIn callback produces (DISABLE_REGISTRATION). Any other code gets the
-// generic line.
+// the signIn callback produces (DISABLE_REGISTRATION). Its copy can be set with
+// REGISTRATION_CLOSED_MESSAGE. Any other code gets the generic line.
 function errorMessage(error: string | string[] | undefined): string | null {
   if (!error) return null;
   if (error === "AccessDenied") {
-    return "This instance is not accepting new accounts. Ask its owner to sign you up.";
+    return registrationClosedMessage();
   }
   return "Sign-in failed. Please try again.";
 }

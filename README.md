@@ -252,7 +252,7 @@ seo.example.com {
 
 **4. Set your own database password.** Set `POSTGRES_PASSWORD` in `.env` before the first `docker compose up`; the default is `changeme`. Postgres keeps the password it was created with, so changing it later also means changing it inside the database.
 
-**5. Close registration.** Sign in once with your own Google account, then set `DISABLE_REGISTRATION=true` in `.env` and recreate the app container with `docker compose up -d --force-recreate app` (`docker compose restart` does not reread `.env`). From then on only accounts that already signed in can log in. Without it, anyone with a Google account can sign up on your instance and run crawls from your server.
+**5. Close registration.** Sign in once with your own Google account, then set `DISABLE_REGISTRATION=true` in `.env` and recreate the app container with `docker compose up -d --force-recreate app` (`docker compose restart` does not reread `.env`). From then on only accounts that already signed in can log in. Without it, anyone with a Google account can sign up on your instance and run crawls from your server. A refused account sees "This instance is not accepting new accounts. Ask its owner to sign you up."; set `REGISTRATION_CLOSED_MESSAGE` to say something else, such as where to ask for access.
 
 **6. Keep `NEXTAUTH_SECRET` stable.** It signs sessions and also encrypts stored API keys and Google tokens. If it changes, saved API keys become unreadable and users have to sign in with Google again.
 
@@ -280,6 +280,7 @@ npm start
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
 | `NEXTAUTH_URL` | No | Public base URL of the app, e.g. `https://seo.example.com`. Set it on a server; locally the request host is used |
 | `DISABLE_REGISTRATION` | No | Set to `true` to close sign-up: a Google account that has never signed in on this instance is refused, while accounts that already signed in keep signing in |
+| `REGISTRATION_CLOSED_MESSAGE` | No | What the login page tells an account that registration refused. Plain text, at most 200 characters, shown as text (no HTML). Unset or blank keeps the default line |
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
 | `CRAWLSEO_UPDATE_CHECK` | No | Set to `false` to turn off the daily update check: no request to GitHub is made and the sidebar shows no update notice |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |

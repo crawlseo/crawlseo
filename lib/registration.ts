@@ -24,3 +24,19 @@ export async function isSignInAllowed(
   });
   return known !== null;
 }
+
+export const DEFAULT_REGISTRATION_CLOSED_MESSAGE =
+  "This instance is not accepting new accounts. Ask its owner to sign you up.";
+const MAX_REGISTRATION_CLOSED_MESSAGE = 200;
+
+/**
+ * The line the login page shows a refused sign-in. REGISTRATION_CLOSED_MESSAGE
+ * overrides it as plain text: whitespace collapsed, cut at 200 characters, and
+ * rendered as a text node, so markup in it is shown, never parsed. Unset or
+ * blank keeps the default.
+ */
+export function registrationClosedMessage(): string {
+  const custom = process.env.REGISTRATION_CLOSED_MESSAGE?.replace(/\s+/g, " ").trim();
+  if (!custom) return DEFAULT_REGISTRATION_CLOSED_MESSAGE;
+  return Array.from(custom).slice(0, MAX_REGISTRATION_CLOSED_MESSAGE).join("").trim();
+}

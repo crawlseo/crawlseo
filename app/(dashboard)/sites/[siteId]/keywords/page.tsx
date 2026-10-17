@@ -33,6 +33,7 @@ export default async function KeywordsPage({ params }: KeywordsPageProps) {
       <PageHeader
         title="Keywords"
         description="Queries with impressions in the last 28 days, aggregated across days."
+        reserveStatus
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <CsvExportButton siteId={siteId} type="keywords" />
