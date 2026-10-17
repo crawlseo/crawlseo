@@ -36,6 +36,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.crawl.deleteMany();
   runSiteCrawl.mockClear();
+  vi.unstubAllEnvs();
 });
 
 describe("MCP run_crawl (#57)", () => {
@@ -55,6 +56,19 @@ describe("MCP run_crawl (#57)", () => {
     expect(text).toContain(`Crawl ID: ${started.id}`);
     expect(started.maxPages).toBe(25);
     expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, started.id, expect.any(AbortSignal));
+  });
+
+  it("clamps the page limit to the server's ceiling", async () => {
+    const text = await runCrawl(db, { siteId: "s1", maxPages: 999_999 });
+    expect(text).toContain("Page limit: 2000");
+    const started = await db.crawl.findFirstOrThrow({ where: { siteId: "s1" } });
+    expect(started.maxPages).toBe(2000);
+    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 2000, started.id, expect.any(AbortSignal));
+
+    await db.crawl.deleteMany();
+    vi.stubEnv("CRAWL_MAX_PAGES", "10");
+    await runCrawl(db, { siteId: "s1", maxPages: 25 });
+    expect((await db.crawl.findFirstOrThrow({ where: { siteId: "s1" } })).maxPages).toBe(10);
   });
 
   it("refuses while a crawl with fresh progress is running", async () => {

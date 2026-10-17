@@ -1,5 +1,6 @@
 import type { CrawlStatus, Prisma, PrismaClient } from "@prisma/client";
 import { runSiteCrawl } from "./engine";
+import { clampMaxPages } from "@/lib/jobs/policy";
 
 /*
  * A crawl runs inside the process that started it: there is no queue. If that
@@ -126,13 +127,14 @@ export function stopCrawls(crawlIds: string[], reason = "Stopped"): number {
 }
 
 export type StartCrawlResult =
-  | { started: true; crawlId: string }
+  | { started: true; crawlId: string; maxPages: number }
   | { started: false; runningCrawlId: string };
 
 /**
  * The one way to start a crawl (API route and MCP): recover stale crawls, refuse
  * if one is still running, otherwise create the row and run the crawl in the
- * background.
+ * background. The page count is clamped to the ceiling here, whatever the
+ * caller passed (lib/jobs/policy.ts).
  */
 export async function startSiteCrawl(
   db: Db,
@@ -140,6 +142,7 @@ export async function startSiteCrawl(
   maxPages?: number
 ): Promise<StartCrawlResult> {
   await recoverStaleCrawls(db, { siteId: site.id });
+  const pages = clampMaxPages(maxPages);
 
   const running = await db.crawl.findFirst({
     where: { siteId: site.id, status: { in: ACTIVE_CRAWL_STATUSES } },
@@ -152,21 +155,21 @@ export async function startSiteCrawl(
       siteId: site.id,
       status: "PENDING",
       lastProgressAt: new Date(),
-      ...(maxPages && { maxPages }),
+      maxPages: pages,
     },
   });
 
   // Fire-and-forget: the crawl runs in this process, on the row created above.
   const controller = new AbortController();
   runningCrawls.set(crawl.id, controller);
-  runSiteCrawl(site.id, site.domain, maxPages, crawl.id, controller.signal)
+  runSiteCrawl(site.id, site.domain, pages, crawl.id, controller.signal)
     .catch((error) => {
       if (controller.signal.aborted) return;
       console.error(`Background crawl failed for site ${site.id}:`, error);
     })
     .finally(() => runningCrawls.delete(crawl.id));
 
-  return { started: true, crawlId: crawl.id };
+  return { started: true, crawlId: crawl.id, maxPages: pages };
 }
 
 /**

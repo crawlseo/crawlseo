@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { recoverStaleCrawls, startSiteCrawl } from "../lib/crawler/lifecycle";
+import { canStartCrawl, clampMaxPages } from "../lib/jobs/policy";
 
 // The run_crawl and get_crawl_status tools. They follow the same rules as the
 // web app (lib/crawler/lifecycle.ts): a crawl whose process died is marked
@@ -13,11 +14,16 @@ export async function runCrawl(
 ): Promise<string> {
   const site = await db.site.findUnique({
     where: { id: siteId },
-    select: { id: true, domain: true },
+    select: { id: true, domain: true, userId: true },
   });
   if (!site) return `Site not found: ${siteId}`;
 
-  const result = await startSiteCrawl(db, site, maxPages);
+  // Same ceiling and rules as the web app (lib/jobs/policy.ts).
+  const pages = clampMaxPages(maxPages);
+  const permission = await canStartCrawl(site, { source: "mcp", maxPages: pages });
+  if (!permission.ok) return `Crawl not started: ${permission.reason}`;
+
+  const result = await startSiteCrawl(db, site, pages);
   if (!result.started) {
     return (
       `A crawl is already running for ${site.domain}.\n` +
@@ -26,7 +32,7 @@ export async function runCrawl(
     );
   }
   return (
-    `Crawl started.\nCrawl ID: ${result.crawlId}\nStatus: RUNNING\n\n` +
+    `Crawl started.\nCrawl ID: ${result.crawlId}\nStatus: RUNNING\nPage limit: ${result.maxPages}\n\n` +
     `Use get_crawl_status to check progress.`
   );
 }

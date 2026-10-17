@@ -45,4 +45,9 @@ describe("Select triggers show labels, not raw values", () => {
     const html = renderToString(createElement(CrawlButton, { siteId: "site-b" }));
     expect(triggerText(html)).toContain("200 pages");
   });
+
+  it("crawl page-limit select only offers presets within the server's ceiling", () => {
+    const html = renderToString(createElement(CrawlButton, { siteId: "site-b", pageCeiling: 60 }));
+    expect(triggerText(html)).toContain("50 pages");
+  });
 });

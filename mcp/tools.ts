@@ -55,7 +55,7 @@ export const tools = [
       "Start a new site crawl. Returns the crawl ID immediately; the crawl runs in the background. Use get_crawl_status to check progress.",
     schema: {
       siteId: z.string().describe("The site ID to crawl"),
-      maxPages: z.number().optional().default(200).describe("Maximum pages to crawl (default 200)"),
+      maxPages: z.number().optional().default(200).describe("Maximum pages to crawl (default 200). The server caps it at its page ceiling (CRAWL_MAX_PAGES, default 2000)"),
     },
   },
   {

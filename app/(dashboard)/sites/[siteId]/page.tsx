@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { crawlPageCeiling } from "@/lib/jobs/policy";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -78,7 +79,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
         actions={
           <>
             <SyncButton siteId={siteId} />
-            <CrawlButton siteId={siteId} />
+            <CrawlButton siteId={siteId} pageCeiling={crawlPageCeiling()} />
             <VitalsButton siteId={siteId} />
           </>
         }

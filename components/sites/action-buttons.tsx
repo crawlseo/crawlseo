@@ -15,24 +15,40 @@ import {
 } from "@/components/ui/select";
 import { useHeaderStatus } from "@/components/ui/header-status";
 import { cn } from "@/lib/utils";
+import { DEFAULT_CRAWL_PAGE_CEILING, DEFAULT_CRAWL_PAGES } from "@/lib/jobs/policy";
 
-const PAGE_LIMIT_ITEMS = [
-  { value: "25", label: "25 pages" },
-  { value: "50", label: "50 pages" },
-  { value: "100", label: "100 pages" },
-  { value: "200", label: "200 pages" },
-  { value: "custom", label: "Custom" },
-];
-const MAX_CUSTOM_PAGES = 2000;
+const PAGE_PRESETS = [25, 50, 100, 200];
 const MIN_CUSTOM_PAGES = 1;
 
-export function CrawlButton({ siteId }: { siteId: string }) {
+/** The presets the ceiling allows, plus Custom. */
+function pageLimitItems(ceiling: number) {
+  return [
+    ...PAGE_PRESETS.filter((n) => n <= ceiling).map((n) => ({ value: String(n), label: `${n} pages` })),
+    { value: "custom", label: "Custom" },
+  ];
+}
+
+/**
+ * `pageCeiling` is the server's limit (crawlPageCeiling in lib/jobs/policy.ts).
+ * The input only mirrors it; the server clamps whatever is sent.
+ */
+export function CrawlButton({
+  siteId,
+  pageCeiling = DEFAULT_CRAWL_PAGE_CEILING,
+}: {
+  siteId: string;
+  pageCeiling?: number;
+}) {
+  const items = pageLimitItems(pageCeiling);
+  const defaultSelection = String(
+    PAGE_PRESETS.filter((n) => n <= Math.min(DEFAULT_CRAWL_PAGES, pageCeiling)).at(-1) ?? "custom"
+  );
   const router = useRouter();
   const setHeaderStatus = useHeaderStatus();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState(false);
-  const [limitSelection, setLimitSelection] = useState("200");
+  const [limitSelection, setLimitSelection] = useState(defaultSelection);
   const [customValue, setCustomValue] = useState("");
 
   useEffect(() => {
@@ -55,7 +71,10 @@ export function CrawlButton({ siteId }: { siteId: string }) {
 
   const isCustom = limitSelection === "custom";
   const maxPages = isCustom
-    ? Math.max(MIN_CUSTOM_PAGES, Math.min(MAX_CUSTOM_PAGES, Math.floor(Number(customValue) || 200)))
+    ? Math.max(
+        MIN_CUSTOM_PAGES,
+        Math.min(pageCeiling, Math.floor(Number(customValue) || DEFAULT_CRAWL_PAGES))
+      )
     : Number(limitSelection);
 
   async function run() {
@@ -86,13 +105,13 @@ export function CrawlButton({ siteId }: { siteId: string }) {
         <Select
           value={limitSelection}
           onValueChange={(v) => v && setLimitSelection(v)}
-          items={PAGE_LIMIT_ITEMS}
+          items={items}
         >
           <SelectTrigger aria-label="Pages to crawl" className="h-[38px] bg-bg data-[size=default]:h-[38px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PAGE_LIMIT_ITEMS.map(({ value, label }) => (
+            {items.map(({ value, label }) => (
               <SelectItem key={value} value={value}>
                 {label}
               </SelectItem>
@@ -103,7 +122,7 @@ export function CrawlButton({ siteId }: { siteId: string }) {
           <input
             type="number"
             min={MIN_CUSTOM_PAGES}
-            max={MAX_CUSTOM_PAGES}
+            max={pageCeiling}
             placeholder="Pages"
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value.replace(/\D/g, ""))}

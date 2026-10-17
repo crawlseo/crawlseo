@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { crawlPageCeiling } from "@/lib/jobs/policy";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
@@ -76,7 +77,7 @@ export default async function CrawlPage({ params }: Props) {
             ? `Crawl ${crawledAt} · ${plural(pageStats.pages, "page")} crawled`
             : "No crawl yet"
         }
-        actions={<CrawlButton siteId={siteId} />}
+        actions={<CrawlButton siteId={siteId} pageCeiling={crawlPageCeiling()} />}
       />
 
       {/* Running crawl indicator */}

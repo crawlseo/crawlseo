@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import { REMEDIATION } from "./remediation";
 import { countVisibleIssues } from "./issue-filter";
+import { clampMaxPages } from "@/lib/jobs/policy";
 import {
   CrawlDelayStopError,
   ROBOTS_MAX_BYTES,
@@ -17,7 +18,6 @@ import {
   type SkipReason,
 } from "./robots";
 
-const ABSOLUTE_MAX_PAGES = 2000;
 const BATCH_SIZE = 15;
 const BATCH_DELAY_MS = 100;
 const FETCH_TIMEOUT_MS = 12_000;
@@ -951,8 +951,9 @@ function crawlMaxMinutes(): number {
 /* ------------------------------------------------------------------ */
 
 /**
- * Crawl a site starting from domain root (+ sitemap).
- * Supports up to 2000 pages with concurrent batch fetching.
+ * Crawl a site starting from domain root (+ sitemap), with concurrent batch
+ * fetching. The page count is clamped to the ceiling again here, so no caller
+ * can get past it (lib/jobs/policy.ts).
  */
 export async function runSiteCrawl(
   siteId: string,
@@ -962,7 +963,7 @@ export async function runSiteCrawl(
   /** Stops the crawl: no new request starts and the one in flight is aborted. */
   signal?: AbortSignal
 ): Promise<CrawlResult> {
-  const effectiveMax = Math.max(1, Math.min(maxPages, ABSOLUTE_MAX_PAGES));
+  const effectiveMax = clampMaxPages(maxPages);
   const seed = domain.startsWith("http") ? domain : `https://${domain}`;
   const seedUrl = normalizeUrl(seed, seed) || seed;
   const origin = originOf(seedUrl);

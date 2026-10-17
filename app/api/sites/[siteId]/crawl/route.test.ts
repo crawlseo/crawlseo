@@ -15,6 +15,12 @@ vi.mock("@/lib/db", async () => {
   return { db: lazyDb(holder) };
 });
 vi.mock("@/lib/crawler/engine", () => ({ runSiteCrawl }));
+const canStartCrawl = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/jobs/policy", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/jobs/policy")>();
+  canStartCrawl.mockImplementation(real.canStartCrawl);
+  return { ...real, canStartCrawl };
+});
 
 import { createTestDb, type TestDb } from "@/lib/testing/pglite";
 import { POST } from "./route";
@@ -40,11 +46,13 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.crawl.deleteMany();
   runSiteCrawl.mockClear();
+  canStartCrawl.mockClear();
+  vi.unstubAllEnvs();
 });
 
 const site = { params: Promise.resolve({ siteId: "s1" }) };
 
-function runCrawl(maxPages = 50) {
+function runCrawl(maxPages: unknown = 50) {
   return POST(
     new Request("http://localhost/api/sites/s1/crawl", {
       method: "POST",
@@ -88,6 +96,42 @@ describe("POST /api/sites/[siteId]/crawl (#57)", () => {
     expect(runSiteCrawl).not.toHaveBeenCalled();
     expect((await db.crawl.findUniqueOrThrow({ where: { id: "live" } })).status).toBe("RUNNING");
     expect(await db.crawl.count()).toBe(1);
+  });
+});
+
+describe("POST /api/sites/[siteId]/crawl page ceiling", () => {
+  async function startedWith(res: Response) {
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { crawlId: string; maxPages: number };
+    const row = await db.crawl.findUniqueOrThrow({ where: { id: body.crawlId } });
+    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", row.maxPages, row.id, expect.any(AbortSignal));
+    expect(body.maxPages).toBe(row.maxPages);
+    return row.maxPages;
+  }
+
+  it("clamps a page count above the default ceiling of 2000", async () => {
+    expect(await startedWith(await runCrawl(999_999))).toBe(2000);
+  });
+
+  it("clamps to CRAWL_MAX_PAGES when it is set", async () => {
+    vi.stubEnv("CRAWL_MAX_PAGES", "40");
+    expect(await startedWith(await runCrawl(50))).toBe(40);
+  });
+
+  it("uses 200 pages for a missing or invalid page count", async () => {
+    expect(await startedWith(await runCrawl("2000"))).toBe(200);
+    await db.crawl.deleteMany();
+    expect(await startedWith(await runCrawl(-3))).toBe(200);
+  });
+
+  it("asks the policy before starting and returns its refusal", async () => {
+    canStartCrawl.mockResolvedValueOnce({ ok: false, reason: "Not now", status: 429 });
+    const res = await runCrawl(50);
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "Not now" });
+    expect(canStartCrawl).toHaveBeenCalledWith({ id: "s1", userId: "u1" }, { source: "manual", maxPages: 50 });
+    expect(runSiteCrawl).not.toHaveBeenCalled();
+    expect(await db.crawl.count()).toBe(0);
   });
 });
 

@@ -37,6 +37,7 @@ afterAll(async () => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 function html(body: string) {
@@ -88,5 +89,26 @@ describe("runSiteCrawl progress", () => {
     expect(done.status).toBe("COMPLETED");
     expect(done.error).toBeNull();
     expect(done.lastProgressAt!.getTime()).toBeGreaterThanOrEqual(seen[0].lastProgressAt!.getTime());
+  });
+});
+
+describe("runSiteCrawl page ceiling", () => {
+  it("never crawls more pages than CRAWL_MAX_PAGES, whatever the caller passes", async () => {
+    vi.stubEnv("CRAWL_MAX_PAGES", "5");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname === "/") {
+          return html(Array.from({ length: PAGES }, (_, i) => `<a href="/p${i}">p${i}</a>`).join(""));
+        }
+        if (url.pathname.startsWith("/p")) return html(`page ${url.pathname}`);
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    const result = await runSiteCrawl("s1", "quilltab.app", 999_999);
+    expect(result.pagesFound).toBe(5);
+    expect(await db.auditPage.count({ where: { crawlId: result.crawlId } })).toBe(5);
   });
 });

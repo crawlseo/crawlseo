@@ -77,7 +77,7 @@ Keywords, pages, clicks, impressions, position tracking with 28-day comparison a
 
 ### 🕷️ Site Crawler
 
-Crawl up to 2,000 pages with concurrent fetching. Health score, 16 issue types, content scoring, and remediation guidance.
+Crawl up to 2,000 pages by default (`CRAWL_MAX_PAGES` sets the server's limit) with concurrent fetching. Health score, 16 issue types, content scoring, and remediation guidance.
 
 The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud)`) follows robots.txt per RFC 9309: each host (the bare domain and www included) is checked against its own robots.txt, redirect targets are checked before they are followed, a robots.txt that answers 429 or 5xx, times out or fails with a network error skips that host, and Crawl-delay is honoured. The crawl page lists what robots.txt kept it from.
 
@@ -284,6 +284,7 @@ npm start
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
 | `CRAWLSEO_UPDATE_CHECK` | No | Set to `false` to turn off the daily update check: no request to GitHub is made and the sidebar shows no update notice |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
+| `CRAWL_MAX_PAGES` | No | Most pages one crawl may fetch (default `2000`). The server applies it to every crawl, from the web app and from MCP, whatever page count the request asks for |
 
 ### The crawlseo.cloud card
 
