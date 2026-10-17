@@ -961,7 +961,13 @@ export async function runSiteCrawl(
   maxPages: number = 200,
   existingCrawlId?: string,
   /** Stops the crawl: no new request starts and the one in flight is aborted. */
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * `deadline` (epoch ms) ends the crawl earlier than CRAWL_MAX_MINUTES, the
+   * same way: it completes with the pages it has and reports the rest as not
+   * reached. Used where a host limits how long a request may run.
+   */
+  opts: { deadline?: number } = {}
 ): Promise<CrawlResult> {
   const effectiveMax = clampMaxPages(maxPages);
   const seed = domain.startsWith("http") ? domain : `https://${domain}`;
@@ -984,7 +990,7 @@ export async function runSiteCrawl(
       });
 
   try {
-    return await executeCrawl(crawl.id, siteId, seedUrl, origin, effectiveMax, signal);
+    return await executeCrawl(crawl.id, siteId, seedUrl, origin, effectiveMax, signal, opts.deadline);
   } catch (err) {
     // Mark crawl as failed on any unhandled error
     await db.crawl
@@ -1026,7 +1032,8 @@ async function executeCrawl(
   seedUrl: string,
   origin: string,
   maxPages: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  deadlineOverride?: number
 ): Promise<CrawlResult> {
   const recordProgress = progressRecorder(crawlId);
   const issues: IssueInput[] = [];
@@ -1036,8 +1043,14 @@ async function executeCrawl(
   const queue: string[] = [seedUrl];
 
   /* ---- robots.txt, per origin ---- */
-  const limitMinutes = crawlMaxMinutes();
-  const deadline = Date.now() + limitMinutes * 60_000;
+  const startedAt = Date.now();
+  const configuredDeadline = startedAt + crawlMaxMinutes() * 60_000;
+  const deadline = Math.min(configuredDeadline, deadlineOverride ?? Infinity);
+  // The limit the crawl page reports: the shorter of the two.
+  const limitMinutes =
+    deadline < configuredDeadline
+      ? Math.max(1, Math.round((deadline - startedAt) / 60_000))
+      : crawlMaxMinutes();
   const robots = new RobotsPolicy({
     fetchRobots: fetchRobotsTxt,
     userAgent: USER_AGENT,

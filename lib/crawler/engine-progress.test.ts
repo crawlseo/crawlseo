@@ -112,3 +112,28 @@ describe("runSiteCrawl page ceiling", () => {
     expect(await db.auditPage.count({ where: { crawlId: result.crawlId } })).toBe(5);
   });
 });
+
+describe("runSiteCrawl deadline", () => {
+  it("stops at the deadline a host sets and completes with the pages it has", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        vi.setSystemTime(Date.now() + 2000); // every request takes 2 s
+        const url = new URL(String(input));
+        if (url.pathname === "/") {
+          return html(Array.from({ length: PAGES }, (_, i) => `<a href="/p${i}">p${i}</a>`).join(""));
+        }
+        if (url.pathname.startsWith("/p")) return html(`page ${url.pathname}`);
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    // Far less time than the 30-minute crawl limit: a few requests.
+    const result = await runSiteCrawl("s1", "quilltab.app", 50, undefined, undefined, { deadline: Date.now() + 10_000 });
+    const done = await db.crawl.findUniqueOrThrow({ where: { id: result.crawlId } });
+    expect(done.status).toBe("COMPLETED");
+    expect(result.pagesFound).toBeLessThan(PAGES + 1);
+  });
+});
+

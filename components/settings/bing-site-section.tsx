@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { pendingNote, waitForJob } from "@/lib/jobs/client";
 
 interface BingSite {
   url: string;
@@ -92,10 +93,19 @@ export function BingSiteSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ siteId }),
       });
-      const data = await res.json();
-      if (!res.ok || data.success === false) {
-        throw new Error(data.error || "Sync failed");
-      }
+      const queued = await res.json();
+      if (!res.ok) throw new Error(queued.error || "Sync failed");
+      // The sync runs as a job: wait for it, and say why when it waits or retries.
+      const job = await waitForJob(queued.jobId, {
+        onUpdate: (j) => setMessage(pendingNote(j) ?? (j.status === "RUNNING" ? "Syncing…" : "Queued…")),
+      });
+      if (job.status === "FAILED") throw new Error(job.lastError || "Sync failed");
+      const data = (job.result ?? {}) as {
+        daysUpserted?: number;
+        queriesUpserted?: number;
+        pagesUpserted?: number;
+        partial?: string[];
+      };
       setMessage(
         `Synced ${data.daysUpserted} days, ${data.queriesUpserted} query weeks, ` +
           `${data.pagesUpserted} page weeks.`
@@ -107,6 +117,7 @@ export function BingSiteSection({
       }
       router.refresh();
     } catch (err) {
+      setMessage(null);
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setSyncing(false);

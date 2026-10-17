@@ -1,9 +1,18 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { syncVitalsForSite } from "@/lib/workers/vitals-sync";
+import { dispatchJob } from "@/lib/jobs/dispatch";
+import { VITALS_JOB } from "@/lib/jobs/handlers";
+import { requestSiteJob } from "@/lib/jobs/site-jobs";
 
-export const maxDuration = 60;
+// On a serverless host the check runs after the response, within this limit
+// (SERVERLESS_MAX_DURATION_S in lib/jobs/config.ts; Next needs a literal here).
+export const maxDuration = 300;
 
+/**
+ * Queues a vitals check and answers 202 with the job id. The client polls
+ * GET /api/jobs/[jobId]; the job's result has `inserted` and `results`, and an
+ * exhausted PageSpeed quota fails it with errorCode QUOTA_EXCEEDED.
+ */
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ siteId: string }> }
@@ -22,18 +31,12 @@ export async function POST(
     if (!site || site.userId !== session.user.id) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
-    const result = await syncVitalsForSite(session.user.id, siteId, 5);
-    if (result.error && result.errorCode === "QUOTA_EXCEEDED") {
-      // The raw Google response was already logged by the PageSpeed client.
-      return Response.json(
-        { ...result, error: "PageSpeed Insights quota exhausted", code: result.errorCode },
-        { status: 429 }
-      );
-    }
-    if (result.error) {
-      return Response.json(result, { status: 502 });
-    }
-    return Response.json(result);
+    const { job, created } = await requestSiteJob(db, { type: VITALS_JOB, siteId, source: "manual" });
+    dispatchJob(db, job);
+    return Response.json(
+      { jobId: job.id, status: job.status, ...(!created && { alreadyActive: true }) },
+      { status: 202 }
+    );
   } catch (error) {
     console.error(error);
     return Response.json(

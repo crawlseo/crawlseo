@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { useHeaderStatus } from "@/components/ui/header-status";
 import { formatDay } from "@/lib/format";
+import { pendingNote, waitForJob, type JobView } from "@/lib/jobs/client";
 import { cn } from "@/lib/utils";
 
 export type SyncOutcome =
@@ -41,6 +42,13 @@ export function syncOutcome(status: number, data: SyncResponse): SyncOutcome {
   return { tone: "success", text: `Synced ${keywords} keywords · ${pages} pages` };
 }
 
+/** The outcome of a finished sync job, in the same terms as the old synchronous response. */
+export function syncJobOutcome(job: Pick<JobView, "status" | "result" | "lastError" | "errorCode">): SyncOutcome {
+  if (job.status === "SUCCEEDED") return syncOutcome(200, (job.result ?? {}) as SyncResponse);
+  if (job.errorCode === "REAUTH_REQUIRED") return syncOutcome(401, { code: "REAUTH_REQUIRED" });
+  return syncOutcome(500, { error: job.lastError ?? undefined });
+}
+
 const TONE: Record<SyncOutcome["tone"], string> = {
   success: "text-success",
   empty: "text-muted-foreground",
@@ -69,14 +77,14 @@ export function SyncButton({
 }) {
   const router = useRouter();
   const setHeaderStatus = useHeaderStatus();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<false | "queued" | "running">(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
 
   const handleSync = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    setLoading(true);
+    setLoading("queued");
     setOutcome(null);
 
     try {
@@ -85,8 +93,21 @@ export function SyncButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ siteId }),
       });
-      const data = (await response.json().catch(() => ({}))) as SyncResponse;
-      const next = syncOutcome(response.status, data);
+      const data = (await response.json().catch(() => ({}))) as SyncResponse & { jobId?: string };
+      let next: SyncOutcome;
+      if (response.status === 202 && data.jobId) {
+        // Queued: wait for the job, and say why when it waits or retries.
+        const job = await waitForJob(data.jobId, {
+          onUpdate: (j) => {
+            setLoading(j.status === "RUNNING" ? "running" : "queued");
+            const note = pendingNote(j);
+            setOutcome(note ? { tone: "empty", text: note } : null);
+          },
+        });
+        next = syncJobOutcome(job);
+      } else {
+        next = syncOutcome(response.status, data);
+      }
       setOutcome(next);
 
       if (next.tone === "success" || next.tone === "empty") router.refresh();
@@ -132,8 +153,8 @@ export function SyncButton({
   useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
 
   const button = (
-    <Button onClick={handleSync} disabled={loading} variant={variant} size={size} className={className}>
-      {loading ? "Syncing…" : "Sync GSC"}
+    <Button onClick={handleSync} disabled={loading !== false} variant={variant} size={size} className={className}>
+      {loading === "queued" ? "Queued…" : loading ? "Syncing…" : "Sync GSC"}
     </Button>
   );
 

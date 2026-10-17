@@ -10,6 +10,23 @@ jobs:
     name: Typecheck and test
     runs-on: ubuntu-latest
 
+    # A real Postgres server for the tests PGlite cannot cover (concurrent job
+    # claims, lib/jobs/claim.pg.test.ts). Nothing else uses it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: crawlseo
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: crawlseo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crawlseo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -50,5 +67,12 @@ jobs:
             echo "$FILES" | xargs npx eslint
           fi
 
+      - name: Migrate the test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://crawlseo:ci-only@localhost:5432/crawlseo_test
+
       - name: Test
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://crawlseo:ci-only@localhost:5432/crawlseo_test

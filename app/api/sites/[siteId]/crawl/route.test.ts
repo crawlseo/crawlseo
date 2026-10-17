@@ -1,20 +1,19 @@
 import type { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// #57: a crawl left RUNNING by a server process that died made every new crawl
-// for the site return 409, and the status endpoint reported it RUNNING forever.
-// The route runs against the real Prisma client on PGlite; only auth and the
-// crawl itself (network) are stubbed.
+// The crawl route queues a crawl job. #57: a crawl whose process died must not
+// block new crawls forever. The route runs against the real Prisma client on
+// PGlite; only auth and next/server's after() are stubbed.
 
 const holder = vi.hoisted(() => ({ db: null as PrismaClient | null }));
-const runSiteCrawl = vi.hoisted(() => vi.fn(async () => ({})));
+const after = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth", () => ({ auth: async () => ({ user: { id: "u1" } }) }));
 vi.mock("@/lib/db", async () => {
   const { lazyDb } = await import("@/lib/testing/pglite");
   return { db: lazyDb(holder) };
 });
-vi.mock("@/lib/crawler/engine", () => ({ runSiteCrawl }));
+vi.mock("next/server", () => ({ after }));
 const canStartCrawl = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/jobs/policy", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/jobs/policy")>();
@@ -44,8 +43,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await db.job.deleteMany();
   await db.crawl.deleteMany();
-  runSiteCrawl.mockClear();
+  after.mockClear();
   canStartCrawl.mockClear();
   vi.unstubAllEnvs();
 });
@@ -62,81 +62,134 @@ function runCrawl(maxPages: unknown = 50) {
   );
 }
 
-describe("POST /api/sites/[siteId]/crawl (#57)", () => {
-  it("a crawl stuck in RUNNING after a restart is marked failed and a new crawl starts", async () => {
-    // The repro from the issue: RUNNING, started 3 hours ago, process gone.
-    await db.crawl.create({
-      data: { id: "stuck", siteId: "s1", status: "RUNNING", startedAt: new Date(Date.now() - 3 * HOUR) },
-    });
+async function queuedWith(res: Response) {
+  expect(res.status).toBe(202);
+  const body = (await res.json()) as { jobId: string; status: string; maxPages: number };
+  expect(body.status).toBe("QUEUED");
+  const job = await db.job.findUniqueOrThrow({ where: { id: body.jobId } });
+  expect(job).toMatchObject({ type: "crawl", siteId: "s1", status: "QUEUED", source: "manual", priority: 10 });
+  expect(body.maxPages).toBe((job.payload as { maxPages: number }).maxPages);
+  return body.maxPages;
+}
 
-    const res = await runCrawl();
-    expect(res.status).toBe(202);
-    const body = (await res.json()) as { crawlId: string };
-    expect(body.crawlId).not.toBe("stuck");
+async function runningCrawlJob(opts: { heartbeatAt: Date; attempts: number }) {
+  await db.crawl.create({ data: { id: "c-old", siteId: "s1", status: "RUNNING", startedAt: opts.heartbeatAt } });
+  return db.job.create({
+    data: {
+      siteId: "s1",
+      type: "crawl",
+      source: "manual",
+      status: "RUNNING",
+      maxAttempts: 2,
+      attempts: opts.attempts,
+      activeKey: "crawl:s1",
+      lockedBy: "gone:1:abc",
+      lockedAt: opts.heartbeatAt,
+      heartbeatAt: opts.heartbeatAt,
+      crawlId: "c-old",
+    },
+  });
+}
 
-    const stuck = await db.crawl.findUniqueOrThrow({ where: { id: "stuck" } });
-    expect(stuck.status).toBe("FAILED");
-    expect(stuck.finishedAt).not.toBeNull();
-    expect(stuck.error).toBe(INTERRUPTED);
-
-    const started = await db.crawl.findUniqueOrThrow({ where: { id: body.crawlId } });
-    expect(started.status).toBe("PENDING");
-    expect(started.maxPages).toBe(50);
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 50, body.crawlId, expect.any(AbortSignal));
+describe("POST /api/sites/[siteId]/crawl", () => {
+  it("queues a crawl job with the requested page limit and answers 202", async () => {
+    expect(await queuedWith(await runCrawl(50))).toBe(50);
+    // No crawl row yet: the attempt creates it when it starts.
+    expect(await db.crawl.count()).toBe(0);
+    // Not a serverless host: nothing runs in this request.
+    expect(after).not.toHaveBeenCalled();
   });
 
-  it("a genuinely running crawl still returns 409", async () => {
-    await db.crawl.create({
-      data: { id: "live", siteId: "s1", status: "RUNNING", startedAt: new Date() },
+  it("a crawl job queued or running returns 409 with its job id", async () => {
+    const first = (await (await runCrawl()).json()) as { jobId: string };
+    const res = await runCrawl();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "A crawl is already queued or running",
+      jobId: first.jobId,
+      crawlId: null,
     });
+    expect(await db.job.count()).toBe(1);
+  });
+
+  it("#57: a crawl job whose process died is queued again; its crawl row is marked failed", async () => {
+    const stuck = await runningCrawlJob({ heartbeatAt: new Date(Date.now() - 3 * HOUR), attempts: 1 });
 
     const res = await runCrawl();
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: "A crawl is already running", crawlId: "live" });
-    expect(runSiteCrawl).not.toHaveBeenCalled();
-    expect((await db.crawl.findUniqueOrThrow({ where: { id: "live" } })).status).toBe("RUNNING");
-    expect(await db.crawl.count()).toBe(1);
+    const job = await db.job.findUniqueOrThrow({ where: { id: stuck.id } });
+    expect(job.status).toBe("QUEUED");
+    expect(job.errorCode).toBe("INTERRUPTED");
+    const crawl = await db.crawl.findUniqueOrThrow({ where: { id: "c-old" } });
+    expect(crawl.status).toBe("FAILED");
+    expect(crawl.error).toBe(INTERRUPTED);
+  });
+
+  it("#57: a dead crawl job out of attempts fails, and a new crawl is queued", async () => {
+    const stuck = await runningCrawlJob({ heartbeatAt: new Date(Date.now() - 3 * HOUR), attempts: 2 });
+
+    await queuedWith(await runCrawl());
+    expect((await db.job.findUniqueOrThrow({ where: { id: stuck.id } })).status).toBe("FAILED");
+  });
+
+  it("a crawl job with a fresh heartbeat still returns 409", async () => {
+    await runningCrawlJob({ heartbeatAt: new Date(), attempts: 1 });
+    expect((await runCrawl()).status).toBe(409);
+  });
+
+  it("on a serverless host the crawl runs after the response", async () => {
+    vi.stubEnv("VERCEL", "1");
+    await queuedWith(await runCrawl());
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it("on a serverless host a crawl job left queued is run by the next request instead of blocking it", async () => {
+    vi.stubEnv("VERCEL", "1");
+    const first = (await (await runCrawl()).json()) as { jobId: string };
+    after.mockClear();
+
+    const res = await runCrawl();
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ jobId: first.jobId, alreadyActive: true });
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it("WORKER_MODE=off only queues, even on a serverless host", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("WORKER_MODE", "off");
+    await queuedWith(await runCrawl());
+    expect(after).not.toHaveBeenCalled();
   });
 });
 
 describe("POST /api/sites/[siteId]/crawl page ceiling", () => {
-  async function startedWith(res: Response) {
-    expect(res.status).toBe(202);
-    const body = (await res.json()) as { crawlId: string; maxPages: number };
-    const row = await db.crawl.findUniqueOrThrow({ where: { id: body.crawlId } });
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", row.maxPages, row.id, expect.any(AbortSignal));
-    expect(body.maxPages).toBe(row.maxPages);
-    return row.maxPages;
-  }
-
   it("clamps a page count above the default ceiling of 2000", async () => {
-    expect(await startedWith(await runCrawl(999_999))).toBe(2000);
+    expect(await queuedWith(await runCrawl(999_999))).toBe(2000);
   });
 
   it("clamps to CRAWL_MAX_PAGES when it is set", async () => {
     vi.stubEnv("CRAWL_MAX_PAGES", "40");
-    expect(await startedWith(await runCrawl(50))).toBe(40);
+    expect(await queuedWith(await runCrawl(50))).toBe(40);
   });
 
   it("uses 200 pages for a missing or invalid page count", async () => {
-    expect(await startedWith(await runCrawl("2000"))).toBe(200);
-    await db.crawl.deleteMany();
-    expect(await startedWith(await runCrawl(-3))).toBe(200);
+    expect(await queuedWith(await runCrawl("2000"))).toBe(200);
+    await db.job.deleteMany();
+    expect(await queuedWith(await runCrawl(-3))).toBe(200);
   });
 
-  it("asks the policy before starting and returns its refusal", async () => {
+  it("asks the policy before queueing and returns its refusal", async () => {
     canStartCrawl.mockResolvedValueOnce({ ok: false, reason: "Not now", status: 429 });
     const res = await runCrawl(50);
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: "Not now" });
     expect(canStartCrawl).toHaveBeenCalledWith({ id: "s1", userId: "u1" }, { source: "manual", maxPages: 50 });
-    expect(runSiteCrawl).not.toHaveBeenCalled();
-    expect(await db.crawl.count()).toBe(0);
+    expect(await db.job.count()).toBe(0);
   });
 });
 
 describe("GET /api/sites/[siteId]/crawl/[crawlId]/status (#57)", () => {
-  it("reports a stuck crawl as FAILED with the message, so the banner stops", async () => {
+  it("reports a stuck crawl from before the queue as FAILED with the message, so the banner stops", async () => {
     await db.crawl.create({
       data: { id: "stuck", siteId: "s1", status: "RUNNING", startedAt: new Date(Date.now() - 3 * HOUR) },
     });

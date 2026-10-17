@@ -1,7 +1,14 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { syncBingDataForSite } from "@/lib/workers/bing-sync";
+import { dispatchJob } from "@/lib/jobs/dispatch";
+import { BING_SYNC_JOB } from "@/lib/jobs/handlers";
+import { requestSiteJob } from "@/lib/jobs/site-jobs";
 
+/**
+ * Queues a Bing sync for the site and answers 202 with the job id. The client
+ * polls GET /api/jobs/[jobId]; the job's result has the fields this route used
+ * to return (daysUpserted, queriesUpserted, pagesUpserted, partial).
+ */
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -36,13 +43,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await syncBingDataForSite(session.user.id, siteId);
+    const { job, created } = await requestSiteJob(db, { type: BING_SYNC_JOB, siteId, source: "manual" });
+    dispatchJob(db, job);
 
-    if (!result.success) {
-      return Response.json(result, { status: 400 });
-    }
-
-    return Response.json(result);
+    return Response.json(
+      { jobId: job.id, status: job.status, ...(!created && { alreadyActive: true }) },
+      { status: 202 }
+    );
   } catch (error) {
     console.error("Bing sync error:", error);
 

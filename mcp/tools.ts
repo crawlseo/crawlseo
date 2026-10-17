@@ -52,7 +52,7 @@ export const tools = [
   {
     name: "run_crawl",
     description:
-      "Start a new site crawl. Returns the crawl ID immediately; the crawl runs in the background. Use get_crawl_status to check progress.",
+      "Queue a site crawl. Returns a job ID immediately; the crawlseo app or its worker runs the crawl. Use get_crawl_status with the job ID to check progress.",
     schema: {
       siteId: z.string().describe("The site ID to crawl"),
       maxPages: z.number().optional().default(200).describe("Maximum pages to crawl (default 200). The server caps it at its page ceiling (CRAWL_MAX_PAGES, default 2000)"),
@@ -61,9 +61,9 @@ export const tools = [
   {
     name: "get_crawl_status",
     description:
-      "Check the status of a crawl by its ID. Returns status (PENDING/RUNNING/COMPLETED/FAILED), pages found, issues found, and health score.",
+      "Check a crawl by the job ID run_crawl returned, or by a crawl ID. Returns the job status (QUEUED/RUNNING/SUCCEEDED/FAILED) and the crawl status (PENDING/RUNNING/COMPLETED/FAILED), pages found, issues found, and health score.",
     schema: {
-      crawlId: z.string().describe("The crawl ID to check"),
+      crawlId: z.string().describe("The job ID from run_crawl, or a crawl ID"),
     },
   },
   {

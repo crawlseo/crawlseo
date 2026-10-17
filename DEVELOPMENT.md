@@ -166,9 +166,20 @@ Two things about Bing's data are worth knowing when reading the numbers:
 - [ ] Keywords table loads and sorts
 - [ ] Site switcher works
 
-### Run Tests (future)
+### Run Tests
 ```bash
 npm run test
+```
+
+Most database tests run against PGlite, an in-process Postgres, with the full
+migration chain applied. The job claim test (`lib/jobs/claim.pg.test.ts`) needs
+a real Postgres server with several connections, so it is skipped unless
+`TEST_DATABASE_URL` points at a migrated database. CI provides one. Locally,
+use a throwaway database, never your real one:
+
+```bash
+DATABASE_URL=postgresql://user:pass@localhost:5433/crawlseo_test npx prisma migrate deploy
+TEST_DATABASE_URL=postgresql://user:pass@localhost:5433/crawlseo_test npx vitest run lib/jobs/claim.pg.test.ts
 ```
 
 ## Docker for Production
@@ -211,8 +222,13 @@ kill -9 <PID>
 - Stores access/refresh tokens in User model
 - Middleware protects dashboard routes
 
+### Background jobs
+- Crawls, vitals checks, GSC and Bing syncs and alert evaluation run as jobs in a Postgres queue (`lib/jobs`, `Job` model)
+- Job types are registered in `lib/jobs/handlers.ts`: each declares its class (LONG or SHORT), attempts and permanent errors
+- `WORKER_MODE=inline` (the default) runs the queue in the app process
+
 ### GSC Data
-- Synced daily via background job
+- Synced as a job
 - Stored in Keyword and Page models
 - Indexed by (siteId, date) for fast queries
 

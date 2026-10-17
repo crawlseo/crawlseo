@@ -1,16 +1,17 @@
 import type { CrawlStatus, Prisma, PrismaClient } from "@prisma/client";
-import { runSiteCrawl } from "./engine";
-import { clampMaxPages } from "@/lib/jobs/policy";
 
 /*
- * A crawl runs inside the process that started it: there is no queue. If that
- * process dies (restart, deploy, crash, OOM kill), nothing moves the row out of
- * RUNNING, and the one-crawl-per-site guard used to refuse every new crawl
- * from then on (#57). The rules below find such crawls and mark them FAILED.
- * Every place that starts a crawl or shows crawl status applies them first.
+ * Crawls run as jobs (lib/jobs): a crawl attempt creates its Crawl row and
+ * links it to its job, and the job queue notices a process that died through
+ * the job's heartbeat (lib/jobs/queue.ts recoverStaleJobs).
+ *
+ * Crawls from before the queue (v0.2.7 and older) have no job. If the process
+ * that ran one died, nothing moves the row out of RUNNING (#57). The rules
+ * below find such crawls and mark them FAILED; they never touch a crawl that
+ * belongs to a job.
  */
 
-/** Crawls that block a new one for the same site. */
+/** Crawls that are not finished. */
 export const ACTIVE_CRAWL_STATUSES: CrawlStatus[] = ["PENDING", "RUNNING"];
 
 /**
@@ -24,10 +25,8 @@ export const STALE_AFTER_MS = 5 * 60_000;
 
 /**
  * A crawl that started before this process did belonged to a process that is
- * gone, unless another live process runs it: the MCP server and the web app
- * are separate processes and either can start while the other is crawling.
- * Such a crawl still records progress within a minute, so a minute of silence
- * is enough here.
+ * gone, unless another live process runs it. Such a crawl still records
+ * progress within a minute, so a minute of silence is enough here.
  */
 export const RESTART_GRACE_MS = 60_000;
 
@@ -52,7 +51,7 @@ function quietSince(t: Date): Prisma.CrawlWhereInput {
   };
 }
 
-/** PENDING or RUNNING crawls whose process is gone. */
+/** PENDING or RUNNING crawls without a job whose process is gone. */
 export function staleCrawlWhere(
   now: Date = new Date(),
   processStartedAt: Date = PROCESS_STARTED_AT
@@ -60,6 +59,8 @@ export function staleCrawlWhere(
   const ago = (ms: number) => new Date(now.getTime() - ms);
   return {
     status: { in: ACTIVE_CRAWL_STATUSES },
+    // A crawl that belongs to a job is recovered through the job.
+    jobs: { none: {} },
     OR: [
       quietSince(ago(STALE_AFTER_MS)),
       // Never started and never recorded progress: a PENDING row from before
@@ -88,9 +89,10 @@ export async function recoverStaleCrawls(
 }
 
 /**
- * On server start (web app and MCP server): every crawl this process could not
- * have started and that has gone quiet is marked FAILED. Never throws, so a
- * database that is down does not stop the server from starting.
+ * On server start (web app and MCP server): every crawl without a job that this
+ * process could not have started and that has gone quiet is marked FAILED.
+ * Never throws, so a database that is down does not stop the server from
+ * starting.
  */
 export async function recoverCrawlsOnStartup(db: Db, log: (msg: string) => void = console.error) {
   try {
@@ -109,10 +111,18 @@ export async function recoverCrawlsOnStartup(db: Db, log: (msg: string) => void 
 const crawlRegistry = globalThis as unknown as { crawlseoRunningCrawls?: Map<string, AbortController> };
 const runningCrawls = (crawlRegistry.crawlseoRunningCrawls ??= new Map<string, AbortController>());
 
+/** Registers a crawl this process runs. Returns the function that unregisters it. */
+export function trackRunningCrawl(crawlId: string, controller: AbortController): () => void {
+  runningCrawls.set(crawlId, controller);
+  return () => {
+    if (runningCrawls.get(crawlId) === controller) runningCrawls.delete(crawlId);
+  };
+}
+
 /**
  * Stops the crawls with these ids that run in this process. A crawl another
- * process runs (the MCP server) is not reached; it fails at its next write once
- * its rows are gone.
+ * process runs (the worker) stops at its next heartbeat once its job row is
+ * gone, or fails at its next write once its crawl row is gone.
  */
 export function stopCrawls(crawlIds: string[], reason = "Stopped"): number {
   let stopped = 0;
@@ -124,80 +134,4 @@ export function stopCrawls(crawlIds: string[], reason = "Stopped"): number {
     stopped++;
   }
   return stopped;
-}
-
-export type StartCrawlResult =
-  | { started: true; crawlId: string; maxPages: number }
-  | { started: false; runningCrawlId: string };
-
-/**
- * The one way to start a crawl (API route and MCP): recover stale crawls, refuse
- * if one is still running, otherwise create the row and run the crawl in the
- * background. The page count is clamped to the ceiling here, whatever the
- * caller passed (lib/jobs/policy.ts).
- */
-export async function startSiteCrawl(
-  db: Db,
-  site: { id: string; domain: string },
-  maxPages?: number
-): Promise<StartCrawlResult> {
-  await recoverStaleCrawls(db, { siteId: site.id });
-  const pages = clampMaxPages(maxPages);
-
-  const running = await db.crawl.findFirst({
-    where: { siteId: site.id, status: { in: ACTIVE_CRAWL_STATUSES } },
-    select: { id: true },
-  });
-  if (running) return { started: false, runningCrawlId: running.id };
-
-  const crawl = await db.crawl.create({
-    data: {
-      siteId: site.id,
-      status: "PENDING",
-      lastProgressAt: new Date(),
-      maxPages: pages,
-    },
-  });
-
-  // Fire-and-forget: the crawl runs in this process, on the row created above.
-  const controller = new AbortController();
-  runningCrawls.set(crawl.id, controller);
-  runSiteCrawl(site.id, site.domain, pages, crawl.id, controller.signal)
-    .catch((error) => {
-      if (controller.signal.aborted) return;
-      console.error(`Background crawl failed for site ${site.id}:`, error);
-    })
-    .finally(() => runningCrawls.delete(crawl.id));
-
-  return { started: true, crawlId: crawl.id, maxPages: pages };
-}
-
-/**
- * What the crawl screens show besides the latest completed crawl: a crawl in
- * progress, or the failure of the last attempt since that crawl.
- */
-export async function getCrawlActivity(
-  db: Db,
-  siteId: string,
-  lastCompletedAt: Date | null
-) {
-  await recoverStaleCrawls(db, { siteId });
-
-  const active = await db.crawl.findFirst({
-    where: { siteId, status: { in: ACTIVE_CRAWL_STATUSES } },
-    select: { id: true },
-  });
-  const failed = active
-    ? null
-    : await db.crawl.findFirst({
-        where: {
-          siteId,
-          status: "FAILED",
-          ...(lastCompletedAt && { finishedAt: { gt: lastCompletedAt } }),
-        },
-        orderBy: { finishedAt: { sort: "desc", nulls: "last" } },
-        select: { id: true, error: true, finishedAt: true },
-      });
-
-  return { active, failed };
 }

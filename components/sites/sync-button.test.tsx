@@ -4,8 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 
-const { SyncButton, syncOutcome } = await import("./sync-button");
+const { SyncButton, syncJobOutcome, syncOutcome } = await import("./sync-button");
 const { PageHeader } = await import("@/components/ui/page-header");
+
+describe("syncJobOutcome", () => {
+  it("reads a finished sync job like the old response", () => {
+    expect(
+      syncJobOutcome({ status: "SUCCEEDED", result: { keywordsInserted: 3, pagesInserted: 2 }, lastError: null, errorCode: null })
+    ).toEqual({ tone: "success", text: "Synced 3 keywords · 2 pages" });
+  });
+
+  it("maps an expired Google token to the reconnect prompt", () => {
+    expect(
+      syncJobOutcome({ status: "FAILED", result: null, lastError: "Google access expired", errorCode: "REAUTH_REQUIRED" }).tone
+    ).toBe("reauth");
+  });
+
+  it("shows the job's error otherwise", () => {
+    expect(syncJobOutcome({ status: "FAILED", result: null, lastError: "socket hang up", errorCode: null })).toEqual({
+      tone: "error",
+      text: "socket hang up",
+    });
+  });
+});
 
 describe("syncOutcome", () => {
   it("reports rows synced as a success", () => {

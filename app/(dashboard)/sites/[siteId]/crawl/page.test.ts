@@ -2,10 +2,11 @@ import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // #57: a crawl whose process died used to keep the "Crawl in progress" banner
-// spinning forever. The page now shows it as failed, with the reason.
+// spinning forever. The page now shows it as failed, with the reason. A crawl
+// job that waits shows as queued.
 
 type Activity = {
-  active: { id: string } | null;
+  active: { jobId: string; status: "QUEUED" | "RUNNING"; crawlId: string | null } | null;
   failed: { id: string; error: string | null; finishedAt: Date | null } | null;
 };
 const activity = vi.hoisted<Activity>(() => ({ active: null, failed: null }));
@@ -18,7 +19,7 @@ vi.mock("@/lib/db", () => ({
     auditPage: { findMany: async () => [] },
   },
 }));
-vi.mock("@/lib/crawler/lifecycle", () => ({ getCrawlActivity: async () => activity }));
+vi.mock("@/lib/jobs/site-jobs", () => ({ getCrawlActivity: async () => activity }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -52,9 +53,16 @@ describe("crawl page status (#57)", () => {
   });
 
   it("shows the progress banner while a crawl runs", async () => {
-    activity.active = { id: "live" };
+    activity.active = { jobId: "j1", status: "RUNNING", crawlId: "live" };
     const html = await render();
     expect(html).toContain("Crawl in progress");
     expect(html).not.toContain("Last crawl failed");
+  });
+
+  it("shows a queued crawl as queued", async () => {
+    activity.active = { jobId: "j1", status: "QUEUED", crawlId: null };
+    const html = await render();
+    expect(html).toContain("Crawl queued");
+    expect(html).not.toContain("Crawl in progress");
   });
 });

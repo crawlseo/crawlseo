@@ -16,7 +16,7 @@ import {
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { countVisibleIssues } from "@/lib/crawler/issue-filter";
-import { getCrawlActivity } from "@/lib/crawler/lifecycle";
+import { getCrawlActivity } from "@/lib/jobs/site-jobs";
 import { cn } from "@/lib/utils";
 
 interface SitePageProps {
@@ -113,7 +113,9 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
                     : "Not run yet"
                 }
               />
-              {crawlActivity.active && <CheckRow label="Last crawl" value="Running" />}
+              {crawlActivity.active && (
+                <CheckRow label="Last crawl" value={crawlActivity.active.status === "QUEUED" ? "Queued" : "Running"} />
+              )}
               {crawlActivity.failed && (
                 <div className="flex flex-col gap-0.5">
                   <CheckRow label="Last crawl" value="Failed" tone="danger" />

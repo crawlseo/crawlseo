@@ -16,6 +16,7 @@ import {
 import { useHeaderStatus } from "@/components/ui/header-status";
 import { cn } from "@/lib/utils";
 import { DEFAULT_CRAWL_PAGE_CEILING, DEFAULT_CRAWL_PAGES } from "@/lib/jobs/policy";
+import { pendingNote, waitForJob } from "@/lib/jobs/client";
 
 const PAGE_PRESETS = [25, 50, 100, 200];
 const MIN_CUSTOM_PAGES = 1;
@@ -89,7 +90,8 @@ export function CrawlButton({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Crawl failed");
-      setMsg(`Crawl started (ID: ${data.crawlId?.slice(0, 8)}...)`);
+      // The crawl page shows the queued job and its progress from here on.
+      setMsg(`Crawl queued (${data.maxPages} pages max)`);
       router.refresh();
     } catch (e) {
       setErr(true);
@@ -135,7 +137,7 @@ export function CrawlButton({
           disabled={loading || (isCustom && (!customValue || Number(customValue) < MIN_CUSTOM_PAGES))}
           onClick={run}
         >
-          {loading ? "Starting…" : "Run crawl"}
+          {loading ? "Queueing…" : "Run crawl"}
         </Button>
       </div>
       {msg && !setHeaderStatus && (
@@ -189,7 +191,7 @@ export function VitalsStatusMessage({ status }: { status: VitalsStatus }) {
 export function VitalsButton({ siteId }: { siteId: string }) {
   const router = useRouter();
   const setHeaderStatus = useHeaderStatus();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<false | "queued" | "running">(false);
   const [status, setStatus] = useState<VitalsStatus | null>(null);
 
   // Inside a PageHeader the message goes on its own full-width row under the
@@ -203,17 +205,27 @@ export function VitalsButton({ siteId }: { siteId: string }) {
   useEffect(() => () => setHeaderStatus?.(null), [setHeaderStatus]);
 
   async function run() {
-    setLoading(true);
+    setLoading("queued");
     setStatus(null);
     try {
       const res = await fetch(`/api/sites/${siteId}/vitals`, { method: "POST" });
-      const data = await res.json();
-      if (data.code === "QUOTA_EXCEEDED") {
+      const queued = await res.json();
+      if (!res.ok) throw new Error(queued.error || "Vitals failed");
+      // The check runs as a job: wait for it, and say why when it waits or retries.
+      const job = await waitForJob(queued.jobId, {
+        onUpdate: (j) => {
+          setLoading(j.status === "RUNNING" ? "running" : "queued");
+          const note = pendingNote(j);
+          setStatus(note ? { kind: "ok", text: note } : null);
+        },
+      });
+      if (job.errorCode === "QUOTA_EXCEEDED") {
         setStatus({ kind: "quota" });
         return;
       }
-      if (!res.ok) throw new Error(data.error || "Vitals failed");
-      setStatus({ kind: "ok", text: `Saved ${data.inserted} PageSpeed reports` });
+      if (job.status === "FAILED") throw new Error(job.lastError || "Vitals failed");
+      const inserted = (job.result as { inserted?: number } | null)?.inserted ?? 0;
+      setStatus({ kind: "ok", text: `Saved ${inserted} PageSpeed reports` });
       router.refresh();
     } catch (e) {
       setStatus({ kind: "error", text: e instanceof Error ? e.message : "Failed" });
@@ -224,8 +236,8 @@ export function VitalsButton({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-1">
-      <Button variant="outline" disabled={loading} onClick={run}>
-        {loading ? "Checking…" : "Check vitals"}
+      <Button variant="outline" disabled={loading !== false} onClick={run}>
+        {loading === "queued" ? "Queued…" : loading ? "Checking…" : "Check vitals"}
       </Button>
       {status && !setHeaderStatus && (
         <VitalsStatusMessage status={status} />

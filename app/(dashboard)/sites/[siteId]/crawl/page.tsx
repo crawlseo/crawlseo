@@ -12,7 +12,7 @@ import { RobotsPanel } from "@/components/sites/robots-panel";
 import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
 import { getVisibleIssues } from "@/lib/crawler/issue-filter";
-import { getCrawlActivity } from "@/lib/crawler/lifecycle";
+import { getCrawlActivity } from "@/lib/jobs/site-jobs";
 import { crawledPageColumns, getCrawlPageStats, getCrawlRobotsReport } from "@/lib/crawler/page-stats";
 
 const ISSUE_ROWS = 200;
@@ -36,9 +36,10 @@ export default async function CrawlPage({ params }: Props) {
     orderBy: { finishedAt: "desc" },
   });
 
-  // A crawl in progress, or the failure of the last attempt since `latest`.
-  // A crawl whose process died shows as failed, not in progress (#57).
-  const { active: runningCrawl, failed: failedCrawl } = await getCrawlActivity(
+  // A crawl job queued or running, or the failure of the last attempt since
+  // `latest`. A crawl whose process died shows as failed or queued again, not
+  // in progress (#57).
+  const { active: activeCrawl, failed: failedCrawl } = await getCrawlActivity(
     db,
     siteId,
     latest?.finishedAt ?? null
@@ -80,13 +81,9 @@ export default async function CrawlPage({ params }: Props) {
         actions={<CrawlButton siteId={siteId} pageCeiling={crawlPageCeiling()} />}
       />
 
-      {/* Running crawl indicator */}
-      {runningCrawl && (
-        <CrawlStatusPoller
-          key={runningCrawl.id}
-          siteId={siteId}
-          crawlId={runningCrawl.id}
-        />
+      {/* Queued or running crawl indicator */}
+      {activeCrawl && (
+        <CrawlStatusPoller key={activeCrawl.jobId} jobId={activeCrawl.jobId} status={activeCrawl.status} />
       )}
       {failedCrawl && <CrawlFailedNotice error={failedCrawl.error} finishedAt={failedCrawl.finishedAt} />}
 

@@ -226,9 +226,10 @@ describe("deleteAccount", () => {
 });
 
 describe("schema", () => {
-  // Every table except Auth.js's VerificationToken hangs off User through
-  // required relations that cascade, so deleting the User deletes it. A new
-  // model that does not fails here.
+  // Every table except Auth.js's VerificationToken and WorkerHeartbeat (one row
+  // per job-processing process, no user data) hangs off User through required
+  // relations that cascade, so deleting the User deletes it. A new model that
+  // does not fails here.
   it("every model cascades from User", () => {
     const models = Prisma.dmmf.datamodel.models;
     const byName = new Map(models.map((m) => [m.name, m]));
@@ -246,7 +247,7 @@ describe("schema", () => {
           reaches(f.type, seen)
       );
     };
-    const orphans = models.map((m) => m.name).filter((n) => n !== "VerificationToken" && !reaches(n));
+    const orphans = models.map((m) => m.name).filter((n) => n !== "VerificationToken" && n !== "WorkerHeartbeat" && !reaches(n));
     expect(orphans).toEqual([]);
   });
 });

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const counts = vi.hoisted(() => ({ keywords: 0, pages: 0 }));
 type Activity = {
-  active: { id: string } | null;
+  active: { jobId: string; status: "QUEUED" | "RUNNING"; crawlId: string | null } | null;
   failed: { id: string; error: string | null; finishedAt: Date | null } | null;
 };
 const activity = vi.hoisted<Activity>(() => ({ active: null, failed: null }));
@@ -27,7 +27,7 @@ vi.mock("@/lib/db", () => ({
     vitalsReport: { findFirst: async () => null },
   },
 }));
-vi.mock("@/lib/crawler/lifecycle", () => ({ getCrawlActivity: async () => activity }));
+vi.mock("@/lib/jobs/site-jobs", () => ({ getCrawlActivity: async () => activity }));
 vi.mock("@/lib/seo-opportunities", () => ({
   getAllOpportunities: async () => ({ feed: [] }),
 }));
@@ -88,9 +88,16 @@ describe("site overview crawl status (#57)", () => {
   });
 
   it("shows a crawl in progress", async () => {
-    activity.active = { id: "c2" };
+    activity.active = { jobId: "j2", status: "RUNNING", crawlId: "c2" };
     const html = await render({ keywords: 5, pages: 3 });
     expect(html).toContain("Running");
     expect(html).not.toContain("Failed");
+  });
+
+  it("shows a queued crawl", async () => {
+    activity.active = { jobId: "j3", status: "QUEUED", crawlId: null };
+    const html = await render({ keywords: 5, pages: 3 });
+    expect(html).toContain("Queued");
+    expect(html).not.toContain("Running");
   });
 });

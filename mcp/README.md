@@ -41,8 +41,8 @@ The server needs access to the same PostgreSQL database as the main app. Make su
 | `get_keywords` | Top keywords by clicks with position and CTR |
 | `get_pages` | Top pages by clicks with position and CTR |
 | `get_traffic` | Daily clicks and impressions over time |
-| `run_crawl` | Start a background site crawl |
-| `get_crawl_status` | Check crawl progress and results |
+| `run_crawl` | Queue a site crawl; the crawlseo app or its worker runs it |
+| `get_crawl_status` | Check crawl progress and results, by job ID or crawl ID |
 | `get_crawl_issues` | List issues found during a crawl |
 | `get_vitals` | Core Web Vitals reports (LCP, CLS, INP, TTFB) |
 | `get_opportunities` | SEO opportunities: striking distance, low CTR, content decay, cannibalization |

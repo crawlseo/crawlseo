@@ -99,6 +99,7 @@ model Site {
   rankSnapshots RankSnapshot[]
   bingDaily     BingDaily[]
   bingWeekly    BingSearchWeekly[]
+  jobs          Job[]
 
   @@unique([userId, domain])
 }
@@ -242,6 +243,7 @@ model Crawl {
   issues      CrawlIssue[]
   auditPages  AuditPage[]
   auditLinks  AuditLink[]
+  jobs        Job[]
 
   @@index([siteId, startedAt])
 }
@@ -407,3 +409,64 @@ enum AlertChannel {
   WEBHOOK
   SLACK
 }
+
+// ============================================
+// JOB QUEUE (lib/jobs)
+// ============================================
+
+// Background work: crawls, vitals checks, syncs, alert evaluation. Claimed by
+// the app (WORKER_MODE=inline) or the worker process with FOR UPDATE SKIP
+// LOCKED, retried with backoff, and taken back when the process running it
+// stops sending heartbeats.
+model Job {
+  id          String    @id @default(cuid())
+  siteId      String
+  type        String    // a type registered in lib/jobs/handlers.ts
+  status      JobStatus @default(QUEUED)
+  source      String    // "manual" | "mcp" | "schedule" | "chain" | "site-added"
+  priority    Int       @default(0) // higher runs first
+  payload     Json?
+  result      Json?
+  attempts    Int       @default(0)
+  maxAttempts Int
+  runAt       DateTime  @default(now()) // not before
+  activeKey   String?   @unique // "<type>:<siteId>" while QUEUED or RUNNING, null once finished
+  lockedBy    String?   // id of the process running it
+  lockedAt    DateTime?
+  heartbeatAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  lastError   String?
+  errorCode   String?   // e.g. REAUTH_REQUIRED, QUOTA_EXCEEDED
+  crawlId     String?   // the crawl row of the latest attempt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  site        Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  crawl       Crawl?    @relation(fields: [crawlId], references: [id], onDelete: SetNull)
+
+  @@index([status, runAt])
+  @@index([siteId, type, createdAt])
+  @@index([crawlId])
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+// One row per process that processes jobs, so the app can tell whether
+// anything picks up queued jobs. Holds no user data.
+model WorkerHeartbeat {
+  id         String   @id // the process id used in Job.lockedBy
+  mode       String   // "inline" | "worker"
+  hostname   String
+  version    String
+  startedAt  DateTime
+  lastSeenAt DateTime
+
+  @@index([lastSeenAt])
+}
+

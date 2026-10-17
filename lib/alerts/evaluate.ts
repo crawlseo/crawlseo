@@ -11,11 +11,15 @@ export type AlertFire = {
 };
 
 /**
- * Evaluate enabled alerts for a user. Lightweight rules for v1.
+ * Evaluate enabled alerts for a user, or only those of one of their sites.
+ * Lightweight rules for v1.
  */
-export async function evaluateAlertsForUser(userId: string): Promise<AlertFire[]> {
+export async function evaluateAlertsForUser(
+  userId: string,
+  opts: { siteId?: string } = {}
+): Promise<AlertFire[]> {
   const alerts = await db.alert.findMany({
-    where: { userId, enabled: true },
+    where: { userId, enabled: true, ...(opts.siteId && { siteId: opts.siteId }) },
     include: { site: { select: { id: true, domain: true } } },
   });
 

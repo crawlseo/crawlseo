@@ -192,7 +192,7 @@ server.tool(
 
 server.tool(
   "run_crawl",
-  "Start a new site crawl. Returns the crawl ID immediately; the crawl runs in the background.",
+  "Queue a site crawl. Returns a job ID immediately; the crawlseo app or its worker runs the crawl.",
   {
     siteId: z.string().describe("The site ID to crawl"),
     maxPages: z.number().optional().default(200).describe("Maximum pages to crawl (default 200). The server caps it at its page ceiling (CRAWL_MAX_PAGES, default 2000)"),
@@ -208,8 +208,8 @@ server.tool(
 
 server.tool(
   "get_crawl_status",
-  "Check the status of a crawl by its ID.",
-  { crawlId: z.string().describe("The crawl ID to check") },
+  "Check a crawl by the job ID run_crawl returned, or by a crawl ID.",
+  { crawlId: z.string().describe("The job ID from run_crawl, or a crawl ID") },
   async ({ crawlId }) => {
     return { content: [{ type: "text", text: await crawlStatus(db, crawlId) }] };
   }

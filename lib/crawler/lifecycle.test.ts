@@ -1,17 +1,16 @@
 import type { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Stale crawl recovery (#57) against the real Prisma client on PGlite. The
-// crawl itself (network) is stubbed.
+// Stale crawl recovery (#57) for crawls without a job, against the real
+// Prisma client on PGlite. Crawls that belong to a job are recovered through
+// the job (lib/jobs/queue.test.ts).
 
 const holder = vi.hoisted(() => ({ db: null as PrismaClient | null }));
-const runSiteCrawl = vi.hoisted(() => vi.fn(async () => ({})));
 
 vi.mock("@/lib/db", async () => {
   const { lazyDb } = await import("@/lib/testing/pglite");
   return { db: lazyDb(holder) };
 });
-vi.mock("./engine", () => ({ runSiteCrawl }));
 
 import { createTestDb, type TestDb } from "@/lib/testing/pglite";
 import {
@@ -19,10 +18,11 @@ import {
   PROCESS_STARTED_AT,
   recoverCrawlsOnStartup,
   recoverStaleCrawls,
-  startSiteCrawl,
   stopCrawls,
+  trackRunningCrawl,
 } from "./lifecycle";
 import { register } from "@/instrumentation";
+import { inlineJobLoop } from "@/lib/jobs/inline";
 
 const SEC = 1000;
 const MIN = 60 * SEC;
@@ -42,8 +42,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await db.job.deleteMany();
   await db.crawl.deleteMany();
-  runSiteCrawl.mockClear();
 });
 
 const ago = (ms: number, from = Date.now()) => new Date(from - ms);
@@ -75,49 +75,39 @@ describe("stale crawl rule", () => {
     expect(await statusOf("done")).toBe("COMPLETED");
   });
 
-  it("a stale RUNNING crawl (old progress) is marked failed and a new crawl starts", async () => {
-    await crawl("stale", { startedAt: ago(30 * MIN), lastProgressAt: ago(10 * MIN) });
-
-    const result = await startSiteCrawl(db, { id: "s1", domain: "quilltab.app" }, 25);
-    expect(result.started).toBe(true);
-    expect(await statusOf("stale")).toBe("FAILED");
-    if (!result.started) throw new Error("unreachable");
-    expect(runSiteCrawl).toHaveBeenCalledWith("s1", "quilltab.app", 25, result.crawlId, expect.any(AbortSignal));
-    const started = await db.crawl.findUniqueOrThrow({ where: { id: result.crawlId } });
-    expect(started.status).toBe("PENDING");
-    expect(started.lastProgressAt).not.toBeNull();
-  });
-
-  it("a RUNNING crawl with fresh progress still blocks a new one", async () => {
-    await crawl("live", { startedAt: ago(10 * SEC), lastProgressAt: ago(5 * SEC) });
-
-    expect(await startSiteCrawl(db, { id: "s1", domain: "quilltab.app" })).toEqual({
-      started: false,
-      runningCrawlId: "live",
+  it("never touches a crawl that belongs to a job, however quiet", async () => {
+    await crawl("job-crawl", { startedAt: ago(30 * MIN), lastProgressAt: ago(10 * MIN) });
+    await db.job.create({
+      data: { siteId: "s1", type: "crawl", source: "manual", maxAttempts: 2, status: "RUNNING", crawlId: "job-crawl" },
     });
-    expect(runSiteCrawl).not.toHaveBeenCalled();
-    expect(await statusOf("live")).toBe("RUNNING");
+    await crawl("legacy", { startedAt: ago(30 * MIN), lastProgressAt: ago(10 * MIN) });
+
+    expect(await recoverStaleCrawls(db)).toBe(1);
+    expect(await statusOf("job-crawl")).toBe("RUNNING");
+    expect(await statusOf("legacy")).toBe("FAILED");
   });
 });
 
 describe("stopCrawls", () => {
-  it("aborts a crawl this process started, once", async () => {
-    let signal: AbortSignal | undefined;
-    runSiteCrawl.mockImplementationOnce(
-      (async (...args: unknown[]) => {
-        signal = args[4] as AbortSignal;
-        await new Promise((_, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)));
-      }) as unknown as () => Promise<object>
-    );
+  it("aborts a crawl this process runs, once", async () => {
+    const controller = new AbortController();
+    const untrack = trackRunningCrawl("c1", controller);
 
-    const result = await startSiteCrawl(db, { id: "s1", domain: "quilltab.app" });
-    if (!result.started) throw new Error("unreachable");
-    expect(signal?.aborted).toBe(false);
+    expect(stopCrawls(["c1", "not-running"], "Stopped: test")).toBe(1);
+    expect(controller.signal.aborted).toBe(true);
+    expect((controller.signal.reason as Error).message).toBe("Stopped: test");
+    expect(stopCrawls(["c1"])).toBe(0);
+    untrack();
+  });
 
-    expect(stopCrawls([result.crawlId, "not-running"], "Stopped: test")).toBe(1);
-    expect(signal?.aborted).toBe(true);
-    expect((signal?.reason as Error).message).toBe("Stopped: test");
-    expect(stopCrawls([result.crawlId])).toBe(0);
+  it("untracking a finished crawl leaves a newer controller for the same id alone", () => {
+    const first = new AbortController();
+    const untrackFirst = trackRunningCrawl("c2", first);
+    const second = new AbortController();
+    trackRunningCrawl("c2", second);
+    untrackFirst();
+    expect(stopCrawls(["c2"])).toBe(1);
+    expect(second.signal.aborted).toBe(true);
   });
 });
 
@@ -147,13 +137,31 @@ describe("on server start", () => {
 
   it("the Next.js instrumentation hook runs the recovery", async () => {
     await crawl("orphan", { startedAt: ago(3 * 60 * MIN), lastProgressAt: null });
-    const runtime = process.env.NEXT_RUNTIME;
-    process.env.NEXT_RUNTIME = "nodejs";
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("WORKER_MODE", "off");
     try {
       await register();
     } finally {
-      process.env.NEXT_RUNTIME = runtime;
+      vi.unstubAllEnvs();
     }
     await vi.waitFor(async () => expect(await statusOf("orphan")).toBe("FAILED"));
+    // WORKER_MODE=off: the app only queues jobs.
+    expect(inlineJobLoop()).toBeUndefined();
+  });
+
+  it("the instrumentation hook starts the inline job loop by default", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("WORKER_MODE", "");
+    vi.stubEnv("VERCEL", "");
+    try {
+      await register();
+      const loop = inlineJobLoop();
+      expect(loop).toBeDefined();
+      await vi.waitFor(async () => expect(await db.workerHeartbeat.count({ where: { mode: "inline" } })).toBe(1));
+      await loop!.stop(1000);
+      expect(await db.workerHeartbeat.count()).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

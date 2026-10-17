@@ -16,7 +16,7 @@ vi.mock("@/lib/db", async () => {
   const { lazyDb } = await import("@/lib/testing/pglite");
   return { db: lazyDb(holder) };
 });
-vi.mock("@/lib/crawler/lifecycle", () => ({
+vi.mock("@/lib/jobs/site-jobs", () => ({
   getCrawlActivity: async () => ({ active: null, failed: null }),
 }));
 vi.mock("next/navigation", () => ({

@@ -1,8 +1,15 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ReauthRequiredError } from "@/lib/google";
-import { runGSCSync } from "@/lib/workers/gsc-sync";
+import { dispatchJob } from "@/lib/jobs/dispatch";
+import { GSC_SYNC_JOB } from "@/lib/jobs/handlers";
+import { requestSiteJob } from "@/lib/jobs/site-jobs";
 
+/**
+ * Queues a GSC sync for the site and answers 202 with the job id. The client
+ * polls GET /api/jobs/[jobId]; the job's result has the fields this route
+ * used to return (keywordsInserted, pagesInserted, startDate, endDate), and an
+ * expired Google token fails it with errorCode REAUTH_REQUIRED.
+ */
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -33,27 +40,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Same fetch + upsert as the background worker, so both paths write
-    // identical Keyword/Page rows (see gscDate for the date convention).
-    const result = await runGSCSync(session.user.id, siteId, site.gscProperty);
+    const { job, created } = await requestSiteJob(db, { type: GSC_SYNC_JOB, siteId, source: "manual" });
+    dispatchJob(db, job);
 
-    return Response.json({
-      success: true,
-      keywordsInserted: result.keywordsInserted,
-      pagesInserted: result.pagesInserted,
-      // The window that was asked for, so an empty result can say which days were empty.
-      startDate: result.startDate,
-      endDate: result.endDate,
-    });
+    return Response.json(
+      { jobId: job.id, status: job.status, ...(!created && { alreadyActive: true }) },
+      { status: 202 }
+    );
   } catch (error) {
-    if (error instanceof ReauthRequiredError) {
-      return Response.json(
-        { error: error.message, code: "REAUTH_REQUIRED" },
-        { status: 401 }
-      );
-    }
-
-    console.error("Error syncing GSC data:", error);
+    console.error("Error queueing GSC sync:", error);
 
     return Response.json(
       {

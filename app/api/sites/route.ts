@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assertPublicDomain } from "@/lib/crawler/engine";
-import { syncGSCDataForSite } from "@/lib/workers/gsc-sync";
+import { dispatchJob } from "@/lib/jobs/dispatch";
+import { GSC_SYNC_JOB } from "@/lib/jobs/handlers";
+import { requestSiteJob } from "@/lib/jobs/site-jobs";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 import { siteDomainFromProperty } from "@/lib/site-domain";
 
@@ -112,10 +114,13 @@ export async function POST(req: Request) {
 
     await ensureDefaultAlerts(session.user.id, site.id);
 
-    // Kick off initial GSC sync (don't block the response)
-    void syncGSCDataForSite(session.user.id, site.id, 28).catch((err) =>
-      console.error("Initial GSC sync failed:", err)
-    );
+    // The first GSC sync runs as a job, so the response does not wait for it.
+    try {
+      const { job } = await requestSiteJob(db, { type: GSC_SYNC_JOB, siteId: site.id, source: "site-added" });
+      dispatchJob(db, job);
+    } catch (err) {
+      console.error("Could not queue the initial GSC sync:", err);
+    }
 
     return Response.json(site, { status: 201 });
   } catch (error) {
