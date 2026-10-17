@@ -143,7 +143,7 @@ describe("retry and backoff", () => {
   });
 
   it("a retry goes back to the queue after the backoff and keeps its active key", async () => {
-    const { job } = await enqueueJob(db, { type: "q-short", siteId: "s1", source: "manual" });
+    const { job } = await enqueueJob(db, { type: "q-short", siteId: "s1", source: "manual", runAt: at(-MIN) });
     const [claimed] = await claimJobs(db, { workerId: W, types: ["q-short"], limit: 1, now: at(0) });
 
     expect(await markRetry(db, claimed, W, { message: "timeout", code: "T" }, at(0), 5 * MIN)).toBe(true);
@@ -192,8 +192,8 @@ describe("fencing", () => {
   });
 
   it("heartbeats report the jobs this process still holds", async () => {
-    await enqueueJob(db, { type: "q-short", siteId: "s1", source: "manual" });
-    await enqueueJob(db, { type: "q-short", siteId: "s2", source: "manual" });
+    await enqueueJob(db, { type: "q-short", siteId: "s1", source: "manual", runAt: at(-MIN) });
+    await enqueueJob(db, { type: "q-short", siteId: "s2", source: "manual", runAt: at(-MIN) });
     const claimed = await claimJobs(db, { workerId: W, types: ["q-short"], limit: 2, now: at(0) });
     await db.job.delete({ where: { id: claimed[1].id } }); // e.g. the site was deleted
 
