@@ -29,7 +29,7 @@ const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 // A crawl stops after this many minutes (CRAWL_MAX_MINUTES overrides it).
 // Mostly reached on sites that set a Crawl-delay.
 const DEFAULT_CRAWL_MAX_MINUTES = 30;
-export const USER_AGENT = "CrawlSEOBot/1.0 (+https://crawlseo.cloud)";
+export const USER_AGENT = "CrawlSEOBot/1.0 (+https://crawlseo.cloud/bot)";
 
 /* ------------------------------------------------------------------ */
 /*  Known managed-infrastructure path patterns                        */

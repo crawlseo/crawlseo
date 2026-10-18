@@ -45,7 +45,7 @@ function makePage(overrides: Partial<PageSnapshot> & { url: string }): PageSnaps
 
 describe("USER_AGENT", () => {
   it("names the bot and points site owners to crawlseo.cloud", () => {
-    expect(USER_AGENT).toBe("CrawlSEOBot/1.0 (+https://crawlseo.cloud)");
+    expect(USER_AGENT).toBe("CrawlSEOBot/1.0 (+https://crawlseo.cloud/bot)");
   });
 });
 

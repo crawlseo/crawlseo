@@ -87,14 +87,40 @@ describe("startWorker", () => {
     // Held by this process's runner, not only claimed in the database.
     await vi.waitFor(() => expect(worker.loop.runner.count()).toBe(1));
 
-    const exit = vi.fn();
+    // Record the order of the steps, and whether the loop could still claim
+    // when the jobs went back. No timing: each step is observed as it runs.
+    const order: string[] = [];
+    const halt = worker.loop.halt.bind(worker.loop);
+    vi.spyOn(worker.loop, "halt").mockImplementation(async () => {
+      order.push("halt");
+      await halt();
+    });
+    const forceReleaseAll = worker.loop.runner.forceReleaseAll.bind(worker.loop.runner);
+    let haltedAtRelease: boolean | undefined;
+    vi.spyOn(worker.loop.runner, "forceReleaseAll").mockImplementation(async () => {
+      order.push("release");
+      haltedAtRelease = worker.loop.halted;
+      return forceReleaseAll();
+    });
+    const exit = vi.fn(() => void order.push("exit"));
     const logs: string[] = [];
     const crash = crashHandlers(() => worker, { exit, log: (m) => logs.push(m) });
     await crash.uncaughtException(new Error("boom"));
 
+    expect(order).toEqual(["halt", "release", "exit"]);
+    expect(haltedAtRelease).toBe(true);
     expect(exit).toHaveBeenCalledWith(1);
-    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ status: "QUEUED", attempts: 0 });
+    // The aborted handler releases the job too, and either release may land
+    // first, so the count is 1 or 0. The database state below is the contract.
+    expect(logs.some((l) => /^\[worker\] put [01] job\(s\) back in the queue$/.test(l))).toBe(true);
     expect(logs.some((l) => l.includes("uncaught exception") && l.includes("boom"))).toBe(true);
+
+    // Let the aborted run settle; its slot frees up and wakes the loop, which
+    // must not claim the job it just put back.
+    await worker.loop.drain();
+    expect(worker.loop.runner.count()).toBe(0);
+    expect(await worker.loop.tick()).toBe(0);
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ status: "QUEUED", attempts: 0 });
     await worker.shutdown("test");
     release?.();
   });

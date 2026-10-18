@@ -168,6 +168,23 @@ export class JobLoop {
     }
   }
 
+  /** True once halt() or stop() ran: the loop claims nothing more. */
+  get halted(): boolean {
+    return this.stopping;
+  }
+
+  /**
+   * Stops claiming: clears the timers and waits for a claim in progress, so
+   * every job this process will ever hold is in the runner when it returns.
+   * Running jobs are left alone.
+   */
+  async halt(): Promise<void> {
+    this.stopping = true;
+    for (const t of this.timers) clearInterval(t);
+    this.timers = [];
+    await this.ticking?.catch(() => 0);
+  }
+
   /**
    * Graceful stop: claims nothing more, stops jobs that stop at once (crawls)
    * and puts them back in the queue, gives the others `graceMs` to finish,
@@ -175,10 +192,7 @@ export class JobLoop {
    */
   async stop(graceMs: number): Promise<void> {
     if (this.stopping) return;
-    this.stopping = true;
-    for (const t of this.timers) clearInterval(t);
-    this.timers = [];
-    await this.ticking?.catch(() => 0);
+    await this.halt();
 
     this.runner.release((handler) => handler?.stopOnShutdown === true);
     const all = Promise.allSettled([...this.inflight]);
