@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import type { PrismaClient } from "@prisma/client";
-import { scheduleConfig, type ScheduleConfig } from "./config";
+import { DAY, scheduleConfig, type ScheduleConfig } from "./config";
 import { BING_SYNC_JOB, CRAWL_JOB, GSC_SYNC_JOB, jobTypes, VITALS_JOB } from "./handlers";
 import { DEFAULT_CRAWL_PAGES } from "./policy";
 import { enqueueJob } from "./queue";
@@ -40,8 +40,6 @@ type Db = PrismaClient;
 
 /** How many sites' due rules run at once. */
 const DUE_RULE_BATCH = 10;
-
-const DAY_MS = 24 * 60 * 60_000;
 
 /** Processes share one scheduling pass per this interval. */
 export const SCHEDULER_EVERY_MS = 10 * 60_000;
@@ -208,7 +206,7 @@ function builtInSchedules(config: ScheduleConfig): Schedule[] {
 
 /** A user's interval in days, or the server's when they set none. */
 function userInterval(days: number | null | undefined, serverMs: number): number {
-  return days === null || days === undefined || !Number.isFinite(days) || days < 0 ? serverMs : days * DAY_MS;
+  return days === null || days === undefined || !Number.isFinite(days) || days < 0 ? serverMs : days * DAY;
 }
 
 /**

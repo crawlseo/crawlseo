@@ -75,5 +75,8 @@ describe("job handler registry", () => {
     expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: false })).toEqual([]);
     expect(followUps({} as never, { fired: 0, fires: [], firedAt, webhook: true })).toEqual([]);
     expect(followUps({} as never, undefined)).toEqual([]);
+    // Fired an hour before: still firing, already sent today.
+    const recent = [{ ...fires[0], previousFiredAt: "2026-10-19T04:00:00.000Z" }];
+    expect(followUps({} as never, { fired: 1, fires: recent, firedAt, webhook: true })).toEqual([]);
   });
 });

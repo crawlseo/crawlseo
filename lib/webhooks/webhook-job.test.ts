@@ -157,17 +157,26 @@ describe("queueing deliveries", () => {
     await db.crawl.create({ data: { siteId: "s1", status: "COMPLETED", healthScore: 50, issuesFound: 9, finishedAt: new Date() } });
   }
 
-  it("an evaluation that fired queues one delivery per evaluation, none folded into another", async () => {
+  async function evaluate() {
+    const { job } = await enqueueJob(db, { type: ALERTS_EVALUATE_JOB, siteId: "s1", source: "chain" });
+    const run = await runNow(job.id);
+    expect(run.outcome).toBe("succeeded");
+    return run.followUps.map((f) => f.type);
+  }
+
+  it("an alert that fired queues a delivery; one that keeps firing is sent again only a day later", async () => {
     await fireableAlert();
-    for (let i = 0; i < 2; i++) {
-      const { job } = await enqueueJob(db, { type: ALERTS_EVALUATE_JOB, siteId: "s1", source: "chain" });
-      const run = await runNow(job.id);
-      expect(run.outcome).toBe("succeeded");
-      expect(run.followUps.map((f) => f.type)).toEqual([ALERT_WEBHOOK_JOB]);
-    }
-    const deliveries = await db.job.findMany({ where: { type: ALERT_WEBHOOK_JOB } });
+    expect(await evaluate()).toEqual([ALERT_WEBHOOK_JOB]);
+    // The next sync evaluates again the same day: still firing, not sent again.
+    expect(await evaluate()).toEqual([]);
+    // A day later it still fires: sent again, as a delivery of its own.
+    await db.alert.updateMany({ data: { lastFired: new Date(Date.now() - 21 * 60 * MIN) } });
+    expect(await evaluate()).toEqual([ALERT_WEBHOOK_JOB]);
+
+    const deliveries = await db.job.findMany({ where: { type: ALERT_WEBHOOK_JOB }, orderBy: { createdAt: "asc" } });
     expect(deliveries).toHaveLength(2);
-    expect(deliveries[0].payload).toMatchObject({ fires: [{ type: "CRAWL_ISSUES", siteId: "s1" }] });
+    expect(deliveries[0].payload).toMatchObject({ fires: [{ type: "CRAWL_ISSUES", siteId: "s1", previousFiredAt: null }] });
+    expect(deliveries[1].payload).toMatchObject({ fires: [{ previousFiredAt: expect.any(String) }] });
   });
 
   it("an evaluation queues nothing for a user without a webhook", async () => {
@@ -182,6 +191,9 @@ describe("queueing deliveries", () => {
     const jobs = await queueAlertWebhooks(db, "u1", FIRES, { source: "manual" });
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ type: ALERT_WEBHOOK_JOB, siteId: "s1", source: "manual", activeKey: null });
+    // Clicking again right after: those alerts already went out.
+    const again = FIRES.map((f) => ({ ...f, previousFiredAt: new Date().toISOString() }));
+    expect(await queueAlertWebhooks(db, "u1", again, { source: "manual" })).toEqual([]);
 
     vi.stubEnv("ALERT_WEBHOOKS_ENABLED", "false");
     try {

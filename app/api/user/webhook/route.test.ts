@@ -21,7 +21,7 @@ vi.mock("@/lib/user-settings", () => ({
   }),
 }));
 vi.mock("@/lib/webhooks/status", () => ({
-  webhookStatus: vi.fn(async () => ({ enabled: true, allowPrivate: false, url: store.webhook?.url ?? null, lastDelivery: null })),
+  webhookStatus: vi.fn(async () => ({ enabled: true, allowPrivate: false, serverless: false, url: store.webhook?.url ?? null, lastDelivery: null })),
 }));
 
 import { DELETE, PUT } from "./route";

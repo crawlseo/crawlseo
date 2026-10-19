@@ -69,7 +69,7 @@ export const SERVERLESS_MAX_DURATION_S = 300;
 export const SERVERLESS_JOB_BUDGET_MS = (SERVERLESS_MAX_DURATION_S - 30) * 1000;
 
 const HOUR = 60 * 60_000;
-const DAY = 24 * HOUR;
+export const DAY = 24 * HOUR;
 
 /** How often the scheduler queues work per site. An interval of 0 turns that job off. */
 export type ScheduleConfig = {

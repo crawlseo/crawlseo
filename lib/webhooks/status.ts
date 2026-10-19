@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { isServerless } from "@/lib/jobs/config";
 import { ALERT_WEBHOOK_JOB } from "@/lib/jobs/handlers";
 import { getWebhook } from "@/lib/user-settings";
 import { allowPrivateWebhooks, webhooksEnabled } from "./config";
@@ -19,6 +20,8 @@ export type WebhookStatus = {
   /** ALERT_WEBHOOKS_ENABLED is not false. */
   enabled: boolean;
   allowPrivate: boolean;
+  /** A serverless host retries within the request, then at the next cron run, not on the queue's backoff. */
+  serverless: boolean;
   /** The saved URL, null when none is set. The secret is never sent back. */
   url: string | null;
   lastDelivery: LastDelivery | null;
@@ -52,5 +55,11 @@ export async function webhookStatus(db: PrismaClient, userId: string): Promise<W
       nextAttemptAt: retrying ? job.runAt.toISOString() : null,
     };
   }
-  return { enabled: webhooksEnabled(), allowPrivate: allowPrivateWebhooks(), url: webhook?.url ?? null, lastDelivery };
+  return {
+    enabled: webhooksEnabled(),
+    allowPrivate: allowPrivateWebhooks(),
+    serverless: isServerless(),
+    url: webhook?.url ?? null,
+    lastDelivery,
+  };
 }

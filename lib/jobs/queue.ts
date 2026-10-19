@@ -82,7 +82,7 @@ export async function enqueueJob(
       skipDuplicates: true,
     });
     if (job) return { job, created: true };
-    if (!activeKey) break;
+    if (!activeKey) throw new Error(`Could not queue ${input.type}: the insert returned no row`);
     const existing = await db.job.findUnique({ where: { activeKey } });
     if (existing) return { job: existing, created: false };
   }

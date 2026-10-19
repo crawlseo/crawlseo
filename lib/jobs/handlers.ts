@@ -9,7 +9,7 @@ import { syncBingDataForSite } from "@/lib/workers/bing-sync";
 import { syncVitalsForSite } from "@/lib/workers/vitals-sync";
 import { getWebhook } from "@/lib/user-settings";
 import { webhooksEnabled } from "@/lib/webhooks/config";
-import { alertPayload, sendWebhook, type AlertDelivery } from "@/lib/webhooks/deliver";
+import { alertPayload, firesToDeliver, sendWebhook, type AlertDelivery } from "@/lib/webhooks/deliver";
 import { clampMaxPages } from "./policy";
 import { isPermanentJobError, JobError, JobLostError, type JobClass, type JobHandler } from "./types";
 
@@ -217,13 +217,16 @@ const alertsEvaluateHandler: JobHandler = {
   followUps: (_job, result) => {
     const r = result as { fires?: AlertDelivery["fires"]; firedAt?: string; webhook?: boolean } | undefined;
     if (!r?.webhook || !r.fires?.length || !r.firedAt) return [];
-    return [{ type: ALERT_WEBHOOK_JOB, payload: { fires: r.fires, firedAt: r.firedAt }, unique: false }];
+    const fires = firesToDeliver(r.fires, new Date(r.firedAt));
+    if (fires.length === 0) return [];
+    return [{ type: ALERT_WEBHOOK_JOB, payload: { fires, firedAt: r.firedAt }, unique: false }];
   },
   async run({ db, job }) {
     const site = await siteOf(db, job);
+    // Looked up first: a failure here retries the job before any alert is stamped as fired.
+    const webhook = await hasAlertWebhook(db, site.userId);
     const fires = await evaluateAlertsForUser(site.userId, { siteId: site.id });
-    const webhook = fires.length > 0 && (await hasAlertWebhook(db, site.userId));
-    return { fired: fires.length, fires, firedAt: new Date().toISOString(), webhook };
+    return { fired: fires.length, fires, firedAt: new Date().toISOString(), webhook: webhook && fires.length > 0 };
   },
 };
 

@@ -46,6 +46,8 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
   const [status, setStatus] = useState(initial);
   const [url, setUrl] = useState(initial.url ?? "");
   const [secret, setSecret] = useState("");
+  // Only a secret made with Generate is shown, so it can be copied to the receiver. A typed one stays hidden.
+  const [generated, setGenerated] = useState(false);
   const [invalid, setInvalid] = useState<"url" | "secret" | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -87,6 +89,7 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
       setStatus(next);
       setUrl(next.url ?? "");
       setSecret("");
+      setGenerated(false);
       setMessage({ ok: true, text: kind === "save" ? "Webhook saved. Fired alerts are sent to it." : "Webhook removed." });
     } catch {
       setMessage({ ok: false, text: "That did not work. Try again." });
@@ -113,8 +116,10 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
         <div className={`min-w-0 flex-1 space-y-3 ${FORM_MAX_WIDTH}`}>
           <p className="text-[13px] leading-5 text-muted-foreground">
             When alerts fire, crawlseo sends a JSON POST to this URL, signed with your secret in the{" "}
-            <code className="font-data">X-Crawlseo-Signature</code> header. A failed delivery is retried after 1, 5, 25 and
-            60 minutes.
+            <code className="font-data">X-Crawlseo-Signature</code> header.
+            {status.serverless
+              ? " A failed delivery is retried after 2, 10 and 30 seconds, then at the next cron run."
+              : " A failed delivery is retried after 1, 5, 25 and 60 minutes."}
             {status.allowPrivate
               ? " This server also allows addresses on private networks."
               : " Only public addresses are allowed."}
@@ -157,6 +162,7 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
                 aria-describedby={`${id}-secret-help`}
                 onChange={(e) => {
                   setSecret(e.target.value);
+                  setGenerated(false);
                   setInvalid(null);
                 }}
                 className={INPUT_CLASS}
@@ -168,6 +174,7 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
                 className="shrink-0 self-center"
                 onClick={() => {
                   setSecret(randomSecret());
+                  setGenerated(true);
                   setInvalid(null);
                 }}
               >
@@ -178,8 +185,9 @@ export function WebhookSection({ initial }: { initial: WebhookStatus }) {
               Your receiver checks the signature with this secret. It is stored encrypted and never shown again; copy it
               before you save.
             </p>
-            {secret && (
-              <p className="mt-1 font-data text-xs break-all text-text" aria-live="polite">
+            {generated && secret && (
+              <p className="mt-1 font-data text-xs break-all text-text">
+                <span className="sr-only">Generated secret: </span>
                 {secret}
               </p>
             )}

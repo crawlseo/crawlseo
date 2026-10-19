@@ -12,7 +12,7 @@ const { lookup } = vi.hoisted(() => ({ lookup: vi.fn() }));
 vi.mock("dns/promises", () => ({ lookup, default: { lookup } }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 
-import { alertPayload, checkSecret, sendWebhook, signWebhook, testPayload } from "./deliver";
+import { alertPayload, checkSecret, firesToDeliver, sendWebhook, signWebhook, testPayload } from "./deliver";
 
 type Hit = { headers: IncomingMessage["headers"]; body: string };
 let server: Server;
@@ -177,6 +177,31 @@ describe("checkSecret", () => {
     expect(checkSecret("short")).toHaveProperty("error");
     expect(checkSecret(undefined)).toHaveProperty("error");
     expect(checkSecret("x".repeat(257))).toHaveProperty("error");
-    expect(checkSecret(`  ${"x".repeat(16)}  `)).toEqual({ secret: "x".repeat(16) });
+    expect(checkSecret("x".repeat(16))).toEqual({ secret: "x".repeat(16) });
+  });
+
+  it("refuses a secret with a leading or trailing space instead of trimming what the receiver signs with", () => {
+    expect(checkSecret(`${"x".repeat(16)} `)).toHaveProperty("error");
+    expect(checkSecret(`${"x".repeat(16)}\n`)).toHaveProperty("error");
+    expect(checkSecret(` ${"x".repeat(16)}`)).toHaveProperty("error");
+  });
+});
+
+describe("firesToDeliver", () => {
+  const now = new Date("2026-10-19T05:00:00.000Z");
+  const fire = (previousFiredAt: string | null | undefined) => ({
+    alertId: "a1",
+    type: "TRAFFIC_DROP",
+    message: "m",
+    siteId: "s1",
+    domain: "quilltab.app",
+    previousFiredAt,
+  });
+
+  it("sends a first fire and one that last fired a day ago, not one that keeps firing within the day", () => {
+    expect(firesToDeliver([fire(null), fire(undefined)], now)).toHaveLength(2);
+    expect(firesToDeliver([fire("2026-10-18T05:30:00.000Z")], now)).toHaveLength(1); // 23.5 h
+    expect(firesToDeliver([fire("2026-10-18T09:00:00.000Z")], now)).toHaveLength(1); // 20 h
+    expect(firesToDeliver([fire("2026-10-19T04:00:00.000Z")], now)).toHaveLength(0); // 1 h
   });
 });

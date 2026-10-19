@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { decrypt, encrypt } from "@/lib/encryption";
-import { isServerless, scheduleConfig } from "@/lib/jobs/config";
+import { DAY, isServerless, scheduleConfig } from "@/lib/jobs/config";
 import type { ScheduleServerInfo, ScheduleSettings } from "@/lib/schedule-settings";
 
 /*
@@ -11,15 +11,13 @@ import type { ScheduleServerInfo, ScheduleSettings } from "@/lib/schedule-settin
 
 type Db = Pick<PrismaClient, "userSettings">;
 
-const DAY_MS = 24 * 60 * 60_000;
-
 /** What the server allows: its default intervals in days (0: off on this server) and whether it is serverless. */
 export function scheduleServerInfo(): ScheduleServerInfo {
   const config = scheduleConfig();
   return {
     schedulerEnabled: config.enabled,
-    crawlDefaultDays: Math.round(config.crawlMs / DAY_MS),
-    vitalsDefaultDays: Math.round(config.vitalsMs / DAY_MS),
+    crawlDefaultDays: Math.round(config.crawlMs / DAY),
+    vitalsDefaultDays: Math.round(config.vitalsMs / DAY),
     serverless: isServerless(),
   };
 }

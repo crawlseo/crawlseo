@@ -8,6 +8,8 @@ export type AlertFire = {
   message: string;
   siteId: string;
   domain: string;
+  /** When the alert fired before this evaluation, null if never. */
+  previousFiredAt?: string | null;
 };
 
 /**
@@ -111,7 +113,9 @@ export async function evaluateAlertsForUser(
 
   // Mark fired
   const now = new Date();
+  const before = new Map(alerts.map((a) => [a.id, a.lastFired]));
   for (const fire of fires) {
+    fire.previousFiredAt = before.get(fire.alertId)?.toISOString() ?? null;
     await db.alert.update({
       where: { id: fire.alertId },
       data: { lastFired: now },

@@ -22,9 +22,10 @@ export const MAX_SECRET_LENGTH = 256;
 
 export type WebhookEvent = "alert.fired" | "test";
 
-/** The secret as it is stored, or an error message. */
+/** The secret as it is stored, or an error message. Never trimmed: the receiver signs with the exact value. */
 export function checkSecret(raw: unknown): { secret: string } | { error: string } {
-  const secret = typeof raw === "string" ? raw.trim() : "";
+  const secret = typeof raw === "string" ? raw : "";
+  if (secret !== secret.trim()) return { error: "The secret starts or ends with a space or line break. Remove it." };
   if (secret.length < MIN_SECRET_LENGTH) return { error: `The secret needs at least ${MIN_SECRET_LENGTH} characters.` };
   if (secret.length > MAX_SECRET_LENGTH) return { error: `The secret can have at most ${MAX_SECRET_LENGTH} characters.` };
   return { secret };
@@ -48,6 +49,21 @@ function appUrl(): string | null {
 
 export type AlertDelivery = { fires: AlertFire[]; firedAt: string };
 
+/**
+ * An alert that keeps firing (a traffic drop lasts days, and each sync
+ * evaluates again) goes to the webhook again only after this long: at most
+ * once a day, with slack for a daily sync that runs a little earlier.
+ */
+export const WEBHOOK_REPEAT_AFTER_MS = 20 * 60 * 60_000;
+
+/** The fires a webhook gets: those that did not fire within WEBHOOK_REPEAT_AFTER_MS before. */
+export function firesToDeliver(fires: AlertFire[], now: Date = new Date()): AlertFire[] {
+  return fires.filter((f) => {
+    const previous = f.previousFiredAt ? Date.parse(f.previousFiredAt) : NaN;
+    return Number.isNaN(previous) || now.getTime() - previous >= WEBHOOK_REPEAT_AFTER_MS;
+  });
+}
+
 /** The body of an alert.fired delivery: every alert that fired for one site in one evaluation. */
 export function alertPayload(deliveryId: string, delivery: AlertDelivery) {
   const first = delivery.fires[0];
@@ -57,7 +73,12 @@ export function alertPayload(deliveryId: string, delivery: AlertDelivery) {
     id: deliveryId,
     firedAt: delivery.firedAt,
     site: { id: first?.siteId ?? null, domain: first?.domain ?? null },
-    alerts: delivery.fires.map((f) => ({ id: f.alertId, type: f.type, message: f.message })),
+    alerts: delivery.fires.map((f) => ({
+      id: f.alertId,
+      type: f.type,
+      message: f.message,
+      previousFiredAt: f.previousFiredAt ?? null,
+    })),
     url: base && first ? `${base}/sites/${first.siteId}/alerts` : null,
     crawlseo: { version: APP_VERSION },
   };
