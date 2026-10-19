@@ -214,7 +214,7 @@ Image tags:
 | Tag | What it is |
 |---|---|
 | `latest` | The latest release. Moves only when a version is tagged. |
-| `0.3.2`, `0.3` | A release, and the newest patch of a minor version. |
+| `0.3.3`, `0.3` | A release, and the newest patch of a minor version. |
 | `edge` | The latest build of `main`, ahead of the last release. |
 | `sha-<commit>` | One exact build, for main pushes and releases. |
 
@@ -222,7 +222,7 @@ To pin a release, follow `main`, or use an image from a fork, set
 `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.2
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.3
 ```
 
 To build locally instead, build the same image name before starting Compose:
@@ -323,6 +323,93 @@ crawls every site at once. Set the intervals with the `SCHEDULE_*` variables (0 
 one off), or turn the schedule off with `SCHEDULER_ENABLED=false`; the buttons
 keep working either way.
 
+Each user can change the crawl and vitals intervals of their own sites in
+**Settings > Schedule**: the server default, off, or every 1, 3, 7, 14 or 28
+days. A change applies from the next scheduling pass (within 10 minutes),
+measured from the site's last crawl or check. The `SCHEDULE_*` values are the
+default for everyone who sets nothing, and a type the server turns off
+(`SCHEDULE_CRAWL_DAYS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false`)
+stays off whatever a user set. Scheduled crawls and vitals checks need the
+worker or an app in inline mode, so on Vercel these settings apply only when a
+worker is connected to the same database.
+
+### Alert webhooks
+
+Alerts are checked after each GSC or Bing sync and when you click Evaluate now
+on a site's Alerts page. To get the ones that fire outside the app, set a
+webhook in **Settings > Alert webhook**: a URL of your own (n8n, Zapier, Make, a
+small script) and a signing secret of at least 16 characters (Generate makes
+one; copy it before you save, it is not shown again). **Send test** sends one
+`test` event with the values in the form and shows what your endpoint answered.
+
+Each delivery is a JSON POST:
+
+```json
+{
+  "event": "alert.fired",
+  "id": "cmh0c9x2k0001",
+  "firedAt": "2026-10-19T05:02:11.000Z",
+  "site": { "id": "cmgz...", "domain": "example.com" },
+  "alerts": [
+    {
+      "id": "cmgy...",
+      "type": "TRAFFIC_DROP",
+      "message": "Traffic drop on example.com: clicks -34.2% vs prior week",
+      "previousFiredAt": null
+    }
+  ],
+  "url": "https://seo.example.com/sites/cmgz.../alerts",
+  "crawlseo": { "version": "0.3.3" }
+}
+```
+
+`url` is set when `NEXTAUTH_URL` is. All alerts of one site from one
+evaluation come in one delivery. An alert that keeps firing (a traffic drop
+lasts days) is sent again at most once a day.
+
+Headers:
+
+| Header | Value |
+|---|---|
+| `X-Crawlseo-Event` | `alert.fired` or `test` |
+| `X-Crawlseo-Delivery` | The delivery id, the same on every retry: use it to drop duplicates |
+| `X-Crawlseo-Timestamp` | Unix time in seconds when this attempt was signed |
+| `X-Crawlseo-Signature` | `sha256=` and the hex HMAC-SHA256 of `<timestamp>.<raw body>` with your secret |
+
+To verify a delivery, compute the HMAC over the raw body before parsing it,
+compare in constant time and refuse old timestamps:
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(rawBody, headers, secret) {
+  const timestamp = headers["x-crawlseo-timestamp"];
+  const expected = "sha256=" + createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
+  const given = Buffer.from(headers["x-crawlseo-signature"] ?? "");
+  const fresh = Math.abs(Date.now() / 1000 - Number(timestamp)) < 300;
+  return fresh && given.length === expected.length && timingSafeEqual(given, Buffer.from(expected));
+}
+```
+
+Answer with any 2xx status. A network error, a timeout (10 s), or HTTP 408,
+425, 429 or 5xx is retried after about 1, 5, 25 and 60 minutes; after the
+fifth attempt the delivery fails. Any other status fails it at once, and
+redirects are not followed (set the final URL). Settings shows the last
+delivery and its error. On Vercel a failed delivery is retried in the same
+request after 2, 10 and 30 seconds, then at the next cron run.
+
+**Where webhooks may go.** The URL is checked with the same guard as the
+crawler, on save and again on every connection, so a name that resolves to a
+private, loopback, link-local or reserved address is refused, also when its
+DNS answer changes later. For a receiver on your own network, such as n8n in
+the same Docker network (`http://n8n:5678/webhook/...`), the operator sets
+`ALERT_WEBHOOK_ALLOW_PRIVATE=true`. That allows 10/8, 172.16/12, 192.168/16,
+100.64/10, loopback and fc00::/7; link-local addresses (including the cloud
+metadata address 169.254.169.254) and reserved ranges stay blocked. It is a
+server setting, not a per-user one, so on a shared instance users cannot reach
+the server's network unless you allow it. `ALERT_WEBHOOKS_ENABLED=false` turns
+webhooks off for the instance.
+
 ### Vercel
 
 There is no long-running process on Vercel, so:
@@ -375,8 +462,8 @@ There is no long-running process on Vercel, so:
 | `SCHEDULE_BING_SYNC_HOURS` | No | Hours between Bing syncs of a site (default `24`, `0` turns them off) |
 | `SCHEDULE_CRAWL_DAYS` | No | Days between scheduled crawls of a site (default `7`, `0` turns them off). Each user can set their own interval in Settings > Schedule; `0` here keeps crawls off for everyone. Docker only |
 | `SCHEDULE_VITALS_DAYS` | No | Days between scheduled vitals checks of a site (default `7`, `0` turns them off). Each user can set their own interval in Settings > Schedule; `0` here keeps them off for everyone. Docker only |
-| `ALERT_WEBHOOKS_ENABLED` | No | Set to `false` to turn alert webhooks off for the instance: nothing is sent and Settings shows no webhook form |
-| `ALERT_WEBHOOK_ALLOW_PRIVATE` | No | Set to `true` to let webhooks reach private networks (10/8, 172.16/12, 192.168/16, 100.64/10, loopback, fc00::/7), for a receiver on your own network. Link-local and reserved addresses stay blocked. Default: public addresses only |
+| `ALERT_WEBHOOKS_ENABLED` | No | Set to `false` to turn alert webhooks off for the instance: nothing is sent and Settings shows no webhook form. See [Alert webhooks](#alert-webhooks) |
+| `ALERT_WEBHOOK_ALLOW_PRIVATE` | No | Set to `true` to let webhooks reach private networks (10/8, 172.16/12, 192.168/16, 100.64/10, loopback, fc00::/7), for a receiver on your own network. Link-local and reserved addresses stay blocked. Default: public addresses only. See [Alert webhooks](#alert-webhooks) |
 | `CRON_SECRET` | Vercel | Protects `/api/cron/tick`. Without it the route refuses every request |
 
 ### The crawlseo.cloud card
