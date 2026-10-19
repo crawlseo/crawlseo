@@ -212,20 +212,25 @@ export function isPrivateIp(ip: string): boolean {
   return true;
 }
 
-class BlockedAddressError extends Error {
+export class BlockedAddressError extends Error {
   constructor(readonly hostname: string) {
     super(`Blocked: ${hostname} resolves to private/reserved IP`);
   }
 }
 
-/** Every address of a name, or a Blocked error if any of them is private or reserved. */
-async function publicAddresses(hostname: string): Promise<LookupAddress[]> {
+/** Which addresses a connection may not reach. The crawler's rule is isPrivateIp. */
+export type AddressRule = (ip: string) => boolean;
+
+/** Every address of a name, or a Blocked error if any of them is blocked. */
+export async function checkedAddresses(hostname: string, blocked: AddressRule = isPrivateIp): Promise<LookupAddress[]> {
   const addresses = await lookup(hostname, { all: true });
-  if (addresses.length === 0 || addresses.some((a) => isPrivateIp(a.address))) {
+  if (addresses.length === 0 || addresses.some((a) => blocked(a.address))) {
     throw new BlockedAddressError(hostname);
   }
   return addresses;
 }
+
+const publicAddresses = (hostname: string) => checkedAddresses(hostname);
 
 /**
  * Pre-flight check with a clear error message. It applies the same rule as
@@ -245,28 +250,35 @@ async function assertPublicUrl(url: string): Promise<void> {
  * public IP to the pre-flight check and a private one afterwards (DNS
  * rebinding) cannot reach an internal address. IP literals never get here:
  * they cannot rebind, and assertPublicUrl has already refused private ones.
+ * `blocked` is the address rule: the crawler's is isPrivateIp, alert webhooks
+ * have their own (lib/webhooks/address.ts).
  */
-export const pinnedLookup: LookupFunction = (hostname, options, callback) => {
-  const family =
-    options.family === 4 || options.family === "IPv4" ? 4
-    : options.family === 6 || options.family === "IPv6" ? 6
-    : 0;
-  publicAddresses(hostname)
-    .then((addresses) => {
-      const usable = family ? addresses.filter((a) => a.family === family) : addresses;
-      if (usable.length === 0) {
-        throw Object.assign(new Error(`No IPv${family} address for ${hostname}`), { code: "ENOTFOUND" });
-      }
-      return usable;
-    })
-    .then(
-      (usable) => {
-        if (options.all) callback(null, usable);
-        else callback(null, usable[0].address, usable[0].family);
-      },
-      (err: NodeJS.ErrnoException) => callback(err, "")
-    );
-};
+export function pinnedLookupWith(blocked: AddressRule): LookupFunction {
+  return (hostname, options, callback) => {
+    const family =
+      options.family === 4 || options.family === "IPv4" ? 4
+      : options.family === 6 || options.family === "IPv6" ? 6
+      : 0;
+    checkedAddresses(hostname, blocked)
+      .then((addresses) => {
+        const usable = family ? addresses.filter((a) => a.family === family) : addresses;
+        if (usable.length === 0) {
+          throw Object.assign(new Error(`No IPv${family} address for ${hostname}`), { code: "ENOTFOUND" });
+        }
+        return usable;
+      })
+      .then(
+        (usable) => {
+          if (options.all) callback(null, usable);
+          else callback(null, usable[0].address, usable[0].family);
+        },
+        (err: NodeJS.ErrnoException) => callback(err, "")
+      );
+  };
+}
+
+/** The crawler's lookup: private and reserved addresses are blocked. */
+export const pinnedLookup: LookupFunction = pinnedLookupWith(isPrivateIp);
 
 /** Dispatcher of every crawler request: pages, redirect hops, robots.txt, sitemaps. */
 export const crawlerDispatcher = new Agent({ connect: { lookup: pinnedLookup } });

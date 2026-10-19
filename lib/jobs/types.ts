@@ -34,9 +34,15 @@ export type JobHandler = {
   run: (ctx: JobContext) => Promise<Prisma.InputJsonValue | undefined>;
   /** Clean up after a process that ran this job died (recovery). */
   onInterrupted?: (db: PrismaClient, job: Job) => Promise<void>;
-  /** Jobs to queue for the same site once this one succeeded. */
-  followUps?: (job: Job) => string[];
+  /**
+   * Jobs to queue for the same site once this one succeeded: a job type, or a
+   * FollowUp with a payload. `result` is what run returned.
+   */
+  followUps?: (job: Job, result?: Prisma.InputJsonValue) => (string | FollowUp)[];
 };
+
+/** A follow-up job with its own payload (see EnqueueInput in queue.ts for `unique`). */
+export type FollowUp = { type: string; payload?: Prisma.InputJsonValue; unique?: boolean };
 
 /** An error a handler throws on purpose, with a code the UI can map and whether a retry can help. */
 export class JobError extends Error {

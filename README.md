@@ -52,16 +52,17 @@ The app talks to outside services only in these cases:
 
 | Destination | When | What is sent | How to turn it off |
 |---|---|---|---|
-| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google. Also on the schedule: a GSC sync per site each day and a vitals check per site each week | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections. For the schedule: `SCHEDULE_GSC_SYNC_HOURS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false` |
+| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google. Also on the schedule: a GSC sync per site each day and a vitals check per site each week, or as often as you set in Settings > Schedule | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections. For the schedule: vitals checks Off in Settings > Schedule, `SCHEDULE_GSC_SYNC_HOURS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false` |
 | Bing Webmaster Tools | Only if you add your own Bing API key; then also a sync per site each day | Requests for your own Bing sites | Remove the key in Settings > Connections, or `SCHEDULE_BING_SYNC_HOURS=0` |
 | DataForSEO | Only if you add your own DataForSEO key | The keyword and domain queries you run | Remove the key in Settings > Connections |
 | Google autocomplete | Keyword suggestions when DataForSEO is not set up | The seed keyword you typed | Don't use keyword suggestions |
-| Sites you crawl | When you start a crawl, and on the schedule a crawl of each site each week (Docker) | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl; `SCHEDULE_CRAWL_DAYS=0` or `SCHEDULER_ENABLED=false` for the schedule |
+| Sites you crawl | When you start a crawl, and on the schedule a crawl of each site each week, or as often as you set in Settings > Schedule (Docker) | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl; for the schedule: crawls Off in Settings > Schedule, `SCHEDULE_CRAWL_DAYS=0` or `SCHEDULER_ENABLED=false` |
+| Your alert webhook | Only if you set a webhook URL in Settings > Alert webhook: when alerts fire, and when you click Send test | A signed JSON POST with the alerts that fired (type, message, site id and domain), to your own URL only | Remove the webhook in Settings; `ALERT_WEBHOOKS_ENABLED=false` turns webhooks off for the whole instance |
 | GitHub releases API | Once a day | A request for the latest crawlseo release. No data about you or your instance. GitHub sees your server's IP address | `CRAWLSEO_UPDATE_CHECK=false` |
 
-Nothing else leaves your server. Alerts are shown in the app only.
+Nothing else leaves your server. Alerts are shown in the app, and sent to your webhook if you set one.
 
-The hosts behind these rows are `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `ssl.bing.com`, `api.dataforseo.com`, `suggestqueries.google.com` and `api.github.com`. The list the tests check new code against is [`outbound-hosts.json`](outbound-hosts.json). Your Google profile picture, if you have one, is loaded by your browser from Google, not by the server.
+The hosts behind these rows are `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `ssl.bing.com`, `api.dataforseo.com`, `suggestqueries.google.com` and `api.github.com`, plus the sites you crawl and the webhook URL you set yourself. The list the tests check new code against is [`outbound-hosts.json`](outbound-hosts.json). Your Google profile picture, if you have one, is loaded by your browser from Google, not by the server.
 
 ## Features
 
@@ -372,8 +373,10 @@ There is no long-running process on Vercel, so:
 | `SCHEDULER_ENABLED` | No | Set to `false` to stop all scheduled jobs. Buttons keep working |
 | `SCHEDULE_GSC_SYNC_HOURS` | No | Hours between GSC syncs of a site (default `24`, `0` turns them off) |
 | `SCHEDULE_BING_SYNC_HOURS` | No | Hours between Bing syncs of a site (default `24`, `0` turns them off) |
-| `SCHEDULE_CRAWL_DAYS` | No | Days between scheduled crawls of a site (default `7`, `0` turns them off). Docker only |
-| `SCHEDULE_VITALS_DAYS` | No | Days between scheduled vitals checks of a site (default `7`, `0` turns them off). Docker only |
+| `SCHEDULE_CRAWL_DAYS` | No | Days between scheduled crawls of a site (default `7`, `0` turns them off). Each user can set their own interval in Settings > Schedule; `0` here keeps crawls off for everyone. Docker only |
+| `SCHEDULE_VITALS_DAYS` | No | Days between scheduled vitals checks of a site (default `7`, `0` turns them off). Each user can set their own interval in Settings > Schedule; `0` here keeps them off for everyone. Docker only |
+| `ALERT_WEBHOOKS_ENABLED` | No | Set to `false` to turn alert webhooks off for the instance: nothing is sent and Settings shows no webhook form |
+| `ALERT_WEBHOOK_ALLOW_PRIVATE` | No | Set to `true` to let webhooks reach private networks (10/8, 172.16/12, 192.168/16, 100.64/10, loopback, fc00::/7), for a receiver on your own network. Link-local and reserved addresses stay blocked. Default: public addresses only |
 | `CRON_SECRET` | Vercel | Protects `/api/cron/tick`. Without it the route refuses every request |
 
 ### The crawlseo.cloud card

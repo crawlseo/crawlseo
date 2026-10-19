@@ -11,7 +11,7 @@ import {
   markSucceeded,
   releaseJob,
 } from "./queue";
-import { JobError, JobLostError, JobReleasedError, type JobHandler } from "./types";
+import { JobError, JobLostError, JobReleasedError, type FollowUp, type JobHandler } from "./types";
 
 /*
  * Runs claimed jobs in this process: calls the handler, sends heartbeats while
@@ -95,7 +95,7 @@ export class JobRunner {
         return { outcome: "lost", followUps: [] };
       }
       this.log(`${job.type} ${job.id} succeeded`);
-      return { outcome: "succeeded", followUps: await this.queueFollowUps(job, handler) };
+      return { outcome: "succeeded", followUps: await this.queueFollowUps(job, handler, result) };
     } finally {
       this.running.delete(job.id);
       if (this.running.size === 0) this.stopHeartbeat();
@@ -128,14 +128,29 @@ export class JobRunner {
     return ok ? "retry" : "lost";
   }
 
-  private async queueFollowUps(job: Job, handler: JobHandler): Promise<Job[]> {
+  private async queueFollowUps(
+    job: Job,
+    handler: JobHandler,
+    result: Prisma.InputJsonValue | undefined
+  ): Promise<Job[]> {
     const queued: Job[] = [];
-    for (const type of handler.followUps?.(job) ?? []) {
+    let followUps: (string | FollowUp)[] = [];
+    try {
+      followUps = handler.followUps?.(job, result) ?? [];
+    } catch (err) {
+      this.log(`follow-ups of ${job.type} ${job.id} failed: ${errorMessage(err)}`);
+    }
+    for (const followUp of followUps) {
+      const next = typeof followUp === "string" ? { type: followUp } : followUp;
       try {
-        const { job: next, created } = await enqueueJob(this.db, { type, siteId: job.siteId, source: "chain" });
-        if (created) queued.push(next);
+        const { job: created, created: isNew } = await enqueueJob(this.db, {
+          ...next,
+          siteId: job.siteId,
+          source: "chain",
+        });
+        if (isNew) queued.push(created);
       } catch (err) {
-        this.log(`could not queue ${type} after ${job.type} ${job.id}: ${errorMessage(err)}`);
+        this.log(`could not queue ${next.type} after ${job.type} ${job.id}: ${errorMessage(err)}`);
       }
     }
     return queued;

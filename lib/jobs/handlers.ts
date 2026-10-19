@@ -7,6 +7,9 @@ import { ReauthRequiredError } from "@/lib/google";
 import { runGSCSync } from "@/lib/workers/gsc-sync";
 import { syncBingDataForSite } from "@/lib/workers/bing-sync";
 import { syncVitalsForSite } from "@/lib/workers/vitals-sync";
+import { getWebhook } from "@/lib/user-settings";
+import { webhooksEnabled } from "@/lib/webhooks/config";
+import { alertPayload, sendWebhook, type AlertDelivery } from "@/lib/webhooks/deliver";
 import { clampMaxPages } from "./policy";
 import { isPermanentJobError, JobError, JobLostError, type JobClass, type JobHandler } from "./types";
 
@@ -49,6 +52,7 @@ export const VITALS_JOB = "vitals";
 export const GSC_SYNC_JOB = "gsc-sync";
 export const BING_SYNC_JOB = "bing-sync";
 export const ALERTS_EVALUATE_JOB = "alerts-evaluate";
+export const ALERT_WEBHOOK_JOB = "alert-webhook";
 
 /** The job's site, or a permanent failure when it is gone. */
 async function siteOf(db: PrismaClient, job: Job) {
@@ -199,15 +203,61 @@ const bingSyncHandler: JobHandler = {
   },
 };
 
+/** Whether the user's alerts go to a webhook: webhooks on for this server and a webhook set in Settings. */
+export async function hasAlertWebhook(db: PrismaClient, userId: string): Promise<boolean> {
+  return webhooksEnabled() && (await getWebhook(db, userId)) !== null;
+}
+
 const alertsEvaluateHandler: JobHandler = {
   type: ALERTS_EVALUATE_JOB,
   class: "SHORT",
   maxAttempts: 3,
   isPermanent: isPermanentJobError,
+  // The alerts that fired go to the user's webhook as one delivery, a job of its own.
+  followUps: (_job, result) => {
+    const r = result as { fires?: AlertDelivery["fires"]; firedAt?: string; webhook?: boolean } | undefined;
+    if (!r?.webhook || !r.fires?.length || !r.firedAt) return [];
+    return [{ type: ALERT_WEBHOOK_JOB, payload: { fires: r.fires, firedAt: r.firedAt }, unique: false }];
+  },
   async run({ db, job }) {
     const site = await siteOf(db, job);
     const fires = await evaluateAlertsForUser(site.userId, { siteId: site.id });
-    return { fired: fires.length, fires };
+    const webhook = fires.length > 0 && (await hasAlertWebhook(db, site.userId));
+    return { fired: fires.length, fires, firedAt: new Date().toISOString(), webhook };
+  },
+};
+
+/**
+ * One webhook delivery: the alerts of one evaluation of one site. A failure a
+ * retry can fix (network error, timeout, HTTP 408, 425, 429 or 5xx) is retried
+ * with the queue's backoff, 1, 5, 25 and 60 minutes; any other answer fails
+ * the delivery at once. The URL and secret are read on every attempt, so a
+ * fixed URL applies to deliveries still waiting.
+ */
+const alertWebhookHandler: JobHandler = {
+  type: ALERT_WEBHOOK_JOB,
+  class: "SHORT",
+  maxAttempts: 5,
+  isPermanent: isPermanentJobError,
+  async run({ db, job }) {
+    const site = await siteOf(db, job);
+    if (!webhooksEnabled()) {
+      throw new JobError("Alert webhooks are turned off on this server", { code: "WEBHOOKS_OFF", permanent: true });
+    }
+    const webhook = await getWebhook(db, site.userId);
+    if (!webhook) throw new JobError("No webhook is set in Settings", { code: "NOT_CONFIGURED", permanent: true });
+    const delivery = job.payload as AlertDelivery | null;
+    if (!Array.isArray(delivery?.fires) || delivery.fires.length === 0) {
+      throw new JobError("The delivery has no alerts", { code: "EMPTY", permanent: true });
+    }
+    const result = await sendWebhook(webhook.url, webhook.secret, "alert.fired", alertPayload(job.id, delivery));
+    if (!result.ok) {
+      throw new JobError(result.error, {
+        code: result.status ? `HTTP_${result.status}` : "UNREACHABLE",
+        permanent: !result.retryable,
+      });
+    }
+    return { status: result.status, alerts: delivery.fires.length };
   },
 };
 
@@ -217,6 +267,7 @@ export const BUILT_IN_JOB_HANDLERS: readonly JobHandler[] = [
   gscSyncHandler,
   bingSyncHandler,
   alertsEvaluateHandler,
+  alertWebhookHandler,
 ];
 
 for (const handler of BUILT_IN_JOB_HANDLERS) {

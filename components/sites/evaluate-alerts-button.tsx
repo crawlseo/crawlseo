@@ -19,10 +19,11 @@ export function EvaluateAlertsButton() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       const n = data.fires?.length ?? 0;
+      const sent = data.webhookDeliveries > 0 ? " Sent to your webhook." : "";
       setMsg(
         n === 0
           ? "No alerts fired"
-          : `${n} alert(s): ${data.fires.map((f: { message: string }) => f.message).join(" · ")}`
+          : `${n} alert(s): ${data.fires.map((f: { message: string }) => f.message).join(" · ")}.${sent}`
       );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");

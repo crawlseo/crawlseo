@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALERT_WEBHOOK_JOB,
   ALERTS_EVALUATE_JOB,
   BING_SYNC_JOB,
   BUILT_IN_JOB_HANDLERS,
@@ -13,13 +14,14 @@ import {
 import { isPermanentJobError, JobError } from "./types";
 
 describe("job handler registry", () => {
-  it("registers the five built-in types with their class and attempts", () => {
+  it("registers the six built-in types with their class and attempts", () => {
     expect(BUILT_IN_JOB_HANDLERS.map((h) => [h.type, h.class, h.maxAttempts])).toEqual([
       [CRAWL_JOB, "LONG", 2],
       [VITALS_JOB, "LONG", 2],
       [GSC_SYNC_JOB, "SHORT", 3],
       [BING_SYNC_JOB, "SHORT", 3],
       [ALERTS_EVALUATE_JOB, "SHORT", 3],
+      [ALERT_WEBHOOK_JOB, "SHORT", 5],
     ]);
     for (const h of BUILT_IN_JOB_HANDLERS) expect(getJobHandler(h.type)).toBe(h);
   });
@@ -60,6 +62,18 @@ describe("job handler registry", () => {
   it("syncs queue an alert evaluation once they succeed", () => {
     expect(getJobHandler(GSC_SYNC_JOB)!.followUps).toBeDefined();
     expect(getJobHandler(BING_SYNC_JOB)!.followUps).toBeDefined();
-    expect(getJobHandler(ALERTS_EVALUATE_JOB)!.followUps).toBeUndefined();
+    expect(getJobHandler(ALERT_WEBHOOK_JOB)!.followUps).toBeUndefined();
+  });
+
+  it("an evaluation queues a webhook delivery only when alerts fired and the user has a webhook", () => {
+    const followUps = getJobHandler(ALERTS_EVALUATE_JOB)!.followUps!;
+    const fires = [{ alertId: "a1", type: "TRAFFIC_DROP", message: "m", siteId: "s1", domain: "quilltab.app" }];
+    const firedAt = "2026-10-19T05:00:00.000Z";
+    expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: true })).toEqual([
+      { type: ALERT_WEBHOOK_JOB, payload: { fires, firedAt }, unique: false },
+    ]);
+    expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: false })).toEqual([]);
+    expect(followUps({} as never, { fired: 0, fires: [], firedAt, webhook: true })).toEqual([]);
+    expect(followUps({} as never, undefined)).toEqual([]);
   });
 });

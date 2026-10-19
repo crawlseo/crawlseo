@@ -40,11 +40,18 @@ export type EnqueueInput = {
   payload?: Prisma.InputJsonValue;
   priority?: number;
   runAt?: Date;
+  /**
+   * false: no one-active-job-per-type-and-site rule for this job, every call
+   * queues one (an alert webhook delivery carries its own alerts, so it must
+   * not fold into one already queued). Default true.
+   */
+  unique?: boolean;
 };
 
 /**
  * Queues a job, unless one of the same type for the same site is still QUEUED
- * or RUNNING: then that one is returned with `created: false`.
+ * or RUNNING: then that one is returned with `created: false`. With
+ * `unique: false` a job is always queued.
  */
 export async function enqueueJob(
   db: Db,
@@ -52,7 +59,7 @@ export async function enqueueJob(
 ): Promise<{ job: Job; created: boolean }> {
   const handler = getJobHandler(input.type);
   if (!handler) throw new Error(`Unknown job type: ${input.type}`);
-  const activeKey = activeKeyFor(input.type, input.siteId);
+  const activeKey = input.unique === false ? null : activeKeyFor(input.type, input.siteId);
 
   // INSERT ... ON CONFLICT DO NOTHING: the unique activeKey makes a second
   // active job of the same type for the site a no-op instead of an error. The
@@ -75,6 +82,7 @@ export async function enqueueJob(
       skipDuplicates: true,
     });
     if (job) return { job, created: true };
+    if (!activeKey) break;
     const existing = await db.job.findUnique({ where: { activeKey } });
     if (existing) return { job: existing, created: false };
   }

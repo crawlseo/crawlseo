@@ -360,10 +360,18 @@ describe("schedules, filters and tasks a fork registers", () => {
   it("stops waiting for a task that hangs, after the jobs are queued", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    later(registerSchedulerTask("hangs", () => new Promise<void>(() => {})));
+    let started = false;
+    later(
+      registerSchedulerTask("hangs", () => {
+        started = true;
+        return new Promise<void>(() => {});
+      })
+    );
     try {
       const pass = runScheduler(db, { now: at(0), config });
       await vi.waitFor(async () => expect(await db.job.count({ where: { type: "gsc-sync" } })).toBe(SITES.length));
+      // The pass sets its timeout before it calls the task: advance only once that timer exists.
+      await vi.waitFor(() => expect(started).toBe(true));
       await vi.advanceTimersByTimeAsync(SCHEDULER_TASK_TIMEOUT_MS);
       expect((await pass).queued["gsc-sync"]).toBe(SITES.length);
       expect(log).toHaveBeenCalledWith(expect.stringContaining("scheduler task hangs still running"));
@@ -392,3 +400,76 @@ async function simulateWithClock(fromMs: number, toMs: number, type: string, ste
   return queuedAt;
 }
 
+
+describe("intervals a user sets in Settings > Schedule", () => {
+  /** A finished job of the type for every site, `ageMs` before T0: the interval rule measures from it. */
+  async function lastJobs(type: string, ageMs: number) {
+    for (const siteId of [...SITES, "other-site"]) {
+      await db.job.create({
+        data: { siteId, type, source: "schedule", status: "SUCCEEDED", maxAttempts: 2, createdAt: at(-ageMs), finishedAt: at(-ageMs) },
+      });
+    }
+  }
+  const queuedFor = async (type: string) =>
+    (await db.job.findMany({ where: { type, status: "QUEUED" }, select: { siteId: true } })).map((j) => j.siteId).sort();
+
+  beforeEach(async () => {
+    await db.userSettings.deleteMany();
+    // A site of another user, who keeps the server default.
+    await db.site.create({ data: { id: "other-site", userId: "u2", domain: "other.example", createdAt: at(-90 * DAY) } });
+  });
+
+  it("crawls a user's sites as often as they set, others on the server default", async () => {
+    await lastJobs("crawl", 2 * DAY);
+    await db.userSettings.create({ data: { userId: "u1", crawlScheduleDays: 1 } });
+    const { queued } = await runScheduler(db, { now: at(0), config });
+    expect(queued.crawl).toBe(SITES.length);
+    expect(await queuedFor("crawl")).toEqual(SITES);
+  });
+
+  it("queues nothing for a user who turned crawls off, while the default would", async () => {
+    await lastJobs("crawl", 8 * DAY);
+    await db.userSettings.create({ data: { userId: "u1", crawlScheduleDays: 0 } });
+    await runScheduler(db, { now: at(0), config });
+    expect(await queuedFor("crawl")).toEqual(["other-site"]);
+  });
+
+  it("waits the longer interval a user set before the next vitals check", async () => {
+    await lastJobs("vitals", 8 * DAY);
+    await db.userSettings.create({ data: { userId: "u1", vitalsScheduleDays: 14 } });
+    await runScheduler(db, { now: at(0), config });
+    expect(await queuedFor("vitals")).toEqual(["other-site"]);
+
+    await db.job.updateMany({ where: { status: "QUEUED" }, data: { status: "SUCCEEDED", activeKey: null, createdAt: at(0) } });
+    await runScheduler(db, { now: at(6 * DAY), config, force: true });
+    expect(await queuedFor("vitals")).toEqual(SITES);
+  });
+
+  it("a type the server turned off stays off whatever a user set", async () => {
+    await lastJobs("crawl", 8 * DAY);
+    await db.userSettings.create({ data: { userId: "u1", crawlScheduleDays: 1 } });
+    await runScheduler(db, { now: at(0), config: { ...config, crawlMs: 0 } });
+    expect(await queuedFor("crawl")).toEqual([]);
+    await runScheduler(db, { now: at(DAY), config: { ...config, enabled: false }, force: true });
+    expect(await queuedFor("crawl")).toEqual([]);
+  });
+
+  it("null keeps the server default, and a user's crawl setting leaves their vitals checks alone", async () => {
+    await lastJobs("crawl", 2 * DAY);
+    await lastJobs("vitals", 2 * DAY);
+    await db.userSettings.create({ data: { userId: "u1", crawlScheduleDays: null, vitalsScheduleDays: 1 } });
+    await runScheduler(db, { now: at(0), config });
+    expect(await queuedFor("crawl")).toEqual([]);
+    expect(await queuedFor("vitals")).toEqual(SITES);
+  });
+
+  it("spreads a site's first scheduled crawl over the user's interval", async () => {
+    await db.userSettings.create({ data: { userId: "u1", crawlScheduleDays: 1 } });
+    await db.crawl.deleteMany();
+    const queuedAt = await simulateWithClock(0, DAY, "crawl");
+    expect([...queuedAt.keys()].sort()).toEqual(SITES);
+    for (const [site, ms] of queuedAt) {
+      expect(ms).toBeGreaterThanOrEqual(firstRunOffsetMs(site, "crawl", DAY));
+    }
+  }, 120_000);
+});

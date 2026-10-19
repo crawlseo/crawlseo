@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// No alert is delivered anywhere (they are checked with Evaluate now and shown in the app), so the page must
-// not name a delivery channel.
+// Alerts are shown in the app and, when the user set one, sent to their webhook from Settings. Email is not
+// delivered, so the page must not name the per-alert channel.
 
 const { db } = vi.hoisted(() => ({
   db: {
@@ -29,5 +29,6 @@ describe("alerts page", () => {
     expect(html).toContain("Never fired");
     expect(html).not.toMatch(/email/i);
     expect(html).not.toMatch(/channel/i);
+    expect(html).toContain('href="/settings#webhook"');
   });
 });

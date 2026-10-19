@@ -7,6 +7,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Avatar } from "@/components/account/avatar";
 import { DeleteAccountDialog, SignOutButton } from "@/components/account/account-actions";
 import { ConnectionsSection } from "@/components/settings/connections-section";
+import { ScheduleSection } from "@/components/settings/schedule-section";
+import { WebhookSection } from "@/components/settings/webhook-section";
+import { getScheduleSettings, scheduleServerInfo } from "@/lib/user-settings";
+import { webhookStatus } from "@/lib/webhooks/status";
 
 /** Granted scopes from `User.googleTokens`, which keeps them in plain text next to the encrypted tokens. */
 function grantedScopes(stored: unknown): string[] {
@@ -47,7 +51,11 @@ export default async function SettingsPage({ searchParams }: Props) {
   if (!user) redirect("/login");
 
   const connected = hasToken(user.googleTokens);
-  const keys = await apiKeyStatus(db, session.user.id);
+  const [keys, schedule, webhook] = await Promise.all([
+    apiKeyStatus(db, session.user.id),
+    getScheduleSettings(db, session.user.id),
+    webhookStatus(db, session.user.id),
+  ]);
   const registrationClosed =
     process.env.DISABLE_REGISTRATION?.trim().toLowerCase() === "true";
 
@@ -59,7 +67,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     <div>
       <PageHeader
         title="Settings"
-        description="Your profile, the services crawlseo connects to, and your account."
+        description="Your profile, the services crawlseo connects to, the schedule, alert delivery and your account."
       />
 
       <div className="space-y-10">
@@ -100,6 +108,24 @@ export default async function SettingsPage({ searchParams }: Props) {
             initialStatus={keys}
             initialOpen={initialOpen}
           />
+        </section>
+
+        <section id="schedule" aria-labelledby="schedule-heading" className="scroll-mt-6">
+          <SectionHeading
+            id="schedule-heading"
+            title="Schedule"
+            description="How often your sites are crawled and get a vitals check. GSC and Bing syncs run each day."
+          />
+          <ScheduleSection initial={{ ...schedule, server: scheduleServerInfo() }} />
+        </section>
+
+        <section id="webhook" aria-labelledby="webhook-heading" className="scroll-mt-6">
+          <SectionHeading
+            id="webhook-heading"
+            title="Alert webhook"
+            description="Send fired alerts to your own endpoint, such as n8n, Zapier or a script of yours."
+          />
+          <WebhookSection initial={webhook} />
         </section>
 
         <section aria-labelledby="danger-heading">

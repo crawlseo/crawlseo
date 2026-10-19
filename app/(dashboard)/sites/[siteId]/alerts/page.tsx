@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureDefaultAlerts } from "@/lib/alerts/evaluate";
 import { PageHeader } from "@/components/ui/page-header";
@@ -31,7 +32,16 @@ export default async function AlertsPage({ params }: Props) {
     <div>
       <PageHeader
         title="Alerts"
-        description="Rules for traffic drops, position changes, crawl health and vitals. They are checked when you click Evaluate now, and the results show here."
+        description={
+          <>
+            Rules for traffic drops, position changes, crawl health and vitals. They are checked after each GSC or Bing
+            sync and when you click Evaluate now. Fired alerts show here and go to your{" "}
+            <Link href="/settings#webhook" className="text-link">
+              alert webhook
+            </Link>{" "}
+            if you set one.
+          </>
+        }
         actions={<EvaluateAlertsButton />}
       />
 

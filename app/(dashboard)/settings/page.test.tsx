@@ -8,6 +8,8 @@ const { auth, db, redirect } = vi.hoisted(() => ({
   db: {
     user: { findUnique: vi.fn() },
     apiKey: { findMany: vi.fn() },
+    userSettings: { findUnique: vi.fn() },
+    job: { findFirst: vi.fn() },
   },
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT ${url}`);
@@ -41,6 +43,8 @@ beforeEach(() => {
     googleTokens: { accessToken: "enc:v1:x", refreshToken: "enc:v1:y", scope: "openid email" },
   });
   db.apiKey.findMany.mockResolvedValue([]);
+  db.userSettings.findUnique.mockResolvedValue(null);
+  db.job.findFirst.mockResolvedValue(null);
 });
 
 describe("/account", () => {
@@ -63,9 +67,41 @@ describe("/settings", () => {
     expect(html).not.toContain("Not set");
   });
 
+  it("shows the schedule with the server defaults and the webhook form", async () => {
+    vi.stubEnv("SCHEDULE_CRAWL_DAYS", "14");
+    vi.stubEnv("SCHEDULE_VITALS_DAYS", "0");
+    try {
+      db.userSettings.findUnique.mockResolvedValue({ crawlScheduleDays: 1, vitalsScheduleDays: null, webhookUrl: null, webhookSecret: null });
+      const html = await render();
+      expect(html).toContain(">Schedule</h2>");
+      expect(html).toContain("Server default (every 2 weeks)");
+      expect(html).toMatch(/<option value="1" selected="">Every day<\/option>/);
+      expect(html).toContain("SCHEDULE_VITALS_DAYS=0");
+      expect(html).toContain(">Alert webhook</h2>");
+      expect(html).toContain("Send test");
+      expect(html).toContain("Only public addresses are allowed.");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("says when webhooks are off on the server", async () => {
+    vi.stubEnv("ALERT_WEBHOOKS_ENABLED", "false");
+    try {
+      const html = await render();
+      expect(html).toContain("ALERT_WEBHOOKS_ENABLED=false");
+      expect(html).not.toContain("Send test");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("opens the form named by ?connect=", async () => {
     expect(await render({ connect: "bing" })).toContain(">API key</label>");
-    expect(await render({ connect: "nonsense" })).not.toContain("</label>");
+    const html = await render({ connect: "nonsense" });
+    const connections = html.slice(html.indexOf('id="connections"'), html.indexOf('id="schedule"'));
+    expect(connections).toContain("Bing Webmaster Tools");
+    expect(connections).not.toContain("</label>");
   });
 
   it("sends a signed-out visitor to /login", async () => {

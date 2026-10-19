@@ -24,6 +24,7 @@ model User {
   sites         Site[]
   alerts        Alert[]
   apiKeys       ApiKey[]
+  settings      UserSettings?
 }
 
 model Account {
@@ -76,6 +77,20 @@ model ApiKey {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
+}
+
+// ============ USER SETTINGS ============
+
+// What a user sets in Settings > Schedule and Settings > Alert webhook.
+model UserSettings {
+  userId             String   @id
+  crawlScheduleDays  Int?     // days between scheduled crawls of each site; null: the server default, 0: off
+  vitalsScheduleDays Int?     // the same for vitals checks
+  webhookUrl         String?  // encrypted (lib/encryption.ts); null: no webhook
+  webhookSecret      String?  // encrypted; signs every delivery
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============ SITES ============
