@@ -22,7 +22,8 @@ const CONFIG_JSON = `{
     "crawlseo": {
       "command": "npx",
       "args": ["tsx", "mcp/server.ts"],
-      "cwd": "/path/to/crawlseo"
+      "cwd": "/path/to/crawlseo",
+      "env": { "CRAWLSEO_URL": "http://localhost:3000", "CRAWLSEO_API_KEY": "<key>" }
     }
   }
 }`;
@@ -46,9 +47,8 @@ const TOOLS = [
   {
     category: "Crawl & Audit",
     items: [
-      { name: "run_crawl", description: "Start a background site crawl" },
-      { name: "get_crawl_status", description: "Check crawl progress and results" },
-      { name: "get_crawl_issues", description: "List issues found during a crawl" },
+      { name: "list_crawls", description: "The latest crawls with status and health score" },
+      { name: "get_crawl_issues", description: "Issues found by a crawl, by severity" },
     ],
   },
   {
@@ -194,7 +194,7 @@ export function McpPageContent() {
           Available tools
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          10 tools available across 4 categories
+          9 read-only tools across 4 categories
         </p>
         <div className="mt-4 space-y-4">
           {TOOLS.map((group) => (

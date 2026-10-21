@@ -1,6 +1,6 @@
 /**
- * LLM-optimized text formatters for MCP tool responses.
- * Produces compact, readable text tables with aligned columns.
+ * LLM-optimized text formatters for MCP tool responses: compact text tables
+ * with aligned columns, from the JSON the /api/v1 API returns.
  */
 
 export function formatTable(headers: string[], rows: string[][]): string {
@@ -33,22 +33,29 @@ type VitalsRow = {
   ttfb: number | null;
 };
 
+type CrawlRow = {
+  id: string;
+  status: string;
+  startedAt: Date | string | null;
+  finishedAt: Date | string | null;
+  pagesFound: number;
+  issuesFound: number;
+  healthScore: number | null;
+  error?: string | null;
+};
+
+type Period = { startDate: string; endDate: string };
+
 type SiteOverview = {
   id: string;
   domain: string;
   gscProperty?: string | null;
+  metricsDays?: number;
   metrics?: {
     current: { clicks: number; impressions: number; avgPosition: number; avgCtr: number; uniqueKeywords: number };
     deltas: { clicks: number; impressions: number; avgPosition: number; avgCtr: number };
   } | null;
-  latestCrawl?: {
-    status: string;
-    healthScore: number | null;
-    pagesFound: number;
-    issuesFound: number;
-    finishedAt: Date | string | null;
-    error?: string | null;
-  } | null;
+  latestCrawl?: CrawlRow | null;
   latestVitals?: VitalsRow | null;
 };
 
@@ -70,6 +77,14 @@ function pos(n: number): string {
   return n.toFixed(1);
 }
 
+function minute(d: Date | string | null | undefined): string {
+  return d ? new Date(d).toISOString().slice(0, 16).replace("T", " ") : "-";
+}
+
+function period(p: Period): string {
+  return `${p.startDate} to ${p.endDate}`;
+}
+
 export function formatSiteOverview(site: SiteOverview): string {
   const lines: string[] = [];
   lines.push(`Site: ${site.domain}`);
@@ -79,7 +94,7 @@ export function formatSiteOverview(site: SiteOverview): string {
 
   if (site.metrics) {
     const m = site.metrics;
-    lines.push("-- Period Metrics (current vs previous) --");
+    lines.push(`-- Last ${site.metricsDays ?? 28} days vs the ${site.metricsDays ?? 28} days before --`);
     lines.push(`Clicks:      ${num(m.current.clicks)} (${m.deltas.clicks > 0 ? "+" : ""}${m.deltas.clicks}%)`);
     lines.push(`Impressions: ${num(m.current.impressions)} (${m.deltas.impressions > 0 ? "+" : ""}${m.deltas.impressions}%)`);
     lines.push(`Avg Position: ${pos(m.current.avgPosition)} (${m.deltas.avgPosition > 0 ? "+" : ""}${m.deltas.avgPosition.toFixed(1)} improvement)`);
@@ -91,10 +106,11 @@ export function formatSiteOverview(site: SiteOverview): string {
     const c = site.latestCrawl;
     lines.push("");
     lines.push("-- Latest Crawl --");
+    lines.push(`ID: ${c.id}`);
     lines.push(`Status: ${c.status}  |  Health: ${c.healthScore ?? "-"}/100`);
     if (c.status === "FAILED" && c.error) lines.push(`Error: ${c.error}`);
     lines.push(`Pages: ${num(c.pagesFound)}  |  Issues: ${num(c.issuesFound)}`);
-    if (c.finishedAt) lines.push(`Finished: ${new Date(c.finishedAt).toISOString().slice(0, 16)}`);
+    if (c.finishedAt) lines.push(`Finished: ${minute(c.finishedAt)}`);
   }
 
   if (site.latestVitals) {
@@ -111,8 +127,8 @@ export function formatSiteOverview(site: SiteOverview): string {
   return lines.join("\n");
 }
 
-export function formatKeywords(keywords: (SearchRow & { query: string })[]): string {
-  if (keywords.length === 0) return "No keywords found.";
+export function formatKeywords(keywords: (SearchRow & { query: string })[], p: Period): string {
+  if (keywords.length === 0) return `No keywords found for ${period(p)}.`;
 
   const headers = ["Keyword", "Clicks", "Impressions", "Position", "CTR"];
   const rows = keywords.map((k) => [
@@ -123,11 +139,11 @@ export function formatKeywords(keywords: (SearchRow & { query: string })[]): str
     pct(k.ctr),
   ]);
 
-  return `Top ${keywords.length} keywords:\n\n` + formatTable(headers, rows);
+  return `Top ${keywords.length} keywords, ${period(p)}:\n\n` + formatTable(headers, rows);
 }
 
-export function formatPages(pages: (SearchRow & { url: string })[]): string {
-  if (pages.length === 0) return "No pages found.";
+export function formatPages(pages: (SearchRow & { url: string })[], p: Period): string {
+  if (pages.length === 0) return `No pages found for ${period(p)}.`;
 
   const headers = ["URL", "Clicks", "Impressions", "Position", "CTR"];
   const rows = pages.map((p) => {
@@ -139,11 +155,11 @@ export function formatPages(pages: (SearchRow & { url: string })[]): string {
     return [url, num(p.clicks), num(p.impressions), pos(p.position), pct(p.ctr)];
   });
 
-  return `Top ${pages.length} pages:\n\n` + formatTable(headers, rows);
+  return `Top ${pages.length} pages, ${period(p)}:\n\n` + formatTable(headers, rows);
 }
 
-export function formatTraffic(traffic: { date: string; clicks: number; impressions: number }[]): string {
-  if (traffic.length === 0) return "No traffic data found.";
+export function formatTraffic(traffic: { date: string; clicks: number; impressions: number }[], p: Period): string {
+  if (traffic.length === 0) return `No traffic data found for ${period(p)}.`;
 
   const headers = ["Date", "Clicks", "Impressions"];
   const rows = traffic.map((t) => [t.date, num(t.clicks), num(t.impressions)]);
@@ -152,16 +168,41 @@ export function formatTraffic(traffic: { date: string; clicks: number; impressio
   const totalImpressions = traffic.reduce((s, t) => s + t.impressions, 0);
 
   return (
-    `Daily traffic (${traffic.length} days):\n` +
+    `Daily traffic, ${period(p)} (${traffic.length} days with data):\n` +
     `Total: ${num(totalClicks)} clicks, ${num(totalImpressions)} impressions\n\n` +
     formatTable(headers, rows)
   );
 }
 
-export function formatCrawlIssues(
-  issues: { severity: string; type: string; url: string; message: string }[]
-): string {
-  if (issues.length === 0) return "No crawl issues found.";
+export function formatCrawls(crawls: CrawlRow[]): string {
+  if (crawls.length === 0) return "No crawls yet.";
+
+  const headers = ["Crawl ID", "Status", "Started", "Finished", "Pages", "Issues", "Health"];
+  const rows = crawls.map((c) => [
+    c.id,
+    c.status,
+    minute(c.startedAt),
+    minute(c.finishedAt),
+    num(c.pagesFound),
+    num(c.issuesFound),
+    c.healthScore != null ? `${c.healthScore}/100` : "-",
+  ]);
+  const failed = crawls.filter((c) => c.status === "FAILED" && c.error).map((c) => `${c.id}: ${c.error}`);
+
+  return `${crawls.length} crawl(s), newest first:\n\n` + formatTable(headers, rows) + (failed.length ? `\n\nFailed:\n${failed.join("\n")}` : "");
+}
+
+export function formatCrawlIssues(result: {
+  crawl: CrawlRow;
+  total: number;
+  bySeverity: Record<string, number>;
+  issues: { severity: string; type: string; url: string; message: string }[];
+}): string {
+  const { crawl, total, bySeverity, issues } = result;
+  const head =
+    `Crawl ${crawl.id} (${crawl.status}, finished ${minute(crawl.finishedAt)}, health ${crawl.healthScore ?? "-"}/100)\n` +
+    `${num(total)} issues: ${num(bySeverity.CRITICAL ?? 0)} critical, ${num(bySeverity.WARNING ?? 0)} warning, ${num(bySeverity.INFO ?? 0)} info\n\n`;
+  if (issues.length === 0) return head + "No crawl issues found.";
 
   const headers = ["Severity", "Type", "URL", "Message"];
   const rows = issues.map((i) => [
@@ -171,7 +212,7 @@ export function formatCrawlIssues(
     i.message.length > 50 ? i.message.slice(0, 47) + "..." : i.message,
   ]);
 
-  return `${issues.length} crawl issues:\n\n` + formatTable(headers, rows);
+  return head + `Showing ${issues.length}:\n\n` + formatTable(headers, rows);
 }
 
 export function formatVitals(vitals: VitalsRow[]): string {

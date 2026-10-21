@@ -33,7 +33,7 @@ Google Search Console, a site crawler, Core Web Vitals and an MCP server in one 
 | **GSC integration** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Site crawler** | ✅ (2000 pages) | ✅ | ✅ | ✅ | ✅ |
 | **Core Web Vitals** | ✅ | ❌ | ❌ | ✅ | ❌ |
-| **MCP Server** | ✅ (10 tools) | ✅ (24 tools) | ❌ | ❌ | ❌ |
+| **MCP Server** | ✅ (9 read-only tools) | ✅ (24 tools) | ❌ | ❌ | ❌ |
 | **AI agent ready** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **Keyword Research** | ✅ (BYOK) | ✅ | ✅ | ✅ | ✅ |
 | **Backlinks** | ✅ (BYOK) | ✅ | ✅ | ✅ | ✅ |
@@ -90,7 +90,7 @@ The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud/bot)`) follows robots.txt
 
 ### 🤖 MCP server: AI agent integration
 
-10 tools for Claude Code, Claude Desktop, and Cursor. Query your SEO data, run crawls, and find opportunities without leaving the terminal.
+9 read-only tools for AI agents such as Claude Code. Query your Search Console data, crawl issues, Core Web Vitals and opportunities without leaving the terminal.
 
 <p align="center">
   <img src="docs/screenshots/mcp.png" alt="AI & MCP" width="800" />
@@ -144,9 +144,7 @@ Required scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/
 
 ## MCP server: AI agent integration
 
-crawlseo includes a Model Context Protocol server so AI agents can query your SEO data directly.
-
-Add to your Claude Code settings (`.claude/settings.json`):
+crawlseo includes a read-only Model Context Protocol server so AI agents can query your SEO data. It reads through your instance's API with an access key and never connects to the database:
 
 ```json
 {
@@ -154,22 +152,23 @@ Add to your Claude Code settings (`.claude/settings.json`):
     "crawlseo": {
       "command": "npx",
       "args": ["tsx", "mcp/server.ts"],
-      "cwd": "/path/to/crawlseo"
+      "cwd": "/path/to/crawlseo",
+      "env": { "CRAWLSEO_URL": "http://localhost:3000", "CRAWLSEO_API_KEY": "<key>" }
     }
   }
 }
 ```
 
-**10 tools available:**
+**9 read-only tools:**
 
 | Category | Tools |
 |---|---|
 | **Sites** | `list_sites`, `get_site_overview` |
 | **Keywords & Pages** | `get_keywords`, `get_pages`, `get_traffic` |
-| **Crawl & Audit** | `run_crawl`, `get_crawl_status`, `get_crawl_issues` |
+| **Crawl & Audit** | `list_crawls`, `get_crawl_issues` |
 | **Performance** | `get_vitals`, `get_opportunities` |
 
-Works with Claude Code, Claude Desktop, and Cursor. See [`mcp/README.md`](mcp/README.md) for full setup guide.
+See [`mcp/README.md`](mcp/README.md) for the setup.
 
 ## Tech Stack
 
@@ -297,9 +296,6 @@ when a job is queued, running or waiting to retry.
 | Docker Compose from this repository (recommended) | `off` | `worker` service, `node worker.cjs` |
 | One container, or `npm start` | `inline` (the default): the app runs them | none |
 | Vercel | `inline`: see [Vercel](#vercel) | none |
-
-The MCP server queues crawls too. When no worker and no app in inline mode is
-running jobs, it runs the crawl itself; keep it running until the crawl is done.
 
 An install upgraded from 0.2.x with its old `docker-compose.yml` keeps working
 without changes: the app has no `WORKER_MODE`, so it runs the jobs itself, as
@@ -449,7 +445,8 @@ There is no long-running process on Vercel, so:
 | `CRAWLSEO_HIDE_CLOUD_PROMO` | No | Set to `true` to remove the crawlseo.cloud card from the sidebar |
 | `CRAWLSEO_UPDATE_CHECK` | No | Set to `false` to turn off the daily update check: no request to GitHub is made and the sidebar shows no update notice |
 | `CRAWL_MAX_MINUTES` | No | Time limit of one crawl in minutes (default `30`). A host whose Crawl-delay does not fit in it is stopped early, with a message on the crawl page |
-| `CRAWL_MAX_PAGES` | No | Most pages one crawl may fetch (default `2000`). The server applies it to every crawl, from the web app and from MCP, whatever page count the request asks for |
+| `CRAWL_MAX_PAGES` | No | Most pages one crawl may fetch (default `2000`). The server applies it to every crawl, from the web app and from the schedule, whatever page count the request asks for |
+| `API_RATE_LIMIT_PER_MINUTE` | No | Requests per minute one access key may make to the read-only API (`/api/v1`) that the MCP server uses (default `60`). Counted per process |
 | `WORKER_MODE` | No | Who runs queued jobs: `inline` (default, the app process), `off` (this process only queues), `worker` (the worker process). See [Background jobs](#background-jobs) |
 | `WORKER_LONG_CONCURRENCY` | No | Crawls and vitals checks one process runs at once (default `1`) |
 | `WORKER_SHORT_CONCURRENCY` | No | Syncs and alert evaluations one process runs at once (default `2`) |

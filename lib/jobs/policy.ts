@@ -1,6 +1,6 @@
 /*
  * The crawl rules every entry point applies: the page ceiling and the check
- * whether a site may start a crawl now. The crawl route, the MCP tool and the
+ * whether a site may start a crawl now. The crawl route, the scheduler and the
  * engine all go through this module, so the page count a browser sends is
  * never the only limit. A deployment that needs stricter rules registers its
  * own policy with setCrawlPolicy (from extensions/index.ts) instead of editing

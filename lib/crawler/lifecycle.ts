@@ -89,7 +89,7 @@ export async function recoverStaleCrawls(
 }
 
 /**
- * On server start (web app and MCP server): every crawl without a job that this
+ * On server start (web app and worker): every crawl without a job that this
  * process could not have started and that has gone quiet is marked FAILED.
  * Never throws, so a database that is down does not stop the server from
  * starting.

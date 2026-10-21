@@ -24,6 +24,7 @@ model User {
   sites         Site[]
   alerts        Alert[]
   apiKeys       ApiKey[]
+  accessKeys    AccessKey[]
   settings      UserSettings?
 }
 
@@ -77,6 +78,25 @@ model ApiKey {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
+}
+
+// ============ ACCESS KEYS (read-only API and MCP) ============
+
+// A key a user creates to read their own data through /api/v1 (lib/api-v1),
+// which the MCP server uses. Only a SHA-256 hash of the key is stored; the
+// key itself is shown once, when it is created. Revoking a key deletes it.
+model AccessKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  keyHash    String    @unique // SHA-256 of the whole key, hex
+  prefix     String    // the start of the key, to tell keys apart in Settings
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime? // updated at most once a minute
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ============ USER SETTINGS ============
