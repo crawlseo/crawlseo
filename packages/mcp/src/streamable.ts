@@ -13,7 +13,7 @@ function jsonRpcError(status: number, message: string, headers: Record<string, s
   return Response.json({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }, { status, headers });
 }
 
-/** 401 or 403 for a request whose key was refused, in the JSON-RPC shape MCP clients read. */
+/** 401, 403 or 429 for a request whose key was refused, in the JSON-RPC shape MCP clients read. */
 export function refuseKey(status: number, message: string, headers: Record<string, string> = {}): Response {
   return jsonRpcError(status, message, headers);
 }

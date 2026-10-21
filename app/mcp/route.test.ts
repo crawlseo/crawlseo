@@ -121,6 +121,25 @@ describe("/mcp", () => {
     await client.close();
   });
 
+  it("counts every /mcp request against the key's rate limit, a tool call once", async () => {
+    vi.stubEnv("API_RATE_LIMIT_PER_MINUTE", "3");
+    (globalThis as { crawlseoApiRateLimiter?: unknown }).crawlseoApiRateLimiter = undefined;
+    try {
+      const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "list_sites", arguments: {} } };
+      for (let i = 0; i < 3; i++) {
+        const res = await post(f.keyB, call);
+        expect(res.status).toBe(200);
+        expect(JSON.stringify(await res.json())).not.toContain("Too many");
+      }
+      const limited = await post(f.keyB, INIT);
+      expect(limited.status).toBe(429);
+      expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllEnvs();
+      (globalThis as { crawlseoApiRateLimiter?: unknown }).crawlseoApiRateLimiter = undefined;
+    }
+  });
+
   it("refuses a run_crawl call: no such tool", async () => {
     const client = await connect(f.keyA);
     const res = (await client.callTool({ name: "run_crawl", arguments: { siteId: "site-a" } })) as { isError?: boolean };

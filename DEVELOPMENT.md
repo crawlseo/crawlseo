@@ -92,8 +92,9 @@ cd packages/mcp
 npm pack          # runs the build (prepack), writes crawlseo-mcp-<version>.tgz
 ```
 
-Publishing (a maintainer, once the `@crawlseo` npm scope exists):
+Publishing (a maintainer):
 
+0. Register the `@crawlseo` org on npm before a release whose docs name `npx -y @crawlseo/mcp`, so nobody else can publish under that name and receive users' keys.
 1. Set `version` in `packages/mcp/package.json` to the release version.
 2. `npm ci` at the repository root, then in `packages/mcp`: `npm pack --dry-run` and check that the list is `LICENSE`, `README.md`, `dist/cli.js` and `package.json`.
 3. `npm publish` in `packages/mcp` (`publishConfig.access` is `public`; npm asks for your one-time password when 2FA is on).

@@ -9,7 +9,8 @@ Classic search performance — Google or Bing — belongs in the open-source cor
 The paid cloud layer covers the following, and PRs adding them will be closed:
 
 - measuring brand mentions or citations inside AI answers;
-- calling AI engines (ChatGPT, Perplexity, Gemini, Claude, etc.) to run or track prompts, including with the user's own API keys.
+- calling AI engines (ChatGPT, Perplexity, Gemini, Claude, etc.) to run or track prompts, including with the user's own API keys;
+- remote or agent service APIs other than the instance's own read-only API (`/api/v1`) and MCP server.
 
 The read-only MCP server is open source, over stdio and at the instance's own `/mcp` endpoint (`packages/mcp`). MCP tools stay read-only: a PR that adds a tool that writes, queues or triggers anything won't be merged.
 

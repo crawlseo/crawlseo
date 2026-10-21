@@ -12,6 +12,7 @@ import { ApiRequestError, createApiClient } from "./api-client";
 import { handleMcpRequest, refuseKey } from "./streamable";
 
 const MAX_BODY_BYTES = 1_000_000;
+const KEY_PREFIX = "crawlseo_";
 /** How long a key the instance accepted is trusted without asking again. Tool calls always ask. */
 const KEY_CACHE_MS = 60_000;
 
@@ -22,15 +23,19 @@ function bearer(header: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
+/**
+ * The request body, or null when it is larger than MAX_BODY_BYTES. The rest of
+ * a body that is too large is read and dropped, so the client gets the 413
+ * instead of a reset connection.
+ */
+async function readBody(req: IncomingMessage): Promise<Buffer | null> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new Error("body too large");
-    chunks.push(chunk as Buffer);
+    if (size <= MAX_BODY_BYTES) chunks.push(chunk as Buffer);
   }
-  return Buffer.concat(chunks);
+  return size > MAX_BODY_BYTES ? null : Buffer.concat(chunks);
 }
 
 async function send(res: ServerResponse, response: Response): Promise<void> {
@@ -46,6 +51,8 @@ export function startHttpServer(opts: HttpOptions): Promise<Server> {
 
   /** null when the instance accepts the key, else the refusal to send. */
   async function checkKey(key: string): Promise<Response | null> {
+    // Not a crawlseo key at all: no need to ask the instance.
+    if (!key.startsWith(KEY_PREFIX)) return refuseKey(401, "Invalid API key", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
     const id = createHash("sha256").update(key).digest("hex");
     if ((accepted.get(id) ?? 0) > Date.now()) return null;
     try {
@@ -55,8 +62,12 @@ export function startHttpServer(opts: HttpOptions): Promise<Server> {
       return null;
     } catch (err) {
       accepted.delete(id);
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) return refuseKey(err.status, err.message);
-      return refuseKey(502, err instanceof Error ? err.message : String(err));
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403 || err.status === 429)) {
+        return refuseKey(err.status, err.message);
+      }
+      // The details name the instance; they go to the log, not to a caller whose key was not accepted.
+      console.error("[crawlseo-mcp] key check failed:", err instanceof Error ? err.message : err);
+      return refuseKey(502, "crawlseo could not be reached");
     }
   }
 
@@ -78,7 +89,9 @@ export function startHttpServer(opts: HttpOptions): Promise<Server> {
       else if (Array.isArray(value)) headers.set(name, value.join(", "));
     }
     const body = req.method === "POST" ? await readBody(req) : undefined;
-    const webReq = new Request(new URL(url.pathname + url.search, `http://${req.headers.host ?? "localhost"}`), {
+    if (body === null) return send(res, refuseKey(413, "Request body too large"));
+    // A fixed base: the client's Host header plays no part in handling the request.
+    const webReq = new Request(new URL(url.pathname + url.search, "http://localhost"), {
       method: req.method,
       headers,
       body: body ? new Uint8Array(body) : undefined,

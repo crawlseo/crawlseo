@@ -32,6 +32,18 @@ function limiter(): RateLimiter {
   return holder.crawlseoApiRateLimiter;
 }
 
+export type RateCheck = { ok: boolean; headers: Record<string, string> };
+
+/** Counts one request of the key against API_RATE_LIMIT_PER_MINUTE; /api/v1 and /mcp share the count. */
+export function countKeyRequest(keyId: string): RateCheck {
+  const rate = limiter().hit(keyId);
+  const headers: Record<string, string> = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
+  if (!rate.ok) headers["Retry-After"] = String(rate.retryAfterS);
+  return { ok: rate.ok, headers };
+}
+
+export const RATE_LIMITED_MESSAGE = "Too many requests for this key. Try again shortly.";
+
 function segment(s: string): string {
   try {
     return decodeURIComponent(s);
@@ -76,7 +88,7 @@ async function route(owner: KeyOwner, segments: string[], params: URLSearchParam
 }
 
 /** Answers one /api/v1 request. Used by the route and, in-process, by the instance's MCP endpoint. */
-export async function handleApiV1(req: Request): Promise<Response> {
+export async function handleApiV1(req: Request, opts: { countRequest?: boolean } = {}): Promise<Response> {
   if (req.method !== "GET") {
     return json({ error: "The API is read-only: GET only" }, 405, { Allow: "GET" });
   }
@@ -86,14 +98,10 @@ export async function handleApiV1(req: Request): Promise<Response> {
     if (!check.ok) return json({ error: check.error }, check.status, check.headers);
     const { owner } = check;
 
-    const rate = limiter().hit(owner.keyId);
-    const rateHeaders = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
-    if (!rate.ok) {
-      return json({ error: "Too many requests for this key. Try again shortly." }, 429, {
-        ...rateHeaders,
-        "Retry-After": String(rate.retryAfterS),
-      });
-    }
+    // A tool call from /mcp was counted there, as one request.
+    const rate = opts.countRequest === false ? { ok: true, headers: {} } : countKeyRequest(owner.keyId);
+    const rateHeaders = rate.headers;
+    if (!rate.ok) return json({ error: RATE_LIMITED_MESSAGE }, 429, rateHeaders);
 
     const url = new URL(req.url);
     const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : "";

@@ -1,6 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from "child_process";
 import { once } from "events";
-import { createServer, type Server } from "http";
+import { createServer, request, type Server } from "http";
 import type { AddressInfo } from "net";
 import { join } from "path";
 import type { PrismaClient } from "@prisma/client";
@@ -120,6 +120,31 @@ describe("@crawlseo/mcp (built)", () => {
       });
     expect((await post()).status).toBe(401);
     expect((await post("crawlseo_wrong")).status).toBe(401);
+    expect((await post("sk-not-a-crawlseo-key")).status).toBe(401);
+    const huge = await fetch(mcpUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${f.keyA}` },
+      body: "x".repeat(1_100_000),
+    });
+    expect(huge.status).toBe(413);
+
+    // A malformed Host header plays no part: the request is answered as usual.
+    const odd = await new Promise<number>((resolve, reject) => {
+      const r = request(
+        mcpUrl,
+        {
+          method: "POST",
+          headers: { Host: "bad host:x", "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${f.keyA}` },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        }
+      );
+      r.on("error", reject);
+      r.end(JSON.stringify(init));
+    });
+    expect(odd).toBe(200);
     expect((await post(f.keyOff)).status).toBe(403);
 
     const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {

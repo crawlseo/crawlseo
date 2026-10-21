@@ -18,7 +18,8 @@ Notable changes per release. Releases before 0.3.3 are described on the
 - **A read-only API, `/api/v1`,** that the MCP server reads through: sites,
   overview, keywords, pages and traffic (last N days or a date range), crawls,
   crawl issues, vitals and opportunities. GET only, a key sees its own
-  account's sites only, `API_RATE_LIMIT_PER_MINUTE` per key (default 60).
+  account's sites only, `API_RATE_LIMIT_PER_MINUTE` per key across `/mcp`
+  and `/api/v1` (default 60).
 
 ### Changed
 
