@@ -1,15 +1,16 @@
-import { authenticateKey, bearerKey } from "@/lib/access-keys";
-import { db } from "@/lib/db";
+import type { KeyOwner } from "@/lib/access-keys";
 import { apiRateLimitPerMinute, RateLimiter } from "@/lib/rate-limit";
+import { checkKey } from "./auth";
 import * as read from "./handlers";
 import { ApiError } from "./params";
 
 /*
  * The read-only API under /api/v1, for the MCP server and scripts. Every
- * request carries an access key (Authorization: Bearer <key>) and reads the
- * data of the key's user only. GET is the only method: nothing here writes,
+ * request carries an access key (Authorization: Bearer <key>) of a user with
+ * MCP turned on in Settings > MCP, and reads the data of that user only. GET is the only method: nothing here writes,
  * queues or triggers anything.
  *
+ * GET /api/v1/key                                  the key in use: name and prefix
  * GET /api/v1/sites
  * GET /api/v1/sites/{siteId}                       overview: last 28 days, latest crawl and vitals
  * GET /api/v1/sites/{siteId}/keywords              ?days= or ?startDate=&endDate=, &limit=
@@ -43,8 +44,10 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-async function route(userId: string, segments: string[], params: URLSearchParams): Promise<unknown> {
+async function route(owner: KeyOwner, segments: string[], params: URLSearchParams): Promise<unknown> {
+  const { userId } = owner;
   const [root, siteId, resource, crawlId, sub] = segments;
+  if (root === "key" && segments.length === 1) return read.keyInfo(owner.keyId);
   if (root !== "sites") throw new ApiError(404, "Not found");
   if (segments.length === 1) return read.listSites(userId);
 
@@ -78,12 +81,10 @@ export async function handleApiV1(req: Request): Promise<Response> {
     return json({ error: "The API is read-only: GET only" }, 405, { Allow: "GET" });
   }
 
-  const key = bearerKey(req.headers.get("authorization"));
-  if (!key) return json({ error: "Missing API key" }, 401, { "WWW-Authenticate": "Bearer" });
-
   try {
-    const owner = await authenticateKey(db, key);
-    if (!owner) return json({ error: "Invalid API key" }, 401, { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+    const check = await checkKey(req);
+    if (!check.ok) return json({ error: check.error }, check.status, check.headers);
+    const { owner } = check;
 
     const rate = limiter().hit(owner.keyId);
     const rateHeaders = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
@@ -97,7 +98,7 @@ export async function handleApiV1(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : "";
     const segments = path.split("/").filter(Boolean).map(segment);
-    return json(await route(owner.userId, segments, url.searchParams), 200, rateHeaders);
+    return json(await route(owner, segments, url.searchParams), 200, rateHeaders);
   } catch (err) {
     if (err instanceof ApiError) return json({ error: err.message }, err.status);
     console.error("[api/v1]", err);

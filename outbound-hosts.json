@@ -1,5 +1,5 @@
 {
-  "$comment": "Every external host in the app's code (lib/, app/, mcp/, components/ and root files). \"requests\" are the hosts the app contacts and must match the README section \"Your data stays yours\" (see CONTRIBUTING, Outbound connections). \"notRequested\" hosts only appear as links or plain strings, and only in the files listed. lib/outbound-hosts.test.ts fails on anything else.",
+  "$comment": "Every external host in the app's code (lib/, app/, packages/, components/ and root files). \"requests\" are the hosts the app contacts and must match the README section \"Your data stays yours\" (see CONTRIBUTING, Outbound connections). \"notRequested\" hosts only appear as links or plain strings, and only in the files listed. lib/outbound-hosts.test.ts fails on anything else.",
   "requests": {
     "accounts.google.com": "Google sign-in: Auth.js OIDC discovery and the browser redirect (not a literal in our code)",
     "oauth2.googleapis.com": "Google OAuth tokens (sign-in, refresh) and revoke on disconnect",

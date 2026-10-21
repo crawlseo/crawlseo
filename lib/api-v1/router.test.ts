@@ -72,6 +72,14 @@ describe("key auth", () => {
     expect((await body(res)).error).toBe("Invalid API key");
   });
 
+  it("refuses a valid key while MCP is off for its user (the default), and says how to turn it on", async () => {
+    const res = await get("/sites", f.keyOff);
+    expect(res.status).toBe(403);
+    expect((await body(res)).error).toMatch(/Settings > MCP/);
+    const row = await db.accessKey.findFirstOrThrow({ where: { userId: "user-off" } });
+    expect(row.lastUsedAt).toBeNull();
+  });
+
   it("records when a key was used", async () => {
     await db.accessKey.update({ where: { id: f.keyAId }, data: { lastUsedAt: null } });
     await get("/sites");
@@ -231,6 +239,13 @@ describe("endpoints", () => {
   it("vitals filter by device", async () => {
     const r = (await body(await get("/sites/site-a/vitals?device=desktop"))) as unknown as { reports: { device: string }[] };
     expect(r.reports.map((v) => v.device)).toEqual(["DESKTOP"]);
+  });
+
+  it("key: the key in use, without its secret part", async () => {
+    const r = (await body(await get("/key"))) as unknown as { key: { name: string; prefix: string } };
+    expect(r.key.name).toBe("laptop");
+    expect(f.keyA.startsWith(r.key.prefix)).toBe(true);
+    expect(JSON.stringify(r)).not.toContain(f.keyA);
   });
 
   it("unknown paths are 404", async () => {

@@ -90,7 +90,7 @@ The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud/bot)`) follows robots.txt
 
 ### 🤖 MCP server: AI agent integration
 
-9 read-only tools for AI agents such as Claude Code. Query your Search Console data, crawl issues, Core Web Vitals and opportunities without leaving the terminal.
+9 read-only tools for AI agents such as Claude Code, over HTTP at `/mcp` or over stdio, with access keys from Settings. Query your Search Console data, crawl issues, Core Web Vitals and opportunities without leaving the terminal. See [MCP](#mcp).
 
 <p align="center">
   <img src="docs/screenshots/mcp.png" alt="AI & MCP" width="800" />
@@ -142,33 +142,51 @@ Required scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/
 
 </details>
 
-## MCP server: AI agent integration
+## MCP
 
-crawlseo includes a read-only Model Context Protocol server so AI agents can query your SEO data. It reads through your instance's API with an access key and never connects to the database:
+crawlseo has an MCP (Model Context Protocol) server, so an AI agent such as Claude Code can read your SEO data.
 
-```json
-{
-  "mcpServers": {
-    "crawlseo": {
-      "command": "npx",
-      "args": ["tsx", "mcp/server.ts"],
-      "cwd": "/path/to/crawlseo",
-      "env": { "CRAWLSEO_URL": "http://localhost:3000", "CRAWLSEO_API_KEY": "<key>" }
-    }
-  }
-}
+**The MCP is read-only.** Its tools read your data and nothing else: no tool writes, changes, queues or triggers anything. There is no `run_crawl` and no sync; crawls and syncs start in the app or on the schedule. Every tool reads through your instance's API (`/api/v1`) with an access key, never from the database, and a key sees the sites of its own account only.
+
+### Create a key
+
+1. Open **Settings > MCP** in crawlseo and choose **Turn on**. MCP is off until you do, and while it is off every key is refused.
+2. Give the key a name and choose **Create key**. Copy the key: it is stored hashed and shown only once.
+3. The list shows when each key was last used. **Revoke** stops a key at once.
+
+### Connect Claude Code
+
+Over HTTP, to your instance's `/mcp` endpoint:
+
+```bash
+claude mcp add --transport http crawlseo https://seo.example.com/mcp --header "Authorization: Bearer <key>"
 ```
 
-**9 read-only tools:**
+Or over stdio with the `@crawlseo/mcp` package, against your instance:
 
-| Category | Tools |
+```bash
+claude mcp add crawlseo -e CRAWLSEO_URL=http://localhost:3000 -e CRAWLSEO_API_KEY=<key> -- npx -y @crawlseo/mcp
+```
+
+Replace `https://seo.example.com` and `http://localhost:3000` with your instance's address. `/mcp` refuses a request without a key, with a wrong key or with a revoked key (401), and every key while MCP is off for that account (403). `/health` answers without a key. Each key may make `API_RATE_LIMIT_PER_MINUTE` requests a minute (default 60). The package also has an HTTP mode; see [`packages/mcp`](packages/mcp/README.md).
+
+Tested end to end with Claude Code.
+
+### Tools
+
+| Tool | What it reads |
 |---|---|
-| **Sites** | `list_sites`, `get_site_overview` |
-| **Keywords & Pages** | `get_keywords`, `get_pages`, `get_traffic` |
-| **Crawl & Audit** | `list_crawls`, `get_crawl_issues` |
-| **Performance** | `get_vitals`, `get_opportunities` |
+| `list_sites` | Your sites with their IDs and Search Console properties |
+| `get_site_overview` | Clicks, impressions, position and CTR over 28 days against the 28 before, the latest crawl and vitals |
+| `get_keywords` | Top Search Console queries, for the last N days or a date range |
+| `get_pages` | Top pages, for the last N days or a date range |
+| `get_traffic` | Daily clicks and impressions, for the last N days or a date range |
+| `list_crawls` | The latest crawls with status, pages, issues and health score |
+| `get_crawl_issues` | Issues of a crawl (the latest completed one by default), by severity |
+| `get_vitals` | Core Web Vitals reports: performance score, LCP, CLS, INP, TTFB |
+| `get_opportunities` | Striking distance, low CTR, content decay and cannibalization |
 
-See [`mcp/README.md`](mcp/README.md) for the setup.
+The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours).
 
 ## Tech Stack
 

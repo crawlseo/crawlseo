@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { authenticateKey, bearerKey, createAccessKey, hashKey, KEY_PREFIX } from "./access-keys";
+import { bearerKey, createAccessKey, findKeyOwner, hashKey, KEY_PREFIX, touchKey } from "./access-keys";
 
 // Keys are stored hashed and shown once; lastUsedAt is written at most once a minute.
 
@@ -11,7 +11,10 @@ function fakeDb() {
       rows.push(row);
       return row;
     }),
-    findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) => rows.find((r) => r.keyHash === where.keyHash) ?? null),
+    findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) => {
+      const row = rows.find((r) => r.keyHash === where.keyHash);
+      return row ? { ...row, user: { settings: null } } : null;
+    }),
     updateMany: vi.fn(async ({ where, data }: { where: { id: string }; data: { lastUsedAt: Date } }) => {
       const row = rows.find((r) => r.id === where.id);
       if (row) row.lastUsedAt = data.lastUsedAt;
@@ -33,22 +36,23 @@ describe("access keys", () => {
     expect(rows[0].prefix.length).toBeLessThan(20);
   });
 
-  it("authenticates the key and nothing else", async () => {
+  it("finds the key's owner for the key and nothing else", async () => {
     const { db } = fakeDb();
     const { key, id } = await createAccessKey(db, "u1", "laptop");
-    expect(await authenticateKey(db, key)).toEqual({ keyId: id, userId: "u1" });
-    expect(await authenticateKey(db, key.slice(0, -1))).toBeNull();
-    expect(await authenticateKey(db, hashKey(key))).toBeNull();
+    expect(await findKeyOwner(db, key)).toEqual({ keyId: id, userId: "u1", mcpEnabled: false, lastUsedAt: null });
+    expect(await findKeyOwner(db, key.slice(0, -1))).toBeNull();
+    expect(await findKeyOwner(db, hashKey(key))).toBeNull();
   });
 
   it("writes lastUsedAt at most once a minute", async () => {
     const { db, accessKey } = fakeDb();
     const { key } = await createAccessKey(db, "u1", "laptop");
     const t0 = new Date("2026-10-21T10:00:00Z");
-    await authenticateKey(db, key, t0);
-    await authenticateKey(db, key, new Date(t0.getTime() + 30_000));
+    const use = async (now: Date) => touchKey(db, (await findKeyOwner(db, key))!, now);
+    await use(t0);
+    await use(new Date(t0.getTime() + 30_000));
     expect(accessKey.updateMany).toHaveBeenCalledTimes(1);
-    await authenticateKey(db, key, new Date(t0.getTime() + 61_000));
+    await use(new Date(t0.getTime() + 61_000));
     expect(accessKey.updateMany).toHaveBeenCalledTimes(2);
   });
 

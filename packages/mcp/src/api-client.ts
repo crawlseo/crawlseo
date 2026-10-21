@@ -66,7 +66,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
 }
 
 function explain(status: number, reason: string): string {
-  if (status === 401) return `${reason}. Check the API key, or create a new one in crawlseo.`;
+  if (status === 401) return `${reason}. Check the key, or create a new one in crawlseo under Settings > MCP.`;
   if (status === 404 && reason === "Not found") return `${reason}. Is this a crawlseo instance with the /api/v1 API?`;
   return reason;
 }

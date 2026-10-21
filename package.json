@@ -25,7 +25,7 @@
     "build:worker": "node scripts/build-worker.mjs",
     "start": "next start",
     "lint": "eslint",
-    "mcp": "npx tsx mcp/server.ts",
+    "mcp": "npx tsx packages/mcp/src/cli.ts",
     "worker": "npx tsx worker/main.ts",
     "seed:demo": "npx tsx scripts/seed-demo.ts",
     "seed:demo:clean": "npx tsx scripts/seed-demo.ts --clean",

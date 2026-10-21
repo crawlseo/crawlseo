@@ -50,6 +50,13 @@ async function withStaleAsFailed(crawls: CrawlRow[]): Promise<CrawlRow[]> {
   return crawls.map((c) => (ids.has(c.id) ? { ...c, status: "FAILED", error: INTERRUPTED_MESSAGE } : c));
 }
 
+/** The key making the request, so a client can check its key without reading any data. */
+export async function keyInfo(keyId: string) {
+  const key = await db.accessKey.findUnique({ where: { id: keyId }, select: { name: true, prefix: true, createdAt: true } });
+  if (!key) throw new ApiError(401, "Invalid API key");
+  return { key };
+}
+
 export async function listSites(userId: string) {
   const sites = await db.site.findMany({
     where: { userId },

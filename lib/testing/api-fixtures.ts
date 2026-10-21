@@ -5,6 +5,7 @@ import { createAccessKey } from "@/lib/access-keys";
  * Two users with a site each, for the /api/v1 and MCP tests: Search Console
  * rows over the last days, a completed and a stale running crawl with
  * issues, and vitals. Only user A's data should ever reach user A's key.
+ * Both have MCP turned on; a third user with a key has not.
  */
 
 export const DAY_MS = 86_400_000;
@@ -15,11 +16,13 @@ export function daysAgo(n: number): Date {
   return d;
 }
 
-export type Fixtures = { keyA: string; keyB: string; keyAId: string };
+export type Fixtures = { keyA: string; keyB: string; keyAId: string; keyOff: string };
 
 export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
   await db.user.create({ data: { id: "user-a", email: "a@quilltab.app" } });
   await db.user.create({ data: { id: "user-b", email: "b@quilltab.app" } });
+  await db.user.create({ data: { id: "user-off", email: "off@quilltab.app" } });
+  await db.userSettings.createMany({ data: [{ userId: "user-a", mcpEnabled: true }, { userId: "user-b", mcpEnabled: true }] });
   await db.site.create({ data: { id: "site-a", userId: "user-a", domain: "quilltab.app", gscProperty: "sc-domain:quilltab.app" } });
   await db.site.create({ data: { id: "site-b", userId: "user-b", domain: "secret-b.com", gscProperty: "sc-domain:secret-b.com" } });
 
@@ -63,7 +66,8 @@ export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
 
   const a = await createAccessKey(db, "user-a", "laptop");
   const b = await createAccessKey(db, "user-b", "laptop");
-  return { keyA: a.key, keyB: b.key, keyAId: a.id };
+  const off = await createAccessKey(db, "user-off", "laptop");
+  return { keyA: a.key, keyB: b.key, keyAId: a.id, keyOff: off.key };
 }
 
 /** Every row of every table the API reads, to prove a request changed nothing. */

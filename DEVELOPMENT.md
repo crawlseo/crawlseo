@@ -69,6 +69,8 @@ src/
 │   └── alerts/             # Alert logic
 ├── workers/                # Background jobs
 └── types/                  # TypeScript types
+packages/
+└── mcp/                    # @crawlseo/mcp, the read-only MCP server (also behind /mcp)
 ```
 
 ## Available Scripts
@@ -79,6 +81,23 @@ src/
 - `npm run lint` - Run ESLint
 - `npm run worker` - Run the worker process from source (set `DATABASE_URL`)
 - `npm run build:worker` - Bundle the worker to `dist/worker.cjs` (the Docker image runs it as `worker.cjs`)
+- `npm run mcp` - Run the MCP server from source over stdio (set `CRAWLSEO_URL` and `CRAWLSEO_API_KEY`)
+
+## The MCP package
+
+`packages/mcp` is `@crawlseo/mcp`: the MCP tools, the stdio and HTTP modes, and the streamable HTTP handler the app's `/mcp` route uses. It reads only through `/api/v1` and imports nothing from the app; `packages/mcp/src/tools.test.ts` checks that. It is not an npm workspace: it builds with the root `node_modules`, so run `npm ci` at the root first.
+
+```bash
+cd packages/mcp
+npm pack          # runs the build (prepack), writes crawlseo-mcp-<version>.tgz
+```
+
+Publishing (a maintainer, once the `@crawlseo` npm scope exists):
+
+1. Set `version` in `packages/mcp/package.json` to the release version.
+2. `npm ci` at the repository root, then in `packages/mcp`: `npm pack --dry-run` and check that the list is `LICENSE`, `README.md`, `dist/cli.js` and `package.json`.
+3. `npm publish` in `packages/mcp` (`publishConfig.access` is `public`; npm asks for your one-time password when 2FA is on).
+4. Check: `npx -y @crawlseo/mcp --version`.
 
 ## Database
 
