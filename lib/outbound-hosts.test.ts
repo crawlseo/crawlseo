@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 // a host listed as "not requested" (a link) shows up in another file.
 
 const ROOT = resolve(__dirname, "..");
-const DIRS = ["lib", "app", "mcp", "components"];
+const DIRS = ["lib", "app", "packages", "components"];
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 const allowlist = JSON.parse(readFileSync(join(ROOT, "outbound-hosts.json"), "utf8")) as {
   requests: Record<string, string>;
@@ -52,7 +52,8 @@ function isTestFile(path: string): boolean {
 function sourceFiles(dir: string): string[] {
   return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((entry) => {
     const path = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) return dir && entry.name !== "node_modules" ? sourceFiles(path) : [];
+    // dist: a build of the package's own sources, which are scanned.
+    if (entry.isDirectory()) return dir && entry.name !== "node_modules" && entry.name !== "dist" ? sourceFiles(path) : [];
     return CODE.test(entry.name) && !isTestFile(path) ? [path] : [];
   });
 }

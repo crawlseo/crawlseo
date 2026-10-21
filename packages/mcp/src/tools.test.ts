@@ -122,13 +122,13 @@ describe("MCP tools", () => {
     await client.close();
   });
 
-  it("the MCP code never reaches the database or the app's code", () => {
+  it("the package never reaches the database or the app's code", () => {
     const dir = __dirname;
     for (const file of readdirSync(dir).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))) {
       const source = readFileSync(join(dir, file), "utf8");
       const imports = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
       for (const spec of imports) {
-        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/|\.\.\/package\.json$|@modelcontextprotocol\/sdk\/|zod$)/);
+        expect(spec, `${file} imports ${spec}`).toMatch(/^(\.\/|\.\.\/package\.json$|@modelcontextprotocol\/sdk\/|zod$|crypto$|http$|net$)/);
       }
       expect(source, file).not.toMatch(/DATABASE_URL|PrismaClient/);
     }

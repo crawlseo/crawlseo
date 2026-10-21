@@ -8,6 +8,7 @@ const { auth, db, redirect } = vi.hoisted(() => ({
   db: {
     user: { findUnique: vi.fn() },
     apiKey: { findMany: vi.fn() },
+    accessKey: { findMany: vi.fn() },
     userSettings: { findUnique: vi.fn() },
     job: { findFirst: vi.fn() },
   },
@@ -20,6 +21,7 @@ vi.mock("@/lib/auth", () => ({ auth }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("next/navigation", () => ({ redirect, useRouter: () => ({ refresh: () => {} }) }));
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "seo.quilltab.app", "x-forwarded-proto": "https" }) }));
 vi.mock("./actions", () => ({
   deleteAccountAction: vi.fn(),
   disconnectGoogleAction: vi.fn(),
@@ -43,6 +45,7 @@ beforeEach(() => {
     googleTokens: { accessToken: "enc:v1:x", refreshToken: "enc:v1:y", scope: "openid email" },
   });
   db.apiKey.findMany.mockResolvedValue([]);
+  db.accessKey.findMany.mockResolvedValue([]);
   db.userSettings.findUnique.mockResolvedValue(null);
   db.job.findFirst.mockResolvedValue(null);
 });
@@ -55,6 +58,25 @@ describe("/account", () => {
 });
 
 describe("/settings", () => {
+  it("shows MCP off by default, with this instance's /mcp URL and the keys", async () => {
+    let html = await render();
+    expect(html).toContain(">MCP</h2>");
+    expect(html).toContain("https://seo.quilltab.app/mcp");
+    expect(html).toMatch(/>Off<\/span>/);
+    expect(html).toContain("Turn on");
+    expect(html).toContain("No keys yet.");
+
+    db.userSettings.findUnique.mockResolvedValue({ mcpEnabled: true });
+    db.accessKey.findMany.mockResolvedValue([
+      { id: "k1", name: "Laptop", prefix: "crawlseo_AbCdEf", createdAt: new Date("2026-10-01T00:00:00Z"), lastUsedAt: null },
+    ]);
+    html = await render();
+    expect(html).toMatch(/>On<\/span>/);
+    expect(html).toContain("Turn off");
+    expect(html).toContain("crawlseo_AbCdEf…");
+    expect(html).toContain("never used");
+  });
+
   it("shows profile, connections and danger zone", async () => {
     const html = await render();
     expect(html).toContain(">Profile</h2>");

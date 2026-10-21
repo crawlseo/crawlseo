@@ -1,15 +1,16 @@
-import { authenticateKey, bearerKey } from "@/lib/access-keys";
-import { db } from "@/lib/db";
+import type { KeyOwner } from "@/lib/access-keys";
 import { apiRateLimitPerMinute, RateLimiter } from "@/lib/rate-limit";
+import { checkKey } from "./auth";
 import * as read from "./handlers";
 import { ApiError } from "./params";
 
 /*
  * The read-only API under /api/v1, for the MCP server and scripts. Every
- * request carries an access key (Authorization: Bearer <key>) and reads the
- * data of the key's user only. GET is the only method: nothing here writes,
+ * request carries an access key (Authorization: Bearer <key>) of a user with
+ * MCP turned on in Settings > MCP, and reads the data of that user only. GET is the only method: nothing here writes,
  * queues or triggers anything.
  *
+ * GET /api/v1/key                                  the key in use: name and prefix
  * GET /api/v1/sites
  * GET /api/v1/sites/{siteId}                       overview: last 28 days, latest crawl and vitals
  * GET /api/v1/sites/{siteId}/keywords              ?days= or ?startDate=&endDate=, &limit=
@@ -31,6 +32,18 @@ function limiter(): RateLimiter {
   return holder.crawlseoApiRateLimiter;
 }
 
+export type RateCheck = { ok: boolean; headers: Record<string, string> };
+
+/** Counts one request of the key against API_RATE_LIMIT_PER_MINUTE; /api/v1 and /mcp share the count. */
+export function countKeyRequest(keyId: string): RateCheck {
+  const rate = limiter().hit(keyId);
+  const headers: Record<string, string> = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
+  if (!rate.ok) headers["Retry-After"] = String(rate.retryAfterS);
+  return { ok: rate.ok, headers };
+}
+
+export const RATE_LIMITED_MESSAGE = "Too many requests for this key. Try again shortly.";
+
 function segment(s: string): string {
   try {
     return decodeURIComponent(s);
@@ -43,8 +56,10 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-async function route(userId: string, segments: string[], params: URLSearchParams): Promise<unknown> {
+async function route(owner: KeyOwner, segments: string[], params: URLSearchParams): Promise<unknown> {
+  const { userId } = owner;
   const [root, siteId, resource, crawlId, sub] = segments;
+  if (root === "key" && segments.length === 1) return read.keyInfo(owner.keyId);
   if (root !== "sites") throw new ApiError(404, "Not found");
   if (segments.length === 1) return read.listSites(userId);
 
@@ -73,31 +88,25 @@ async function route(userId: string, segments: string[], params: URLSearchParams
 }
 
 /** Answers one /api/v1 request. Used by the route and, in-process, by the instance's MCP endpoint. */
-export async function handleApiV1(req: Request): Promise<Response> {
+export async function handleApiV1(req: Request, opts: { countRequest?: boolean } = {}): Promise<Response> {
   if (req.method !== "GET") {
     return json({ error: "The API is read-only: GET only" }, 405, { Allow: "GET" });
   }
 
-  const key = bearerKey(req.headers.get("authorization"));
-  if (!key) return json({ error: "Missing API key" }, 401, { "WWW-Authenticate": "Bearer" });
-
   try {
-    const owner = await authenticateKey(db, key);
-    if (!owner) return json({ error: "Invalid API key" }, 401, { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+    const check = await checkKey(req);
+    if (!check.ok) return json({ error: check.error }, check.status, check.headers);
+    const { owner } = check;
 
-    const rate = limiter().hit(owner.keyId);
-    const rateHeaders = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
-    if (!rate.ok) {
-      return json({ error: "Too many requests for this key. Try again shortly." }, 429, {
-        ...rateHeaders,
-        "Retry-After": String(rate.retryAfterS),
-      });
-    }
+    // A tool call from /mcp was counted there, as one request.
+    const rate = opts.countRequest === false ? { ok: true, headers: {} } : countKeyRequest(owner.keyId);
+    const rateHeaders = rate.headers;
+    if (!rate.ok) return json({ error: RATE_LIMITED_MESSAGE }, 429, rateHeaders);
 
     const url = new URL(req.url);
     const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : "";
     const segments = path.split("/").filter(Boolean).map(segment);
-    return json(await route(owner.userId, segments, url.searchParams), 200, rateHeaders);
+    return json(await route(owner, segments, url.searchParams), 200, rateHeaders);
   } catch (err) {
     if (err instanceof ApiError) return json({ error: err.message }, err.status);
     console.error("[api/v1]", err);

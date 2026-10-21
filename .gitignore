@@ -52,3 +52,6 @@ docs/launch/
 
 # worker bundle (npm run build:worker)
 /dist
+
+# @crawlseo/mcp build (npm pack runs it)
+/packages/mcp/dist

@@ -8,7 +8,10 @@ import { Avatar } from "@/components/account/avatar";
 import { DeleteAccountDialog, SignOutButton } from "@/components/account/account-actions";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { ScheduleSection } from "@/components/settings/schedule-section";
+import { McpSection } from "@/components/settings/mcp-section";
 import { WebhookSection } from "@/components/settings/webhook-section";
+import { instanceOrigin } from "@/lib/instance-origin";
+import { mcpStatus } from "@/lib/mcp-settings";
 import { getScheduleSettings, scheduleServerInfo } from "@/lib/user-settings";
 import { webhookStatus } from "@/lib/webhooks/status";
 
@@ -51,11 +54,13 @@ export default async function SettingsPage({ searchParams }: Props) {
   if (!user) redirect("/login");
 
   const connected = hasToken(user.googleTokens);
-  const [keys, schedule, webhook] = await Promise.all([
+  const [keys, schedule, webhook, mcp] = await Promise.all([
     apiKeyStatus(db, session.user.id),
     getScheduleSettings(db, session.user.id),
     webhookStatus(db, session.user.id),
+    mcpStatus(db, session.user.id),
   ]);
+  const mcpEndpoint = `${await instanceOrigin()}/mcp`;
   const registrationClosed =
     process.env.DISABLE_REGISTRATION?.trim().toLowerCase() === "true";
 
@@ -67,7 +72,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     <div>
       <PageHeader
         title="Settings"
-        description="Your profile, the services crawlseo connects to, the schedule, alert delivery and your account."
+        description="Your profile, the services crawlseo connects to, the schedule, alert delivery, MCP access and your account."
       />
 
       <div className="space-y-10">
@@ -126,6 +131,15 @@ export default async function SettingsPage({ searchParams }: Props) {
             description="Send fired alerts to your own endpoint, such as n8n, Zapier or a script of yours."
           />
           <WebhookSection initial={webhook} />
+        </section>
+
+        <section id="mcp" aria-labelledby="mcp-heading" className="scroll-mt-6">
+          <SectionHeading
+            id="mcp-heading"
+            title="MCP"
+            description="Read-only access to your sites for AI agents such as Claude Code, with access keys you create here."
+          />
+          <McpSection initial={mcp} endpoint={mcpEndpoint} />
         </section>
 
         <section aria-labelledby="danger-heading">

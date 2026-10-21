@@ -3,6 +3,40 @@
 Notable changes per release. Releases before 0.3.3 are described on the
 [releases page](https://github.com/crawlseo/crawlseo/releases).
 
+## Unreleased
+
+### Added
+
+- **Settings > MCP.** Turn MCP on or off for your account (off by default),
+  create access keys (shown once, stored hashed) and revoke them, with the
+  time each key was last used.
+- **`/mcp` on the instance:** MCP over streamable HTTP with
+  `Authorization: Bearer <key>`, and `/health`. A request without a key, with
+  a wrong or revoked key, or while MCP is off is refused.
+- **`@crawlseo/mcp`** (`packages/mcp`): the MCP server as a package, over stdio
+  with `CRAWLSEO_URL` and `CRAWLSEO_API_KEY`, or over HTTP with `--http`.
+- **A read-only API, `/api/v1`,** that the MCP server reads through: sites,
+  overview, keywords, pages and traffic (last N days or a date range), crawls,
+  crawl issues, vitals and opportunities. GET only, a key sees its own
+  account's sites only, `API_RATE_LIMIT_PER_MINUTE` per key across `/mcp`
+  and `/api/v1` (default 60).
+
+### Changed
+
+- The MCP server is read-only and no longer connects to the database: every
+  tool reads through `/api/v1` with a key. `run_crawl` and `get_crawl_status`
+  are gone; `list_crawls` is new; keywords, pages and traffic take a date
+  range.
+
+### Upgrading
+
+- A setup that ran `mcp/server.ts` with `DATABASE_URL` stops working: turn
+  MCP on in Settings > MCP, create a key, and connect again with one of the
+  commands in [MCP](README.md#mcp).
+- Two migrations run when the container starts: the `AccessKey` table and
+  `UserSettings.mcpEnabled`. Nothing to set.
+- No new outbound request: the MCP talks only to your own instance.
+
 ## 0.3.3
 
 ### Added
