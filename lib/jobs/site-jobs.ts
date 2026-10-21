@@ -65,7 +65,7 @@ export async function requestCrawl(
 /** Queues a job of another type for a site, or returns the active one. */
 export async function requestSiteJob(
   db: Db,
-  opts: { type: string; siteId: string; source: JobSource }
+  opts: { type: string; siteId: string; source: JobSource; payload?: Prisma.InputJsonValue }
 ): Promise<{ job: Job; created: boolean }> {
   await recoverStaleJobs(db, { siteId: opts.siteId });
   const result = await enqueueJob(db, {
@@ -73,9 +73,10 @@ export async function requestSiteJob(
     siteId: opts.siteId,
     source: opts.source,
     priority: isPerson(opts.source) ? MANUAL_PRIORITY : 0,
+    payload: opts.payload,
   });
   if (result.created || !isPerson(opts.source)) return result;
-  return { job: await takeOver(db, result.job), created: false };
+  return { job: await takeOver(db, result.job, opts.payload), created: false };
 }
 
 /**

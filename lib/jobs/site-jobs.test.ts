@@ -41,6 +41,22 @@ async function inBackoff() {
 }
 
 describe("requestSiteJob", () => {
+  it("a manual PageSpeed request updates the limit of a queued scheduled job", async () => {
+    const waiting = await enqueueJob(db, { type: "vitals", siteId: "s1", source: "schedule" });
+    const { job, created } = await requestSiteJob(db, {
+      type: "vitals", siteId: "s1", source: "manual", payload: { limit: 3 },
+    });
+    expect(created).toBe(false);
+    expect(job).toMatchObject({ id: waiting.job.id, payload: { limit: 3 }, priority: 10 });
+  });
+
+  it("never changes the PageSpeed limit of an already running job", async () => {
+    const { job } = await enqueueJob(db, { type: "vitals", siteId: "s1", source: "schedule", payload: { limit: 5 } });
+    await db.job.update({ where: { id: job.id }, data: { status: "RUNNING", heartbeatAt: new Date(), lockedBy: "w" } });
+    const again = await requestSiteJob(db, { type: "vitals", siteId: "s1", source: "manual", payload: { limit: 1 } });
+    expect(again.job).toMatchObject({ status: "RUNNING", payload: { limit: 5 } });
+  });
+
   it("a person's request runs a job waiting in backoff now, first in line", async () => {
     const waiting = await inBackoff();
     const { job, created } = await requestSiteJob(db, { type: GSC_SYNC_JOB, siteId: "s1", source: "manual" });

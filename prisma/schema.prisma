@@ -25,6 +25,29 @@ model User {
   alerts        Alert[]
   apiKeys       ApiKey[]
   settings      UserSettings?
+  bulkJobs      BulkJob[]
+}
+
+// ============ PORTFOLIO ACTIONS ============
+
+// BulkJob_one_active_per_user is a partial unique index defined only in
+// migrations/20261008200000_add_bulk_jobs/migration.sql. It guarantees one
+// QUEUED/RUNNING batch per user. Preserve it when generating migrations;
+// Prisma cannot represent this index here. Do not drop it.
+model BulkJob {
+  id              String   @id @default(cuid())
+  userId          String
+  status          String   @default("QUEUED")
+  tasks           Json
+  options         Json
+  cancelRequested Boolean  @default(false)
+  heartbeatAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  finishedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Account {

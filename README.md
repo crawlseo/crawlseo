@@ -281,6 +281,24 @@ To run them in a separate process instead, set `WORKER_MODE=off` for the app
 and run `npm run build:worker` once, then `WORKER_MODE=worker node dist/worker.cjs`
 next to it.
 
+### Bulk actions
+
+Use **Bulk actions** on **All sites** to sync GSC or Bing, crawl, or check
+PageSpeed for all your websites or a selection. Steps run sequentially through
+the existing job queue. Progress survives closing the dialog, navigation and
+reloads. **Stop queue** stops the batch within a few seconds, including while
+waiting for a crawl; an action already queued or running continues separately.
+
+Bulk actions require a **long-running web server**, with either the inline job
+loop or a separate worker. The batch coordinator runs in Next.js `after()` and
+will not complete reliably on serverless hosts such as Vercel; batch creation
+is disabled on Vercel. A separate worker does not remove the web server
+requirement. Apply the included database migration before starting the app.
+
+Without a PageSpeed API key in **Settings > Connections** or
+`GOOGLE_PAGESPEED_KEY`, a larger portfolio can exhaust the quota quickly.
+See [Bulk actions](docs/bulk-actions.md) for cancellation and restart behavior.
+
 ### Background jobs
 
 Crawls, vitals checks, GSC and Bing syncs and alert evaluation run as jobs in a

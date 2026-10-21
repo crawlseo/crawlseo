@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { APP_VERSION } from "@/lib/version";
 import { availableUpdate } from "@/lib/update-check";
+import { BulkActionsProvider } from "@/components/sites/bulk-actions";
+import { crawlPageCeiling } from "@/lib/jobs/policy";
 
 export default async function DashboardLayout({
   children,
@@ -18,7 +20,7 @@ export default async function DashboardLayout({
 
   const sites = await db.site.findMany({
     where: { userId: session.user?.id },
-    select: { id: true, domain: true },
+    select: { id: true, domain: true, gscProperty: true, bingSite: true },
     orderBy: { domain: "asc" },
   });
 
@@ -35,16 +37,18 @@ export default async function DashboardLayout({
   );
 
   return (
-    <AppShell
-      email={session.user?.email}
-      name={session.user?.name}
-      image={session.user?.image}
-      version={APP_VERSION}
-      update={availableUpdate()}
-      sites={sites.map((s) => ({ ...s, dataThrough: dataThrough[s.id] ?? null }))}
-      showCloudPromo={process.env.CRAWLSEO_HIDE_CLOUD_PROMO?.trim().toLowerCase() !== "true"}
-    >
-      {children}
-    </AppShell>
+    <BulkActionsProvider sites={sites} pageCeiling={Math.min(2000, crawlPageCeiling())}>
+      <AppShell
+        email={session.user?.email}
+        name={session.user?.name}
+        image={session.user?.image}
+        version={APP_VERSION}
+        update={availableUpdate()}
+        sites={sites.map((s) => ({ ...s, dataThrough: dataThrough[s.id] ?? null }))}
+        showCloudPromo={process.env.CRAWLSEO_HIDE_CLOUD_PROMO?.trim().toLowerCase() !== "true"}
+      >
+        {children}
+      </AppShell>
+    </BulkActionsProvider>
   );
 }

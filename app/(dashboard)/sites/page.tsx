@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ArrowRight } from "lucide-react";
 import { AddSiteModal } from "@/components/sites/add-site-modal";
+import { BulkActionsButton } from "@/components/sites/bulk-actions";
 import { SyncButton } from "@/components/sites/sync-button";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { formatDay, formatDeltaPercent } from "@/lib/format";
@@ -79,7 +80,7 @@ export default async function AllSitesPage() {
       <PageHeader
         title="All sites"
         description={`${sites.length} site${sites.length === 1 ? "" : "s"} · last 28 days vs prior period`}
-        actions={<AddSiteModal />}
+        actions={<div className="flex flex-wrap items-center gap-3"><BulkActionsButton /><AddSiteModal /></div>}
       />
 
       <OnboardingChecklist

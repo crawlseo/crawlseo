@@ -133,7 +133,10 @@ const vitalsHandler: JobHandler = {
   isPermanent: isPermanentJobError,
   async run({ db, job }) {
     const site = await siteOf(db, job);
-    const result = await syncVitalsForSite(site.userId, site.id, 5);
+    const requested = (job.payload as { limit?: unknown } | null)?.limit;
+    const limit = typeof requested === "number" && Number.isInteger(requested)
+      ? Math.max(1, Math.min(5, requested)) : 5;
+    const result = await syncVitalsForSite(site.userId, site.id, limit);
     if (result.error) {
       // An exhausted quota stays exhausted for the day: no retry.
       throw new JobError(result.error, {
@@ -141,7 +144,11 @@ const vitalsHandler: JobHandler = {
         permanent: result.errorCode === "QUOTA_EXCEEDED",
       });
     }
-    return { inserted: result.inserted, results: result.results };
+    return {
+      inserted: result.inserted,
+      results: result.results,
+      ...(result.errorCode && { errorCode: result.errorCode }),
+    };
   },
 };
 
