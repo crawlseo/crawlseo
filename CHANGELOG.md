@@ -20,11 +20,11 @@ Notable changes per release. Releases before 0.3.3 are described on the
   a wrong or revoked key, or while MCP is off is refused.
 - **`@crawlseo/mcp`** (`packages/mcp`): the same MCP server as a package, over
   stdio with `CRAWLSEO_URL` and `CRAWLSEO_API_KEY`, or over HTTP with `--http`.
-- **A read-only API, `/api/v1`,** that the MCP server reads through: sites,
-  overview, keywords, pages and traffic (last N days or a date range), crawls,
-  crawl issues, vitals and opportunities. GET only, a key sees its own
-  account's sites only, `API_RATE_LIMIT_PER_MINUTE` per key across `/mcp`
-  and `/api/v1` (default 60).
+- **A read-only API, `/api/v1`,** that the MCP server reads through: the key
+  in use, sites, overview, keywords, pages and traffic (last N days or a date
+  range), crawls, crawl issues, vitals and opportunities. GET only, a key sees
+  its own account's sites only, `API_RATE_LIMIT_PER_MINUTE` per key across
+  `/mcp` and `/api/v1` (default 60).
 
 ### Changed
 
