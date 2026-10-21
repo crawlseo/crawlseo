@@ -3,18 +3,23 @@
 Notable changes per release. Releases before 0.3.3 are described on the
 [releases page](https://github.com/crawlseo/crawlseo/releases).
 
-## Unreleased
+## 0.3.4
 
 ### Added
 
+- **A read-only MCP server on your instance.** AI agents can read your own
+  Search Console data, crawl issues, Core Web Vitals and opportunities from
+  your crawlseo instance. Tested end to end with Claude Code. Nine tools, none
+  of which writes, changes, queues or triggers anything. See
+  [MCP](README.md#mcp).
 - **Settings > MCP.** Turn MCP on or off for your account (off by default),
   create access keys (shown once, stored hashed) and revoke them, with the
   time each key was last used.
 - **`/mcp` on the instance:** MCP over streamable HTTP with
   `Authorization: Bearer <key>`, and `/health`. A request without a key, with
   a wrong or revoked key, or while MCP is off is refused.
-- **`@crawlseo/mcp`** (`packages/mcp`): the MCP server as a package, over stdio
-  with `CRAWLSEO_URL` and `CRAWLSEO_API_KEY`, or over HTTP with `--http`.
+- **`@crawlseo/mcp`** (`packages/mcp`): the same MCP server as a package, over
+  stdio with `CRAWLSEO_URL` and `CRAWLSEO_API_KEY`, or over HTTP with `--http`.
 - **A read-only API, `/api/v1`,** that the MCP server reads through: sites,
   overview, keywords, pages and traffic (last N days or a date range), crawls,
   crawl issues, vitals and opportunities. GET only, a key sees its own
@@ -25,17 +30,19 @@ Notable changes per release. Releases before 0.3.3 are described on the
 
 - The MCP server is read-only and no longer connects to the database: every
   tool reads through `/api/v1` with a key. `run_crawl` and `get_crawl_status`
-  are gone; `list_crawls` is new; keywords, pages and traffic take a date
-  range.
+  are removed; crawls start in the app or on the schedule. `list_crawls` is
+  new; keywords, pages and traffic take a date range.
 
 ### Upgrading
 
+- The migrations that run when the container starts create the `AccessKey`
+  table and add `mcpEnabled` to the `UserSettings` table. Nothing to set.
+- MCP stays off until you turn it on in Settings > MCP, and while it is off
+  every key is refused.
 - A setup that ran `mcp/server.ts` with `DATABASE_URL` stops working: turn
-  MCP on in Settings > MCP, create a key, and connect again with one of the
-  commands in [MCP](README.md#mcp).
-- Two migrations run when the container starts: the `AccessKey` table and
-  `UserSettings.mcpEnabled`. Nothing to set.
-- No new outbound request: the MCP talks only to your own instance.
+  MCP on, create a key, and connect again with one of the commands in
+  [MCP](README.md#mcp).
+- No new outbound hosts: the MCP talks only to your own instance.
 
 ## 0.3.3
 
