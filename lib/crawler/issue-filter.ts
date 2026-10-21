@@ -66,7 +66,7 @@ export async function getVisibleIssues(db: Db, crawlId: string, take = 200) {
   return { issues, total, bySeverity };
 }
 
-/** Issues for the MCP get_crawl_issues tool: visible issues only, optionally one severity. */
+/** Issues for the read API (/api/v1) and its MCP tool: visible issues only, optionally one severity. */
 export function listVisibleIssues(
   db: Db,
   { crawlId, severity, limit }: { crawlId: string; severity?: IssueSeverity; limit: number }

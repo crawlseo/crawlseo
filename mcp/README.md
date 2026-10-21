@@ -1,18 +1,19 @@
 # CrawlSEO MCP Server
 
-MCP (Model Context Protocol) server that exposes CrawlSEO's SEO tools over stdio transport. AI agents like Claude Code can query site metrics, run crawls, check vitals, and find SEO opportunities.
+A read-only MCP (Model Context Protocol) server for crawlseo, over stdio. AI agents such as Claude Code can read your sites' Search Console data, crawl issues, Core Web Vitals and SEO opportunities.
+
+The server reads through your crawlseo instance's API (`/api/v1`) with an access key, and only ever sends GET requests. It never connects to the database, and no tool writes, queues or triggers anything: there is no tool to start a crawl or a sync.
 
 ## Setup
 
-### 1. Install tsx (if not already installed)
+The server needs two environment variables:
 
-```bash
-npm install -D tsx
-```
+| Variable | Meaning |
+|---|---|
+| `CRAWLSEO_URL` | Your crawlseo instance, e.g. `http://localhost:3000` (the default) |
+| `CRAWLSEO_API_KEY` | An access key of your crawlseo account. The key sees your own sites only |
 
-### 2. Connect to Claude Code
-
-Add to `.claude/settings.json`:
+Add it to your MCP client, for example in `.mcp.json`:
 
 ```json
 {
@@ -20,37 +21,31 @@ Add to `.claude/settings.json`:
     "crawlseo": {
       "command": "npx",
       "args": ["tsx", "mcp/server.ts"],
-      "cwd": "/path/to/crawlseo"
+      "cwd": "/path/to/crawlseo",
+      "env": { "CRAWLSEO_URL": "http://localhost:3000", "CRAWLSEO_API_KEY": "<key>" }
     }
   }
 }
 ```
 
-Replace `/path/to/crawlseo` with the absolute path to your project root.
-
-### 3. Ensure DATABASE_URL is set
-
-The server needs access to the same PostgreSQL database as the main app. Make sure your `.env` file contains `DATABASE_URL`.
-
-## Available Tools
+## Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_sites` | List all monitored sites with basic info |
-| `get_site_overview` | Site KPIs, health score, latest crawl, and vitals |
-| `get_keywords` | Top keywords by clicks with position and CTR |
-| `get_pages` | Top pages by clicks with position and CTR |
-| `get_traffic` | Daily clicks and impressions over time |
-| `run_crawl` | Queue a site crawl; the crawlseo app or its worker runs it, or this server when neither is running |
-| `get_crawl_status` | Check crawl progress and results, by job ID or crawl ID |
-| `get_crawl_issues` | List issues found during a crawl |
-| `get_vitals` | Core Web Vitals reports (LCP, CLS, INP, TTFB) |
-| `get_opportunities` | SEO opportunities: striking distance, low CTR, content decay, cannibalization |
+| `list_sites` | Your sites with their IDs and Search Console properties |
+| `get_site_overview` | Clicks, impressions, position and CTR over 28 days, the latest crawl and vitals |
+| `get_keywords` | Top Search Console queries, for the last N days or a date range |
+| `get_pages` | Top pages, for the last N days or a date range |
+| `get_traffic` | Daily clicks and impressions, for the last N days or a date range |
+| `list_crawls` | The latest crawls with status, pages, issues and health score |
+| `get_crawl_issues` | Issues of a crawl (the latest completed one by default), by severity |
+| `get_vitals` | Core Web Vitals reports (performance score, LCP, CLS, INP, TTFB) |
+| `get_opportunities` | Striking distance, low CTR, content decay and cannibalization |
 
-## Running Manually
+## Running manually
 
 ```bash
-npx tsx mcp/server.ts
+CRAWLSEO_URL=http://localhost:3000 CRAWLSEO_API_KEY=<key> npx tsx mcp/server.ts
 ```
 
 The server communicates over stdin/stdout using the MCP protocol. Logs go to stderr.

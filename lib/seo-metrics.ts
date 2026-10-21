@@ -31,8 +31,12 @@ export type DailyTraffic = {
   impressions: number;
 };
 
-function parseRange(days: number) {
-  const { start, end } = getDateRange(days);
+/** A period: the last N days, or the days from startDate to endDate (YYYY-MM-DD, both included). */
+export type Period = number | { startDate: string; endDate: string };
+
+function parseRange(period: Period) {
+  const { start, end } =
+    typeof period === "number" ? getDateRange(period) : { start: period.startDate, end: period.endDate };
   return {
     start: new Date(`${start}T00:00:00.000Z`),
     end: new Date(`${end}T23:59:59.999Z`),
@@ -162,10 +166,10 @@ export async function getSitePeriodMetrics(
 /** Aggregate keyword rows across the period (sum metrics, weighted position). */
 export async function getTopKeywords(
   siteId: string,
-  days = 28,
+  period: Period = 28,
   limit = 50
 ): Promise<KeywordRow[]> {
-  const range = parseRange(days);
+  const range = parseRange(period);
   const rows = await db.keyword.findMany({
     where: {
       siteId,
@@ -215,10 +219,10 @@ export async function getTopKeywords(
 
 export async function getTopPages(
   siteId: string,
-  days = 28,
+  period: Period = 28,
   limit = 50
 ): Promise<PageRow[]> {
-  const range = parseRange(days);
+  const range = parseRange(period);
   const rows = await db.page.findMany({
     where: {
       siteId,
@@ -268,9 +272,9 @@ export async function getTopPages(
 
 export async function getDailyTraffic(
   siteId: string,
-  days = 90
+  period: Period = 90
 ): Promise<DailyTraffic[]> {
-  const range = parseRange(days);
+  const range = parseRange(period);
 
   // Prefer page-level rows when present (cleaner site totals);
   // fall back to keyword rows.

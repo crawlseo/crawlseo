@@ -232,12 +232,12 @@ kill -9 <PID>
 - The scheduler (`lib/jobs/scheduler.ts`) runs in whichever process runs the queue, at most one pass per 10 minutes across processes
 
 ### Extending a fork
-A fork or a custom deployment plugs in its own code from one file, `extensions/index.ts`, instead of editing shared files. Upstream never changes that file, so merges stay clean. `registerExtensions()` runs once per process: in the Next.js server (`instrumentation.ts`), the worker and the MCP server. From there:
+A fork or a custom deployment plugs in its own code from one file, `extensions/index.ts`, instead of editing shared files. Upstream never changes that file, so merges stay clean. `registerExtensions()` runs once per process: in the Next.js server (`instrumentation.ts`) and the worker. From there:
 - `registerJobHandler` (`lib/jobs/handlers.ts`): a job type of its own
 - `registerSchedule` (`lib/jobs/scheduler.ts`): when to queue it per site, on an interval or with an `isDue` rule. A schedule with a built-in type replaces the built-in one
 - `registerScheduleFilter`: leave sites out of every schedule on a pass (if it throws, the pass schedules nothing)
 - `registerSchedulerTask`: short upkeep, once per scheduler pass across processes, after the pass has queued its jobs (also with `SCHEDULER_ENABLED=false`); the pass stops waiting for a task after 30 s
-- `setCrawlPolicy` (`lib/jobs/policy.ts`): whether a site may start a crawl now, for the crawl route, MCP and the scheduler alike
+- `setCrawlPolicy` (`lib/jobs/policy.ts`): whether a site may start a crawl now, for the crawl route and the scheduler alike
 - `setSitePolicy` (`lib/site-policy.ts`): whether a user may add a site or point one at another domain or property, plus hooks after a site is added or deleted
 
 ### GSC Data

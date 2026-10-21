@@ -7,7 +7,7 @@ import { enqueueJob, MANUAL_PRIORITY, recoverStaleJobs } from "./queue";
 import type { JobSource } from "./types";
 
 /*
- * What the routes and the MCP server call: queue work for a site, and read
+ * What the routes and the scheduler call: queue work for a site, and read
  * the state of that work for the UI.
  */
 
@@ -35,7 +35,7 @@ async function takeOver(db: Db, job: Job, payload?: Prisma.InputJsonValue): Prom
 }
 
 /**
- * The one way to ask for a crawl (crawl route, MCP, scheduler): clamp the page
+ * The one way to ask for a crawl (crawl route, scheduler): clamp the page
  * count, ask the policy, then queue a crawl job. A crawl job already queued or
  * running for the site is returned instead (`active`); a person's request
  * takes over a queued one (takeOver). A job whose process died does not

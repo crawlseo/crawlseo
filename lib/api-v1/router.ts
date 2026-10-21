@@ -1,0 +1,106 @@
+import { authenticateKey, bearerKey } from "@/lib/access-keys";
+import { db } from "@/lib/db";
+import { apiRateLimitPerMinute, RateLimiter } from "@/lib/rate-limit";
+import * as read from "./handlers";
+import { ApiError } from "./params";
+
+/*
+ * The read-only API under /api/v1, for the MCP server and scripts. Every
+ * request carries an access key (Authorization: Bearer <key>) and reads the
+ * data of the key's user only. GET is the only method: nothing here writes,
+ * queues or triggers anything.
+ *
+ * GET /api/v1/sites
+ * GET /api/v1/sites/{siteId}                       overview: last 28 days, latest crawl and vitals
+ * GET /api/v1/sites/{siteId}/keywords              ?days= or ?startDate=&endDate=, &limit=
+ * GET /api/v1/sites/{siteId}/pages                 the same
+ * GET /api/v1/sites/{siteId}/traffic               daily clicks and impressions, the same period
+ * GET /api/v1/sites/{siteId}/crawls                ?limit=
+ * GET /api/v1/sites/{siteId}/crawls/{id}/issues    id or "latest", ?severity=&limit=
+ * GET /api/v1/sites/{siteId}/vitals                ?device=&limit=
+ * GET /api/v1/sites/{siteId}/opportunities
+ */
+
+const PREFIX = "/api/v1/";
+
+const holder = globalThis as unknown as { crawlseoApiRateLimiter?: RateLimiter };
+
+function limiter(): RateLimiter {
+  const limit = apiRateLimitPerMinute();
+  if (holder.crawlseoApiRateLimiter?.limit !== limit) holder.crawlseoApiRateLimiter = new RateLimiter(limit);
+  return holder.crawlseoApiRateLimiter;
+}
+
+function segment(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    throw new ApiError(404, "Not found");
+  }
+}
+
+function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
+}
+
+async function route(userId: string, segments: string[], params: URLSearchParams): Promise<unknown> {
+  const [root, siteId, resource, crawlId, sub] = segments;
+  if (root !== "sites") throw new ApiError(404, "Not found");
+  if (segments.length === 1) return read.listSites(userId);
+
+  const site = await read.ownSite(userId, siteId);
+  if (segments.length === 2) return read.siteOverview(site);
+  if (segments.length === 3) {
+    switch (resource) {
+      case "keywords":
+        return read.keywords(site, params);
+      case "pages":
+        return read.pages(site, params);
+      case "traffic":
+        return read.traffic(site, params);
+      case "crawls":
+        return read.crawls(site, params);
+      case "vitals":
+        return read.vitals(site, params);
+      case "opportunities":
+        return read.opportunities(site);
+    }
+  }
+  if (segments.length === 5 && resource === "crawls" && sub === "issues") {
+    return read.crawlIssues(site, crawlId, params);
+  }
+  throw new ApiError(404, "Not found");
+}
+
+/** Answers one /api/v1 request. Used by the route and, in-process, by the instance's MCP endpoint. */
+export async function handleApiV1(req: Request): Promise<Response> {
+  if (req.method !== "GET") {
+    return json({ error: "The API is read-only: GET only" }, 405, { Allow: "GET" });
+  }
+
+  const key = bearerKey(req.headers.get("authorization"));
+  if (!key) return json({ error: "Missing API key" }, 401, { "WWW-Authenticate": "Bearer" });
+
+  try {
+    const owner = await authenticateKey(db, key);
+    if (!owner) return json({ error: "Invalid API key" }, 401, { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+
+    const rate = limiter().hit(owner.keyId);
+    const rateHeaders = { "X-RateLimit-Limit": String(rate.limit), "X-RateLimit-Remaining": String(rate.remaining) };
+    if (!rate.ok) {
+      return json({ error: "Too many requests for this key. Try again shortly." }, 429, {
+        ...rateHeaders,
+        "Retry-After": String(rate.retryAfterS),
+      });
+    }
+
+    const url = new URL(req.url);
+    const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : "";
+    const segments = path.split("/").filter(Boolean).map(segment);
+    return json(await route(owner.userId, segments, url.searchParams), 200, rateHeaders);
+  } catch (err) {
+    if (err instanceof ApiError) return json({ error: err.message }, err.status);
+    console.error("[api/v1]", err);
+    return json({ error: "Internal error" }, 500);
+  }
+}
