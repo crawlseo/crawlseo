@@ -188,12 +188,20 @@ describe("endpoints", () => {
       "startDate=2024-01-01&endDate=2026-01-01",
       "days=7&startDate=2026-01-01&endDate=2026-01-02",
       "limit=0",
+      "limit=1e2",
+      "days=0x10",
     ]) {
       const res = await get(`/sites/site-a/keywords?${q}`);
       expect(res.status, q).toBe(400);
     }
     expect((await get("/sites/site-a/crawls/latest/issues?severity=LOUD")).status).toBe(400);
     expect((await get("/sites/site-a/vitals?device=WATCH")).status).toBe(400);
+  });
+
+  it("days=N is the last N days, today included", async () => {
+    const r = (await body(await get("/sites/site-a/traffic?days=7"))) as unknown as { startDate: string; endDate: string };
+    expect((Date.parse(r.endDate) - Date.parse(r.startDate)) / 86_400_000 + 1).toBe(7);
+    expect(r.endDate).toBe(new Date().toISOString().slice(0, 10));
   });
 
   it("traffic is daily", async () => {

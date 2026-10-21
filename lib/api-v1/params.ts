@@ -1,4 +1,3 @@
-import { getDateRange } from "@/lib/date-utils";
 import type { Period } from "@/lib/seo-metrics";
 
 /** A request the API refuses, with the status and message it answers with. */
@@ -26,7 +25,7 @@ function isDate(s: string): boolean {
 export function intParam(params: URLSearchParams, name: string, def: number, min: number, max: number): number {
   const raw = params.get(name);
   if (raw === null || raw === "") return def;
-  const n = Number(raw);
+  const n = /^\d{1,9}$/.test(raw) ? Number(raw) : NaN;
   if (!Number.isInteger(n) || n < min || n > max) {
     throw new ApiError(400, `${name} must be a whole number from ${min} to ${max}`);
   }
@@ -46,7 +45,8 @@ export type ResolvedPeriod = { period: Period; startDate: string; endDate: strin
 
 /**
  * The period of a Search Console query: startDate and endDate (YYYY-MM-DD,
- * both included), or days (the last N days), or the default number of days.
+ * both included), or days (the last N days, today included), or the default
+ * number of days.
  */
 export function periodParam(params: URLSearchParams, defaultDays: number): ResolvedPeriod {
   const startDate = params.get("startDate") || null;
@@ -61,6 +61,7 @@ export function periodParam(params: URLSearchParams, defaultDays: number): Resol
     return { period: { startDate, endDate }, startDate, endDate };
   }
   const days = intParam(params, "days", defaultDays, 1, MAX_PERIOD_DAYS);
-  const { start, end } = getDateRange(days);
-  return { period: days, startDate: start, endDate: end };
+  const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10);
+  const range = { startDate: day(days - 1), endDate: day(0) };
+  return { period: range, ...range };
 }
