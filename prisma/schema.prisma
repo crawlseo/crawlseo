@@ -328,7 +328,7 @@ model AuditPage {
   // health score and the issues.
   indexable       Boolean @default(true)
   noindexSource   String? // "meta", "x-robots-tag" or both, comma-joined
-  xRobotsTag      String? // the X-Robots-Tag response header, as received
+  xRobotsTag      String? // the X-Robots-Tag header lines as received, newline-separated
 
   crawl           Crawl   @relation(fields: [crawlId], references: [id], onDelete: Cascade)
 

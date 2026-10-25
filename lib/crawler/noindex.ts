@@ -52,11 +52,10 @@ export function metaSaysNoindex(metas: [name: string, content: string][]): boole
  * may start with `botname:`, which scopes the directives after it, up to the
  * next `botname:`, to that crawler.
  *
- * fetch() joins repeated headers into one value with ", ", which loses where
- * one header ended. A second header without a crawler prefix is then read as
- * belonging to the crawler named in the first one. That is the same reading
- * Google documents for a single header line, and the safe side for us: it can
- * only miss a noindex, never invent one.
+ * Pass one value per header line: fetch() joins repeated headers with ", ",
+ * after which a second line without a crawler prefix would read as belonging
+ * to the crawler named in the first. The crawler reads the lines below
+ * fetch() (raw-headers.ts) for that reason.
  */
 export function headerSaysNoindex(values: string[]): boolean {
   for (const value of values) {

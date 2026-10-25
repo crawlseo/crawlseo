@@ -5,8 +5,8 @@ import { issuesFromPage, parseHtml } from "./engine";
 // #105: noindex pages are crawled but kept out of the audit. These cover every
 // way a page can be told noindex, and the ways it only looks like it.
 
-/** parseHtml on a page with `head` in its <head> and an optional X-Robots-Tag. */
-function parse(head: string, xRobotsTag: string | null = null) {
+/** parseHtml on a page with `head` in its <head> and X-Robots-Tag header lines. */
+function parse(head: string, ...xRobotsTag: string[]) {
   const html = `<html><head>${head}</head><body><h1>Hi</h1></body></html>`;
   return parseHtml("https://example.com/p", html, 200, 100, html.length, null, "https://example.com/", xRobotsTag);
 }
@@ -154,10 +154,19 @@ describe("parseHtml noindex", () => {
     expect(parse("", "bingbot: noindex").indexable).toBe(true);
   });
 
-  it("reads two headers as fetch() joins them", () => {
-    // Headers.get() returns repeated headers joined with ", ".
+  it("reads each header line on its own", () => {
+    // A noindex line after a line for another crawler applies to all crawlers.
+    const p = parse("", "bingbot: noindex", "noindex");
+    expect(p.indexable).toBe(false);
+    expect(p.xRobotsTag).toBe("bingbot: noindex\nnoindex");
+    expect(parse("", "bingbot: noarchive", "noindex").indexable).toBe(false);
+    expect(parse("", "googlebot: nofollow", "bingbot: noindex").indexable).toBe(true);
+  });
+
+  it("reads a scoped comma list on one line as belonging to that crawler", () => {
     expect(parse("", "noarchive, googlebot: noindex").indexable).toBe(false);
     expect(parse("", "googlebot: nofollow, bingbot: noindex").indexable).toBe(true);
+    expect(parse("", "bingbot: noarchive, noindex").indexable).toBe(true);
   });
 
   it("header noindex wins over meta index", () => {

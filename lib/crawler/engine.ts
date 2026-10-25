@@ -8,6 +8,7 @@ import type { IssueSeverity, IssueType } from "@prisma/client";
 import { REMEDIATION } from "./remediation";
 import { countVisibleIssues } from "./issue-filter";
 import { noindexSources } from "./noindex";
+import { captureHeaderLines } from "./raw-headers";
 import { clampMaxPages } from "@/lib/jobs/policy";
 import {
   CrawlDelayStopError,
@@ -113,7 +114,7 @@ export type PageSnapshot = {
   indexable: boolean;
   /** Where the noindex came from: "meta", "x-robots-tag" or both, comma-joined. */
   noindexSource: string | null;
-  /** The X-Robots-Tag response header, as received. */
+  /** The X-Robots-Tag response header lines, as received, one per line. */
   xRobotsTag: string | null;
 };
 
@@ -413,7 +414,7 @@ export function parseHtml(
   bytes: number,
   redirectUrl: string | null,
   seedUrl: string,
-  xRobotsTag: string | null = null
+  xRobotsTagLines: string[] = []
 ): PageSnapshot {
   const titleRaw = extractTag(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleRaw
@@ -508,7 +509,7 @@ export function parseHtml(
     const content = a.get("content");
     return name && content ? [[name, content]] : [];
   });
-  const sources = noindexSources(metas, xRobotsTag ? [xRobotsTag] : []);
+  const sources = noindexSources(metas, xRobotsTagLines);
   const indexable = sources.length === 0;
 
   // Simple on-page content score 0-100
@@ -549,7 +550,7 @@ export function parseHtml(
     contentHash,
     indexable,
     noindexSource: sources.length ? sources.join(", ") : null,
-    xRobotsTag,
+    xRobotsTag: xRobotsTagLines.length ? xRobotsTagLines.join("\n") : null,
   };
 }
 
@@ -619,6 +620,8 @@ type PublicResponse = {
   timedOut: () => boolean;
   /** Call once the body is read: clears the timeout and frees the origin. */
   done: () => void;
+  /** The X-Robots-Tag lines of the final response, kept apart (see raw-headers.ts). */
+  xRobotsTag: () => string[];
 };
 
 /**
@@ -658,13 +661,14 @@ async function fetchPublic(
       release();
     };
 
+    const robotsTag = captureHeaderLines(crawlerDispatcher, "x-robots-tag");
     let res: Response;
     try {
       res = await fetch(currentUrl, {
         headers,
         signal: outer ? AbortSignal.any([controller.signal, outer]) : controller.signal,
         redirect: "manual",
-        dispatcher: crawlerDispatcher,
+        dispatcher: robotsTag.dispatcher,
       } as RequestInit);
     } catch (err) {
       done();
@@ -684,6 +688,12 @@ async function fetchPublic(
         activeMs: () => base + Date.now() - started,
         timedOut: () => controller.signal.aborted,
         done,
+        // Without captured lines (a fetch that bypassed the dispatcher), the
+        // joined value is the best there is.
+        xRobotsTag: () => {
+          const joined = res.headers.get("x-robots-tag");
+          return robotsTag.lines() ?? (joined ? [joined] : []);
+        },
       };
     }
 
@@ -703,7 +713,7 @@ async function fetchPage(url: string, hooks: HopHooks): Promise<{
   loadMs: number;
   bytes: number;
   contentType: string;
-  xRobotsTag: string | null;
+  xRobotsTag: string[];
 }> {
   const r = await fetchPublic(
     url,
@@ -725,8 +735,7 @@ async function fetchPage(url: string, hooks: HopHooks): Promise<{
       loadMs: r.activeMs(),
       bytes,
       contentType,
-      // Repeated headers arrive joined with ", " (see headerSaysNoindex).
-      xRobotsTag: r.res.headers.get("x-robots-tag"),
+      xRobotsTag: r.xRobotsTag(),
     };
   } catch (err) {
     throw r.timedOut() ? new FetchTimeoutError(r.finalUrl) : err;
