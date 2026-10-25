@@ -200,7 +200,7 @@ export function registerTools(server: McpServer, api: ApiClient): void {
     {
       title: "Crawl issues",
       description:
-        "Issues a crawl found on a site (broken links, missing titles, slow pages and more), with counts per severity. Defaults to the latest completed crawl.",
+        "Issues a crawl found on a site (broken links, missing titles, slow pages and more), with counts per severity. noindex pages are crawled but have no issues and do not count toward the health score; the result says how many there were. Defaults to the latest completed crawl.",
       inputSchema: {
         siteId,
         crawlId: z.string().optional().describe("A crawl ID from list_crawls. Default: the latest completed crawl"),

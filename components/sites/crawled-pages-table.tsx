@@ -34,7 +34,27 @@ export interface CrawledPageRowData {
   imagesMissingAlt: number;
   internalLinks: number;
   responseTimeMs: number;
+  /** False for a noindex page (#105). */
+  indexable: boolean;
+  /** "meta", "x-robots-tag" or both, comma-joined. */
+  noindexSource: string | null;
 }
+
+export type IndexFilter = "all" | "indexable" | "noindex";
+
+/**
+ * Kept out of the audit: noindex and not broken. Mirrors NOINDEX_PAGE in
+ * lib/crawler/page-stats.ts.
+ */
+export function isNoindexRow(r: Pick<CrawledPageRowData, "indexable" | "statusCode">): boolean {
+  return !r.indexable && r.statusCode < 400;
+}
+
+const INDEX_FILTERS: { value: IndexFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "indexable", label: "Scored" },
+  { value: "noindex", label: "noindex" },
+];
 
 // Rows per table page. The table holds every page of the crawl, so the URL
 // filter and the sort cover all of them; paging only limits what is drawn (#56).
@@ -60,16 +80,20 @@ export function paginate<T>(filtered: T[], total: number, pageIndex: number) {
 
 export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
   const [search, setSearch] = useState("");
+  const [indexFilter, setIndexFilter] = useState<IndexFilter>("all");
   const [pageIndex, setPageIndex] = useState(0);
   const { sort, toggle } = useTableSort({ key: "contentScore", dir: "desc" });
 
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const filtered = useMemo(() => {
-    const out = deferredSearch
-      ? rows.filter((r) => r.url.toLowerCase().includes(deferredSearch))
-      : rows;
+    const out = rows.filter(
+      (r) =>
+        (!deferredSearch || r.url.toLowerCase().includes(deferredSearch)) &&
+        (indexFilter === "all" || (indexFilter === "noindex") === isNoindexRow(r))
+    );
     return sortRows(out, sort);
-  }, [rows, deferredSearch, sort]);
+  }, [rows, deferredSearch, indexFilter, sort]);
+  const noindexCount = useMemo(() => rows.filter(isNoindexRow).length, [rows]);
 
   const { shown, current, pageCount, summary } = paginate(filtered, rows.length, pageIndex);
 
@@ -84,12 +108,31 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
           }}
           placeholder="Filter by URL..."
         />
+        {noindexCount > 0 && (
+          <div role="group" aria-label="Indexing" className="flex items-center gap-1">
+            {INDEX_FILTERS.map((f) => (
+              <Button
+                key={f.value}
+                variant={indexFilter === f.value ? "default" : "outline"}
+                size="xs"
+                aria-pressed={indexFilter === f.value}
+                onClick={() => {
+                  setIndexFilter(f.value);
+                  setPageIndex(0);
+                }}
+              >
+                {f.label}
+                {f.value === "noindex" ? ` (${noindexCount})` : ""}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 ? (
         <div className="panel px-4 py-10 text-center">
           <p className="font-medium text-text-strong">No pages match</p>
-          <p className="mt-1 text-sm text-muted-foreground">Loosen the search.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Loosen the search or the filter.</p>
         </div>
       ) : (
         <MetricTable
@@ -133,6 +176,14 @@ export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
           {shown.map((p) => (
             <tr key={p.id} className="hover:bg-bg-soft">
               <td className="max-w-md truncate px-4 py-[11px] font-data text-[12px] text-text-strong" title={p.url}>
+                {isNoindexRow(p) && (
+                  <span
+                    className="mono-label mr-2 inline-flex rounded-md border border-border px-1.5 py-px text-[10px] text-muted-foreground"
+                    title={`noindex via ${p.noindexSource ?? "meta"}: not scored`}
+                  >
+                    noindex
+                  </span>
+                )}
                 {p.url}
               </td>
               <td className="px-4 py-[11px] text-right font-data">

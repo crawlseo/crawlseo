@@ -3,6 +3,30 @@
 Notable changes per release. Releases before 0.3.3 are described on the
 [releases page](https://github.com/crawlseo/crawlseo/releases).
 
+## Unreleased
+
+### Changed
+
+- **noindex pages are crawled but not scored** (#105). A page with `noindex`
+  or `none` in a `<meta name="robots">` or `<meta name="googlebot">` tag, or in
+  the `X-Robots-Tag` header (for all crawlers or `googlebot:`), has no issues
+  and does not count toward the health score, the issue counts or the content
+  average, in the app, in `/api/v1` and in the MCP tools. Its links are still
+  followed. Directives for other crawlers are ignored. A broken page is still
+  reported as broken.
+
+### Added
+
+- The crawl page shows how many noindex pages a crawl found, and the crawled
+  pages table marks them and can be filtered to them. `/api/v1` crawl issues
+  and the `get_crawl_issues` MCP tool return the same count (`noindexPages`).
+
+### Upgrading
+
+- A migration adds `noindexSource` and `xRobotsTag` to the `AuditPage` table;
+  it runs when the container starts. Crawls from before the upgrade keep
+  their score; the next crawl applies the new rule.
+
 ## 0.3.4
 
 ### Added

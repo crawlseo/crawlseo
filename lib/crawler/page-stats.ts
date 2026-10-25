@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { RobotsReport } from "./robots";
 
 type Db = Pick<PrismaClient, "auditPage" | "crawlIssue" | "$queryRaw">;
@@ -6,30 +6,41 @@ type Db = Pick<PrismaClient, "auditPage" | "crawlIssue" | "$queryRaw">;
 export interface CrawlPageStats {
   /** AuditPage rows of the crawl: one per crawled page. */
   pages: number;
-  /** Average content score over all of them, or null without pages. */
+  /** Average content score over the audited pages, or null without any. */
   avgContentScore: number | null;
   /** Pages no other crawled page links to (the home page excluded). */
   orphans: number;
+  /** Pages crawled but kept out of the score and the issues because they are noindex (#105). */
+  noindex: number;
 }
+
+/**
+ * The pages a crawl keeps out of its audit: noindex pages that are not
+ * broken (a broken page is reported whatever it says). Mirrors isAudited in
+ * engine.ts.
+ */
+export const NOINDEX_PAGE = { indexable: false, statusCode: { lt: 400 } } satisfies Prisma.AuditPageWhereInput;
 
 /**
  * Page counts of one crawl, counted in the database over every stored page,
  * so they never depend on how many rows a screen lists (#56).
  */
 export async function getCrawlPageStats(db: Db, crawlId: string): Promise<CrawlPageStats> {
-  const [agg, orphans] = await Promise.all([
+  const [pages, avgAgg, orphans, noindex] = await Promise.all([
+    db.auditPage.count({ where: { crawlId } }),
     db.auditPage.aggregate({
-      where: { crawlId },
-      _count: { _all: true },
+      where: { crawlId, NOT: NOINDEX_PAGE },
       _avg: { contentScore: true },
     }),
     countOrphans(db, crawlId),
+    db.auditPage.count({ where: { crawlId, ...NOINDEX_PAGE } }),
   ]);
-  const avg = agg._avg.contentScore;
+  const avg = avgAgg._avg.contentScore;
   return {
-    pages: agg._count._all,
+    pages,
     avgContentScore: avg == null ? null : Math.round(avg),
     orphans,
+    noindex,
   };
 }
 
@@ -80,4 +91,6 @@ export const crawledPageColumns = {
   imagesMissingAlt: true,
   internalLinks: true,
   responseTimeMs: true,
+  indexable: true,
+  noindexSource: true,
 } as const;

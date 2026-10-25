@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import type { IssueSeverity, IssueType } from "@prisma/client";
 import { REMEDIATION } from "./remediation";
 import { countVisibleIssues } from "./issue-filter";
+import { noindexSources } from "./noindex";
+import { captureHeaderLines } from "./raw-headers";
 import { clampMaxPages } from "@/lib/jobs/policy";
 import {
   CrawlDelayStopError,
@@ -108,7 +110,12 @@ export type PageSnapshot = {
   bytes: number;
   loadMs: number;
   contentHash: string;
+  /** False when the page is noindex (meta robots or X-Robots-Tag, #105). */
   indexable: boolean;
+  /** Where the noindex came from: "meta", "x-robots-tag" or both, comma-joined. */
+  noindexSource: string | null;
+  /** The X-Robots-Tag response header lines, as received, one per line. */
+  xRobotsTag: string | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -406,7 +413,8 @@ export function parseHtml(
   loadMs: number,
   bytes: number,
   redirectUrl: string | null,
-  seedUrl: string
+  seedUrl: string,
+  xRobotsTagLines: string[] = []
 ): PageSnapshot {
   const titleRaw = extractTag(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleRaw
@@ -494,11 +502,15 @@ export function parseHtml(
     }
   }
 
-  // Indexable: not blocked by robots meta
-  const indexable = !(
-    robotsMeta &&
-    (/noindex/i.test(robotsMeta))
-  );
+  // Indexable: no noindex in a robots/googlebot meta tag or the X-Robots-Tag header
+  const metas = tagsNamed(html, "meta").flatMap((tag): [string, string][] => {
+    const a = parseAttrs(tag);
+    const name = a.get("name");
+    const content = a.get("content");
+    return name && content ? [[name, content]] : [];
+  });
+  const sources = noindexSources(metas, xRobotsTagLines);
+  const indexable = sources.length === 0;
 
   // Simple on-page content score 0-100
   let contentScore = 40;
@@ -537,6 +549,8 @@ export function parseHtml(
     loadMs,
     contentHash,
     indexable,
+    noindexSource: sources.length ? sources.join(", ") : null,
+    xRobotsTag: xRobotsTagLines.length ? xRobotsTagLines.join("\n") : null,
   };
 }
 
@@ -606,6 +620,8 @@ type PublicResponse = {
   timedOut: () => boolean;
   /** Call once the body is read: clears the timeout and frees the origin. */
   done: () => void;
+  /** The X-Robots-Tag lines of the final response, kept apart (see raw-headers.ts). */
+  xRobotsTag: () => string[];
 };
 
 /**
@@ -645,13 +661,14 @@ async function fetchPublic(
       release();
     };
 
+    const robotsTag = captureHeaderLines(crawlerDispatcher, "x-robots-tag");
     let res: Response;
     try {
       res = await fetch(currentUrl, {
         headers,
         signal: outer ? AbortSignal.any([controller.signal, outer]) : controller.signal,
         redirect: "manual",
-        dispatcher: crawlerDispatcher,
+        dispatcher: robotsTag.dispatcher,
       } as RequestInit);
     } catch (err) {
       done();
@@ -671,6 +688,12 @@ async function fetchPublic(
         activeMs: () => base + Date.now() - started,
         timedOut: () => controller.signal.aborted,
         done,
+        // Without captured lines (a fetch that bypassed the dispatcher), the
+        // joined value is the best there is.
+        xRobotsTag: () => {
+          const joined = res.headers.get("x-robots-tag");
+          return robotsTag.lines() ?? (joined ? [joined] : []);
+        },
       };
     }
 
@@ -690,6 +713,7 @@ async function fetchPage(url: string, hooks: HopHooks): Promise<{
   loadMs: number;
   bytes: number;
   contentType: string;
+  xRobotsTag: string[];
 }> {
   const r = await fetchPublic(
     url,
@@ -711,6 +735,7 @@ async function fetchPage(url: string, hooks: HopHooks): Promise<{
       loadMs: r.activeMs(),
       bytes,
       contentType,
+      xRobotsTag: r.xRobotsTag(),
     };
   } catch (err) {
     throw r.timedOut() ? new FetchTimeoutError(r.finalUrl) : err;
@@ -795,6 +820,17 @@ function parseSitemapUrls(xml: string, base: string): string[] {
 /*  Issue detection per page                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * True when a page's findings count: issues, health score, duplicates,
+ * sitemap coverage, orphans and content score. A noindex page is crawled and
+ * its links followed, but it is kept out of all of them (#105). A broken page
+ * still counts whatever it says: a 404 page often carries noindex, and the
+ * broken link is the finding.
+ */
+export function isAudited(page: Pick<PageSnapshot, "indexable" | "statusCode">): boolean {
+  return page.indexable || page.statusCode >= 400;
+}
+
 export function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueInput[] {
   const issues: IssueInput[] = [];
   const { url } = page;
@@ -829,6 +865,8 @@ export function issuesFromPage(page: PageSnapshot, _seedOrigin: string): IssueIn
     }
     return issues;
   }
+
+  if (!isAudited(page)) return issues;
 
   if (!page.title) {
     issues.push({
@@ -948,6 +986,8 @@ export type CrawlResult = {
   sitemapUrls: number;
   missingFromSitemap: number;
   orphanCandidates: number;
+  /** Pages crawled but kept out of the audit because they are noindex. */
+  noindexPages: number;
   avgContentScore: number;
   robots: RobotsReport;
 };
@@ -1290,11 +1330,13 @@ async function executeCrawl(
         res.loadMs,
         res.bytes,
         redirectUrl,
-        seedUrl
+        seedUrl,
+        res.xRobotsTag
       );
 
       // Mixed content check on raw HTML
       if (
+        isAudited(page) &&
         page.url.startsWith("https://") &&
         /(?:src|href)\s*=\s*["']?http:\/\//i.test(res.html)
       ) {
@@ -1327,10 +1369,14 @@ async function executeCrawl(
     }
   }
 
+  // Pages whose findings count; noindex pages are listed, not audited (#105).
+  const audited = pages.filter(isAudited);
+  const noindexPages = pages.length - audited.length;
+
   /* ---- Duplicate titles / descriptions ---- */
   const byTitle = new Map<string, string[]>();
   const byDesc = new Map<string, string[]>();
-  for (const p of pages) {
+  for (const p of audited) {
     if (p.title) {
       const list = byTitle.get(p.title) || [];
       list.push(p.url);
@@ -1378,7 +1424,7 @@ async function executeCrawl(
   }
 
   /* ---- Sitemap coverage & orphan detection ---- */
-  const crawledSet = new Set(pages.map((p) => p.url));
+  const crawledSet = new Set(audited.map((p) => p.url));
   const sitemapSet = new Set(sitemapUrls);
   const missingFromSitemap = [...crawledSet].filter(
     (u) => sitemapSet.size > 0 && !sitemapSet.has(u)
@@ -1390,7 +1436,7 @@ async function executeCrawl(
       inlinkCount.set(out, (inlinkCount.get(out) || 0) + 1);
     }
   }
-  const orphans = pages.filter((p) => {
+  const orphans = audited.filter((p) => {
     const isHome = new URL(p.url).pathname === "/" || p.url === seedUrl;
     return !isHome && (inlinkCount.get(p.url) || 0) === 0;
   });
@@ -1423,9 +1469,9 @@ async function executeCrawl(
   /* ---- Compute scores ---- */
   const healthScore = computeHealthScore(issues, pages.length);
   const avgContentScore =
-    pages.length > 0
+    audited.length > 0
       ? Math.round(
-          pages.reduce((s, p) => s + p.contentScore, 0) / pages.length
+          audited.reduce((s, p) => s + p.contentScore, 0) / audited.length
         )
       : 0;
 
@@ -1460,6 +1506,8 @@ async function executeCrawl(
           responseTimeMs: p.loadMs,
           byteSize: p.bytes,
           indexable: p.indexable,
+          noindexSource: p.noindexSource,
+          xRobotsTag: p.xRobotsTag,
         })),
       });
     }
@@ -1503,7 +1551,7 @@ async function executeCrawl(
   }
 
   // Thin content pages as INFO issues
-  const thin = pages.filter((p) => p.contentScore < 60);
+  const thin = audited.filter((p) => p.contentScore < 60);
   if (thin.length) {
     await db.crawlIssue.createMany({
       data: thin.slice(0, 50).map((p) => ({
@@ -1542,10 +1590,12 @@ async function executeCrawl(
           outlinks: p.internalOutlinks.length,
           externalOutlinks: p.externalOutlinks.length,
           inlinks: inlinkCount.get(p.url) || 0,
+          ...(p.indexable ? {} : { noindex: true }),
         })),
         sitemapUrls: sitemapUrls.length,
         missingFromSitemap: missingFromSitemap.length,
         orphans: orphans.length,
+        noindexPages,
         avgContentScore,
         robots: robotsReport,
       },
@@ -1578,6 +1628,7 @@ async function executeCrawl(
     sitemapUrls: sitemapUrls.length,
     missingFromSitemap: missingFromSitemap.length,
     orphanCandidates: orphans.length,
+    noindexPages,
     avgContentScore,
     robots: robotsReport,
   };

@@ -1,6 +1,7 @@
 import type { Crawl, IssueSeverity } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getVisibleIssues, listVisibleIssues } from "@/lib/crawler/issue-filter";
+import { NOINDEX_PAGE } from "@/lib/crawler/page-stats";
 import { INTERRUPTED_MESSAGE, staleCrawlWhere } from "@/lib/crawler/lifecycle";
 import { getDailyTraffic, getSitePeriodMetrics, getTopKeywords, getTopPages } from "@/lib/seo-metrics";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
@@ -117,7 +118,11 @@ export async function crawls(site: Site, params: URLSearchParams) {
   return { site, crawls: await withStaleAsFailed(rows) };
 }
 
-/** Issues of one crawl of the site; crawlId "latest" is the latest completed crawl. */
+/**
+ * Issues of one crawl of the site; crawlId "latest" is the latest completed
+ * crawl. noindex pages have no issues and do not count toward the health
+ * score; `noindexPages` says how many the crawl kept out (#105).
+ */
 export async function crawlIssues(site: Site, crawlId: string, params: URLSearchParams) {
   const severity = enumParam(params, "severity", SEVERITIES);
   const limit = intParam(params, "limit", 50, 1, 500);
@@ -127,15 +132,17 @@ export async function crawlIssues(site: Site, crawlId: string, params: URLSearch
     select: CRAWL_SELECT,
   });
   if (!crawl) throw new ApiError(404, crawlId === "latest" ? "This site has no completed crawl yet" : "Crawl not found");
-  const [counts, issues] = await Promise.all([
+  const [counts, issues, noindexPages] = await Promise.all([
     getVisibleIssues(db, crawl.id, 0),
     listVisibleIssues(db, { crawlId: crawl.id, severity, limit }),
+    db.auditPage.count({ where: { crawlId: crawl.id, ...NOINDEX_PAGE } }),
   ]);
   return {
     site,
     crawl: (await withStaleAsFailed([crawl]))[0],
     total: counts.total,
     bySeverity: counts.bySeverity,
+    noindexPages,
     issues,
   };
 }
