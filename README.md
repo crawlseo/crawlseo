@@ -26,19 +26,17 @@ Google Search Console, a site crawler, Core Web Vitals and an MCP server in one 
 
 ## Why crawlseo?
 
-| | crawlseo | OpenSEO | Ahrefs | Semrush | Moz |
-|---|:---:|:---:|:---:|:---:|:---:|
-| **Price** | **Free** | $10/mo | €119/mo | $139/mo | $49/mo |
-| **Self-hosted** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **GSC integration** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Site crawler** | ✅ (2000 pages) | ✅ | ✅ | ✅ | ✅ |
-| **Core Web Vitals** | ✅ | ❌ | ❌ | ✅ | ❌ |
-| **MCP Server** | ✅ (9 read-only tools) | ✅ (24 tools) | ❌ | ❌ | ❌ |
-| **AI agent ready** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Keyword Research** | ✅ (BYOK) | ✅ | ✅ | ✅ | ✅ |
-| **Backlinks** | ✅ (BYOK) | ✅ | ✅ | ✅ | ✅ |
-| **Open source** | ✅ MIT | ✅ | ❌ | ❌ | ❌ |
-| **Your data stays yours** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| | crawlseo |
+|---|---|
+| **Price** | Free and open source (MIT) |
+| **Self-hosted** | ✅ Runs on your server, with Docker Compose or manually |
+| **Database** | On your machine (your own PostgreSQL) |
+| **GSC integration** | ✅ |
+| **Site crawler** | ✅ Up to 2,000 pages per crawl by default (`CRAWL_MAX_PAGES`) |
+| **Core Web Vitals** | ✅ |
+| **MCP server** | ✅ Read-only: no tool writes, changes, queues or triggers anything |
+| **Keyword research** | ✅ (BYOK) |
+| **Backlinks** | ✅ (BYOK) |
 
 > **BYOK** = Bring Your Own Key. Keyword research and backlink data use DataForSEO (optional). Google Autocomplete suggestions work as a free fallback.
 
