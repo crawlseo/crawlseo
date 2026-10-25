@@ -64,8 +64,8 @@ export default async function CrawlPage({ params }: Props) {
         }),
         getCrawlRobotsReport(db, latest.id),
       ])
-    : [{ pages: 0, avgContentScore: null, orphans: 0 }, [], null];
-  const { avgContentScore, orphans: orphanCount } = pageStats;
+    : [{ pages: 0, avgContentScore: null, orphans: 0, noindex: 0 }, [], null];
+  const { avgContentScore, orphans: orphanCount, noindex: noindexCount } = pageStats;
 
   const crawledAt = latest?.finishedAt ? formatDay(latest.finishedAt, { time: true }) : null;
 
@@ -181,6 +181,17 @@ export default async function CrawlPage({ params }: Props) {
                 <span>Content score, average</span>
                 <span className="font-data text-text-strong">{avgContentScore ?? "n/a"}</span>
               </div>
+              <div className="flex justify-between gap-3 text-[13px]">
+                <span>noindex (not scored)</span>
+                <span className="font-data text-text-strong">{noindexCount}</span>
+              </div>
+              {noindexCount > 0 && (
+                <p className="text-[12px] leading-[18px] text-muted-foreground">
+                  Pages with a noindex meta robots tag or X-Robots-Tag header are crawled and their
+                  links followed, but they do not count toward the health score or the issues.
+                  Check the list for a noindex you did not mean to set.
+                </p>
+              )}
               <a href="#crawled-pages" className="text-link text-[13px]">
                 See them in Crawled pages
               </a>

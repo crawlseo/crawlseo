@@ -141,7 +141,7 @@ describe("Crawl / Audit page counts (#56)", () => {
         details: { kind: "crawl_summary", pages: [{ url: "https://quilltab.app/" }], orphans: 73 },
       },
     });
-    expect(await getCrawlPageStats(db, "c1")).toEqual({ pages: 205, avgContentScore: averageScore(205), orphans: 73 });
+    expect(await getCrawlPageStats(db, "c1")).toEqual({ pages: 205, avgContentScore: averageScore(205), orphans: 73, noindex: 0 });
     const html = await renderCrawl();
     expect(html).toMatch(/Orphans \(no inbound link\)<\/span><span[^>]*>73</);
   });
@@ -161,6 +161,32 @@ describe("Crawl / Audit page counts (#56)", () => {
       });
     }
     expect((await getCrawlPageStats(db, "c1")).orphans).toBe(3);
+  });
+
+  it("counts noindex pages apart and leaves them out of the content average (#105)", async () => {
+    await crawlWithPages(10);
+    // Two noindex pages, one broken noindex page (a broken page still counts).
+    await db.auditPage.updateMany({
+      where: { crawlId: "c1", url: { endsWith: "/0000" } },
+      data: { indexable: false, noindexSource: "meta" },
+    });
+    await db.auditPage.updateMany({
+      where: { crawlId: "c1", url: { endsWith: "/0001" } },
+      data: { indexable: false, noindexSource: "x-robots-tag" },
+    });
+    await db.auditPage.updateMany({
+      where: { crawlId: "c1", url: { endsWith: "/0002" } },
+      data: { indexable: false, noindexSource: "meta", statusCode: 404 },
+    });
+    const stats = await getCrawlPageStats(db, "c1");
+    expect(stats.pages).toBe(10);
+    expect(stats.noindex).toBe(2);
+    // Scores 2..9 count; 0 and 1 are the noindex pages.
+    expect(stats.avgContentScore).toBe(Math.round((2 + 3 + 4 + 5 + 6 + 7 + 8 + 9) / 8));
+    const html = await renderCrawl();
+    expect(html).toMatch(/noindex \(not scored\)<\/span><span[^>]*>2</);
+    expect(html).toContain("noindex (2)");
+    expect((html.match(/>noindex<\/span>/g) ?? []).length).toBe(2);
   });
 
   it("the overview Site checks card counts the same stored pages", async () => {

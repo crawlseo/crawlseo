@@ -323,7 +323,12 @@ model AuditPage {
 
   responseTimeMs  Int     @default(0)
   byteSize        Int     @default(0)
+  // False when the page is noindex: meta robots/googlebot or X-Robots-Tag (#105).
+  // Such a page is crawled and its links followed, but it is kept out of the
+  // health score and the issues.
   indexable       Boolean @default(true)
+  noindexSource   String? // "meta", "x-robots-tag" or both, comma-joined
+  xRobotsTag      String? // the X-Robots-Tag response header, as received
 
   crawl           Crawl   @relation(fields: [crawlId], references: [id], onDelete: Cascade)
 

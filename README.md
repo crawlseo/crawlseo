@@ -82,6 +82,8 @@ Crawl up to 2,000 pages by default (`CRAWL_MAX_PAGES` sets the server's limit) w
 
 The crawler (`CrawlSEOBot/1.0 (+https://crawlseo.cloud/bot)`) follows robots.txt per RFC 9309: each host (the bare domain and www included) is checked against its own robots.txt, redirect targets are checked before they are followed, a robots.txt that answers 429 or 5xx, times out or fails with a network error skips that host, and Crawl-delay is honoured. The crawl page lists what robots.txt kept it from.
 
+Pages marked noindex are crawled but not scored. A page counts as noindex when a `<meta name="robots">` or `<meta name="googlebot">` tag, or the `X-Robots-Tag` response header (for all crawlers or `googlebot:`), says `noindex` or `none`; directives for other crawlers are ignored, and when the tag and the header disagree, noindex wins. Its links are still followed (`noindex, follow` is common), but it has no issues and does not count toward the health score, the issue counts or the content average, in the app, in `/api/v1` and in the MCP tools. The crawl page shows how many there were and a noindex filter on the crawled pages, so an accidental noindex is easy to spot. A broken page is still reported as broken, noindex or not. Crawls from before this change keep the score they were given.
+
 <p align="center">
   <img src="docs/screenshots/audit.png" alt="Crawl / Audit" width="800" />
   <br />

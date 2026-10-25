@@ -35,6 +35,8 @@ function makePage(overrides: Partial<PageSnapshot> & { url: string }): PageSnaps
     loadMs: 200,
     contentHash: "abc123",
     indexable: true,
+    noindexSource: null,
+    xRobotsTag: null,
     ...overrides,
   };
 }
