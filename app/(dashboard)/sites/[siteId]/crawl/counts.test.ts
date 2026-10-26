@@ -195,4 +195,40 @@ describe("Crawl / Audit page counts (#56)", () => {
     expect(html).toContain("24 pages · 0 issues");
     expect(html).not.toContain("42 pages");
   });
+
+  it("most pages noindex: a 100 score with no issues is not shown as healthy (#106)", async () => {
+    await crawlWithPages(10);
+    await db.crawl.update({ where: { id: "c1" }, data: { healthScore: 100 } });
+    await db.auditPage.updateMany({
+      where: { crawlId: "c1", contentScore: { lt: 8 } },
+      data: { indexable: false, noindexSource: "meta" },
+    });
+    const warning = "8 of 10 pages are noindex. If that is not intended, search engines will drop them.";
+    const link = 'href="/sites/s1/crawl?pages=noindex#crawled-pages"';
+
+    const crawl = await renderCrawl();
+    expect(crawl).toContain(warning);
+    expect(crawl).toContain(link);
+    expect(crawl).toContain("Not a healthy result");
+
+    const overview = await renderOverview();
+    expect(overview).toContain(warning);
+    expect(overview).toContain(link);
+    expect(overview).toContain("Most pages noindex");
+    expect(overview).not.toContain("100/100");
+  });
+
+  it("no warning below 80% noindex", async () => {
+    await crawlWithPages(100);
+    await db.auditPage.updateMany({ where: { crawlId: "c1", contentScore: { lt: 79 } }, data: { indexable: false } });
+    expect(await renderCrawl()).not.toContain("pages are noindex.");
+    expect(await renderOverview()).not.toContain("pages are noindex.");
+  });
+
+  it("?pages=noindex opens the table on its noindex filter", async () => {
+    await crawlWithPages(5);
+    await db.auditPage.updateMany({ where: { crawlId: "c1" }, data: { indexable: false } });
+    const html = text(renderToString(await CrawlPage({ ...params, searchParams: Promise.resolve({ pages: "noindex" }) })));
+    expect(html).toMatch(/aria-pressed="true"[^>]*>noindex/);
+  });
 });

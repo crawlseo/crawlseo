@@ -34,12 +34,17 @@ export default async function AlertsPage({ params }: Props) {
         title="Alerts"
         description={
           <>
-            Rules for traffic drops, position changes, crawl health and vitals. They are checked after each GSC or Bing
-            sync and when you click Evaluate now. Fired alerts show here and go to your{" "}
+            Rules for traffic drops, position changes, crawl health, sites that are mostly noindex and vitals. They
+            are checked after each GSC or Bing sync, after each crawl and when you click Evaluate now. Fired alerts
+            show here and go to your{" "}
             <Link href="/settings#webhook" className="text-link">
               alert webhook
             </Link>{" "}
-            if you set one.
+            and{" "}
+            <Link href="/settings#email" className="text-link">
+              email
+            </Link>{" "}
+            if you set them up.
           </>
         }
         actions={<EvaluateAlertsButton />}

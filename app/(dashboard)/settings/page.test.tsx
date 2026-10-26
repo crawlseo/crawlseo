@@ -118,6 +118,46 @@ describe("/settings", () => {
     }
   });
 
+  it("without SMTP, Email alerts names the env vars and shows no form", async () => {
+    vi.stubEnv("ALERT_WEBHOOKS_ENABLED", "false");
+    try {
+      const html = await render();
+      expect(html).toContain(">Email alerts</h2>");
+      for (const v of ["SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"]) expect(html).toContain(v);
+      expect(html).not.toContain("Send test");
+      expect(html).not.toContain('name="recipients"');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("with SMTP, Email alerts shows the form and none of the SMTP settings", async () => {
+    vi.stubEnv("SMTP_HOST", "smtp.quilltab.app");
+    vi.stubEnv("SMTP_USER", "mailer@quilltab.app");
+    vi.stubEnv("SMTP_PASSWORD", "hunter2-very-secret");
+    vi.stubEnv("SMTP_FROM", "seo@quilltab.app");
+    try {
+      db.userSettings.findUnique.mockResolvedValue({ alertEmailTo: "me@quilltab.app", alertEmailEnabled: true });
+      const html = await render();
+      expect(html).toContain('name="recipients"');
+      expect(html).toContain('value="me@quilltab.app"');
+      for (const v of ["smtp.quilltab.app", "mailer@quilltab.app", "hunter2-very-secret", "seo@quilltab.app"]) expect(html).not.toContain(v);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("says when alert emails are off on the server", async () => {
+    vi.stubEnv("ALERT_EMAILS_ENABLED", "false");
+    vi.stubEnv("SMTP_HOST", "smtp.quilltab.app");
+    vi.stubEnv("SMTP_FROM", "seo@quilltab.app");
+    try {
+      expect(await render()).toContain("ALERT_EMAILS_ENABLED=false");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("opens the form named by ?connect=", async () => {
     expect(await render({ connect: "bing" })).toContain(">API key</label>");
     const html = await render({ connect: "nonsense" });

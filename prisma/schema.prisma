@@ -109,6 +109,8 @@ model UserSettings {
   webhookUrl         String?  // encrypted (lib/encryption.ts); null: no webhook
   webhookSecret      String?  // encrypted; signs every delivery
   mcpEnabled         Boolean  @default(false) // Settings > MCP: access keys work only while this is on
+  alertEmailTo       String?  // Settings > Email alerts: recipients, comma-separated; null: none
+  alertEmailEnabled  Boolean  @default(false) // fired alerts are emailed only while this is on
   updatedAt          DateTime @updatedAt
 
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -442,6 +444,7 @@ enum AlertType {
   NEW_404            // New broken links detected
   VITALS_DEGRADED    // Core Web Vitals got worse
   CRAWL_ISSUES       // New crawl issues detected
+  NOINDEX_SITEWIDE   // Most fetched pages of the latest crawl are noindex
 }
 
 enum AlertChannel {

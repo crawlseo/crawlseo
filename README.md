@@ -9,7 +9,7 @@
 
 ### Open-source SEO monitoring for founders, not SEO specialists
 
-Google Search Console, a site crawler, Core Web Vitals and an MCP server in one self-hosted dashboard. Free forever.
+Google Search Console, a site crawler, Core Web Vitals and an MCP server in one self-hosted dashboard. Free and open source (MIT).
 
 [![GitHub stars](https://img.shields.io/github/stars/crawlseo/crawlseo?style=flat-square)](https://github.com/crawlseo/crawlseo/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -56,11 +56,12 @@ The app talks to outside services only in these cases:
 | Google autocomplete | Keyword suggestions when DataForSEO is not set up | The seed keyword you typed | Don't use keyword suggestions |
 | Sites you crawl | When you start a crawl, and on the schedule a crawl of each site each week, or as often as you set in Settings > Schedule (Docker) | Normal HTTP requests from your server, to the site and to the addresses its redirects point to | Don't start a crawl; for the schedule: crawls Off in Settings > Schedule, `SCHEDULE_CRAWL_DAYS=0` or `SCHEDULER_ENABLED=false` |
 | Your alert webhook | Only if you set a webhook URL in Settings > Alert webhook: when alerts fire, and when you click Send test | A signed JSON POST with the alerts that fired (type, message, site id and domain), to your own URL only | Remove the webhook in Settings; `ALERT_WEBHOOKS_ENABLED=false` turns webhooks off for the whole instance |
+| Your SMTP server | Only if the operator sets `SMTP_HOST` and `SMTP_FROM` and you turn on Settings > Email alerts: when alerts fire, and when you click Send test | An email with the alerts that fired (type, message and domain, plain text and simple HTML, no tracking, links only to this instance), through the SMTP server the operator set, to the addresses you entered | Turn off Email alerts in Settings; `ALERT_EMAILS_ENABLED=false` or no `SMTP_HOST` turns email off for the whole instance |
 | GitHub releases API | Once a day | A request for the latest crawlseo release. No data about you or your instance. GitHub sees your server's IP address | `CRAWLSEO_UPDATE_CHECK=false` |
 
-Nothing else leaves your server. Alerts are shown in the app, and sent to your webhook if you set one.
+Nothing else leaves your server. Alerts are shown in the app, sent to your webhook if you set one, and emailed through the operator's own SMTP server if you turn that on. Nothing goes through a crawlseo service.
 
-The hosts behind these rows are `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `ssl.bing.com`, `api.dataforseo.com`, `suggestqueries.google.com` and `api.github.com`, plus the sites you crawl and the webhook URL you set yourself. The list the tests check new code against is [`outbound-hosts.json`](outbound-hosts.json). Your Google profile picture, if you have one, is loaded by your browser from Google, not by the server.
+The hosts behind these rows are `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `ssl.bing.com`, `api.dataforseo.com`, `suggestqueries.google.com` and `api.github.com`, plus the sites you crawl, the webhook URL you set yourself and the SMTP server the operator sets in `SMTP_HOST`. The list the tests check new code against is [`outbound-hosts.json`](outbound-hosts.json). Your Google profile picture, if you have one, is loaded by your browser from Google, not by the server.
 
 ## Features
 
@@ -107,7 +108,7 @@ Pages marked noindex are crawled but not scored. A page counts as noindex when a
 | 🔗 | **Backlinks** | Backlink profile, referring domains, anchor text, dofollow/nofollow analysis |
 | 📊 | **Rank Tracking** | Historical position snapshots with saved keywords and notes |
 | 💡 | **SEO Opportunities** | Striking distance keywords, low CTR, content decay, cannibalization detection |
-| 🔔 | **Alerts** | Traffic drops, position drops, low crawl health and degraded vitals. Checked when you press Evaluate now on the Alerts page and shown in the app; nothing is sent by email or chat yet |
+| 🔔 | **Alerts** | Traffic drops, position drops, low crawl health, sites that are mostly noindex and degraded vitals. Checked after each sync and crawl and when you press Evaluate now, shown in the app, and sent to your [webhook](#alert-webhooks) and [email](#alert-emails) if you set them up |
 | 📥 | **CSV Export** | Export keywords and pages data for offline analysis |
 
 GSC sync, crawls and Core Web Vitals checks run when you start them in the app. There is no built-in schedule yet.
@@ -349,8 +350,8 @@ worker is connected to the same database.
 
 ### Alert webhooks
 
-Alerts are checked after each GSC or Bing sync and when you click Evaluate now
-on a site's Alerts page. To get the ones that fire outside the app, set a
+Alerts are checked after each GSC or Bing sync, after each crawl and when you
+click Evaluate now on a site's Alerts page. To get the ones that fire outside the app, set a
 webhook in **Settings > Alert webhook**: a URL of your own (n8n, Zapier, Make, a
 small script) and a signing secret of at least 16 characters (Generate makes
 one; copy it before you save, it is not shown again). **Send test** sends one
@@ -424,6 +425,48 @@ server setting, not a per-user one, so on a shared instance users cannot reach
 the server's network unless you allow it. `ALERT_WEBHOOKS_ENABLED=false` turns
 webhooks off for the instance.
 
+### Alert emails
+
+The same alerts that reach the webhook can be emailed, through an SMTP server
+the operator of the instance sets up. crawlseo sends no email through any
+service of its own: without SMTP settings, nothing is emailed.
+
+The operator sets these in the environment (`.env` with Docker) and restarts
+the app:
+
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587          # default 587, or 465 with SMTP_SECURE=true
+SMTP_SECURE=false      # true: TLS from the start (port 465); false: STARTTLS when offered
+SMTP_USER=alerts@example.com
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM="crawlseo <alerts@example.com>"
+```
+
+`SMTP_HOST` and `SMTP_FROM` are required; leave `SMTP_USER` out for a server
+that takes mail without a login. Any SMTP server works: your mail provider's,
+a transactional email service or a relay on your own network. Many providers
+want an app password or an API key as `SMTP_PASSWORD` rather than your account
+password, and a sender address on a domain they verified; their SMTP
+documentation names the host, port and TLS mode. The login stays in the
+environment: it is never stored in the database, never returned by an API,
+never shown in Settings and never logged (errors are shown without it).
+
+Each user then opens **Settings > Email alerts**, enters up to 5 addresses,
+turns on **Email fired alerts** and saves. **Send test** sends one test
+email to the addresses in the form and shows the SMTP server's answer.
+
+All alerts of one site from one evaluation come in one email, plain text plus
+simple HTML, with no tracking pixel, no remote image and no link except to
+this instance (when `NEXTAUTH_URL` is set). An alert that keeps firing is
+emailed again at most once a day, as with webhooks. Sending is best effort
+and never holds up a crawl, a sync or an alert evaluation: a network error, a
+timeout (10 s) or a temporary SMTP answer (4xx) is retried after about 1 and
+5 minutes (on Vercel within the request, then at the next cron run), any
+other failure ends it at once, and Settings shows the last
+email and its error. `ALERT_EMAILS_ENABLED=false` turns alert emails off for
+the instance.
+
 ### Vercel
 
 There is no long-running process on Vercel, so:
@@ -479,6 +522,13 @@ There is no long-running process on Vercel, so:
 | `SCHEDULE_VITALS_DAYS` | No | Days between scheduled vitals checks of a site (default `7`, `0` turns them off). Each user can set their own interval in Settings > Schedule; `0` here keeps them off for everyone. Docker only |
 | `ALERT_WEBHOOKS_ENABLED` | No | Set to `false` to turn alert webhooks off for the instance: nothing is sent and Settings shows no webhook form. See [Alert webhooks](#alert-webhooks) |
 | `ALERT_WEBHOOK_ALLOW_PRIVATE` | No | Set to `true` to let webhooks reach private networks (10/8, 172.16/12, 192.168/16, 100.64/10, loopback, fc00::/7), for a receiver on your own network. Link-local and reserved addresses stay blocked. Default: public addresses only. See [Alert webhooks](#alert-webhooks) |
+| `SMTP_HOST` | No | Your SMTP server. With `SMTP_FROM`, turns on alert emails. See [Alert emails](#alert-emails) |
+| `SMTP_PORT` | No | SMTP port (default `587`, or `465` when `SMTP_SECURE=true`) |
+| `SMTP_SECURE` | No | `true`: TLS from the start (port 465). `false`: plain, then STARTTLS when the server offers it. Default: `true` on port 465, otherwise `false` |
+| `SMTP_USER` | No | SMTP login. Leave unset for a server that takes mail without one |
+| `SMTP_PASSWORD` | No | SMTP password or app password. Kept in the environment only: never stored, shown or logged |
+| `SMTP_FROM` | No | Sender of alert emails, e.g. `crawlseo <alerts@example.com>`. Required for email |
+| `ALERT_EMAILS_ENABLED` | No | Set to `false` to turn alert emails off for the instance: nothing is sent and Settings shows no email form. See [Alert emails](#alert-emails) |
 | `CRON_SECRET` | Vercel | Protects `/api/cron/tick`. Without it the route refuses every request |
 
 ### The crawlseo.cloud card
@@ -508,6 +558,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 Built by [Brandson Digital](https://brandson.digital) · Created by [Mike](https://m1ke.digital)
 
-Self-hosted SEO tools should be free. Your data should be yours.
+Self-hosted SEO tools should be free and open source. Your data stays on your server.
 
 </div>

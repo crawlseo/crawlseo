@@ -2,11 +2,13 @@ import type { PrismaClient } from "@prisma/client";
 import { decrypt, encrypt } from "@/lib/encryption";
 import { DAY, isServerless, scheduleConfig } from "@/lib/jobs/config";
 import type { ScheduleServerInfo, ScheduleSettings } from "@/lib/schedule-settings";
+import { joinRecipients, splitRecipients } from "@/lib/email/recipients";
 
 /*
- * What a user sets in Settings > Schedule and Settings > Alert webhook, one
- * UserSettings row per user. The webhook URL and secret are stored encrypted
- * like API keys.
+ * What a user sets in Settings > Schedule, Settings > Alert webhook and
+ * Settings > Email alerts, one UserSettings row per user. The webhook URL and
+ * secret are stored encrypted like API keys. The SMTP settings are not here:
+ * they live in the environment only (lib/email/config.ts).
  */
 
 type Db = Pick<PrismaClient, "userSettings">;
@@ -61,4 +63,23 @@ export async function saveWebhook(db: Db, userId: string, webhook: StoredWebhook
 
 export async function removeWebhook(db: Db, userId: string): Promise<void> {
   await db.userSettings.updateMany({ where: { userId }, data: { webhookUrl: null, webhookSecret: null } });
+}
+
+export type AlertEmailSettings = { recipients: string[]; enabled: boolean };
+
+/** Settings > Email alerts: where fired alerts are emailed, and whether they are. */
+export async function getAlertEmail(db: Db, userId: string): Promise<AlertEmailSettings> {
+  const row = await db.userSettings.findUnique({
+    where: { userId },
+    select: { alertEmailTo: true, alertEmailEnabled: true },
+  });
+  return { recipients: splitRecipients(row?.alertEmailTo), enabled: row?.alertEmailEnabled ?? false };
+}
+
+export async function saveAlertEmail(db: Db, userId: string, settings: AlertEmailSettings): Promise<void> {
+  const data = {
+    alertEmailTo: settings.recipients.length ? joinRecipients(settings.recipients) : null,
+    alertEmailEnabled: settings.enabled && settings.recipients.length > 0,
+  };
+  await db.userSettings.upsert({ where: { userId }, create: { userId, ...data }, update: data });
 }

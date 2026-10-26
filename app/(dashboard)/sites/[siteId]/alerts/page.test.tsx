@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// Alerts are shown in the app and, when the user set one, sent to their webhook from Settings. Email is not
-// delivered, so the page must not name the per-alert channel.
+// Alerts are shown in the app and, when the user set them up in Settings, sent to their webhook and email.
+// Delivery is per account, not per alert, so the page must not name the stored per-alert channel.
 
 const { db } = vi.hoisted(() => ({
   db: {
@@ -23,12 +23,12 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn(), useRouter: () => ({ refre
 const { default: AlertsPage } = await import("./page");
 
 describe("alerts page", () => {
-  it("does not promise email", async () => {
+  it("points to the webhook and email settings, and names no per-alert channel", async () => {
     const html = renderToStaticMarkup(await AlertsPage({ params: Promise.resolve({ siteId: "site-1" }) }));
     expect(html).toContain("traffic drop");
     expect(html).toContain("Never fired");
-    expect(html).not.toMatch(/email/i);
     expect(html).not.toMatch(/channel/i);
     expect(html).toContain('href="/settings#webhook"');
+    expect(html).toContain('href="/settings#email"');
   });
 });

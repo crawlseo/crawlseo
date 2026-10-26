@@ -20,7 +20,7 @@ import { ALERT_WEBHOOK_JOB, ALERTS_EVALUATE_JOB } from "@/lib/jobs/handlers";
 import { claimJobById, enqueueJob } from "@/lib/jobs/queue";
 import { JobRunner } from "@/lib/jobs/runner";
 import { removeWebhook, saveWebhook } from "@/lib/user-settings";
-import { queueAlertWebhooks } from "./queue-alerts";
+import { queueAlertDeliveries } from "./queue-alerts";
 import { webhookStatus } from "./status";
 
 const MIN = 60_000;
@@ -188,16 +188,16 @@ describe("queueing deliveries", () => {
   });
 
   it("Evaluate now queues one delivery per site, and none when webhooks are off on the server", async () => {
-    const jobs = await queueAlertWebhooks(db, "u1", FIRES, { source: "manual" });
+    const jobs = await queueAlertDeliveries(db, "u1", FIRES, { source: "manual" });
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ type: ALERT_WEBHOOK_JOB, siteId: "s1", source: "manual", activeKey: null });
     // Clicking again right after: those alerts already went out.
     const again = FIRES.map((f) => ({ ...f, previousFiredAt: new Date().toISOString() }));
-    expect(await queueAlertWebhooks(db, "u1", again, { source: "manual" })).toEqual([]);
+    expect(await queueAlertDeliveries(db, "u1", again, { source: "manual" })).toEqual([]);
 
     vi.stubEnv("ALERT_WEBHOOKS_ENABLED", "false");
     try {
-      expect(await queueAlertWebhooks(db, "u1", FIRES, { source: "manual" })).toEqual([]);
+      expect(await queueAlertDeliveries(db, "u1", FIRES, { source: "manual" })).toEqual([]);
     } finally {
       vi.stubEnv("ALERT_WEBHOOKS_ENABLED", "");
     }

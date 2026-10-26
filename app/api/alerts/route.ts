@@ -2,7 +2,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureDefaultAlerts, evaluateAlertsForUser } from "@/lib/alerts/evaluate";
 import { dispatchJob } from "@/lib/jobs/dispatch";
-import { queueAlertWebhooks } from "@/lib/webhooks/queue-alerts";
+import { ALERT_EMAIL_JOB, ALERT_WEBHOOK_JOB } from "@/lib/jobs/handlers";
+import { queueAlertDeliveries } from "@/lib/webhooks/queue-alerts";
 
 export async function GET() {
   try {
@@ -49,16 +50,18 @@ export async function POST(req: Request) {
     }
 
     const fires = await evaluateAlertsForUser(session.user.id);
-    // Fired alerts go to the user's webhook too, as after a scheduled evaluation.
+    // Fired alerts go to the user's webhook and email too, as after a scheduled evaluation.
     let webhookDeliveries = 0;
+    let emailDeliveries = 0;
     try {
-      const jobs = await queueAlertWebhooks(db, session.user.id, fires, { source: "manual" });
+      const jobs = await queueAlertDeliveries(db, session.user.id, fires, { source: "manual" });
       for (const job of jobs) dispatchJob(db, job);
-      webhookDeliveries = jobs.length;
+      webhookDeliveries = jobs.filter((j) => j.type === ALERT_WEBHOOK_JOB).length;
+      emailDeliveries = jobs.filter((j) => j.type === ALERT_EMAIL_JOB).length;
     } catch (err) {
-      console.error("Queueing alert webhooks failed:", err);
+      console.error("Queueing alert deliveries failed:", err);
     }
-    return Response.json({ fires, webhookDeliveries });
+    return Response.json({ fires, webhookDeliveries, emailDeliveries });
   } catch (error) {
     console.error(error);
     return Response.json({ error: "Failed" }, { status: 500 });

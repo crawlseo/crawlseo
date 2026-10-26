@@ -19,7 +19,8 @@ export function EvaluateAlertsButton() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       const n = data.fires?.length ?? 0;
-      const sent = data.webhookDeliveries > 0 ? " Queued for your webhook." : "";
+      const channels = [data.webhookDeliveries > 0 && "your webhook", data.emailDeliveries > 0 && "email"].filter(Boolean);
+      const sent = channels.length ? ` Queued for ${channels.join(" and ")}.` : "";
       setMsg(
         n === 0
           ? "No alerts fired"

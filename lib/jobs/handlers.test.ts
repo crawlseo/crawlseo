@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALERT_EMAIL_JOB,
   ALERT_WEBHOOK_JOB,
   ALERTS_EVALUATE_JOB,
   BING_SYNC_JOB,
@@ -14,7 +15,7 @@ import {
 import { isPermanentJobError, JobError } from "./types";
 
 describe("job handler registry", () => {
-  it("registers the six built-in types with their class and attempts", () => {
+  it("registers the seven built-in types with their class and attempts", () => {
     expect(BUILT_IN_JOB_HANDLERS.map((h) => [h.type, h.class, h.maxAttempts])).toEqual([
       [CRAWL_JOB, "LONG", 2],
       [VITALS_JOB, "LONG", 2],
@@ -22,6 +23,7 @@ describe("job handler registry", () => {
       [BING_SYNC_JOB, "SHORT", 3],
       [ALERTS_EVALUATE_JOB, "SHORT", 3],
       [ALERT_WEBHOOK_JOB, "SHORT", 5],
+      [ALERT_EMAIL_JOB, "SHORT", 3],
     ]);
     for (const h of BUILT_IN_JOB_HANDLERS) expect(getJobHandler(h.type)).toBe(h);
   });
@@ -59,10 +61,29 @@ describe("job handler registry", () => {
     expect(isPermanentJobError(new Error("x"))).toBe(false);
   });
 
-  it("syncs queue an alert evaluation once they succeed", () => {
+  it("syncs and crawls queue an alert evaluation once they succeed", () => {
     expect(getJobHandler(GSC_SYNC_JOB)!.followUps).toBeDefined();
     expect(getJobHandler(BING_SYNC_JOB)!.followUps).toBeDefined();
+    expect(getJobHandler(CRAWL_JOB)!.followUps!({} as never)).toEqual([ALERTS_EVALUATE_JOB]);
     expect(getJobHandler(ALERT_WEBHOOK_JOB)!.followUps).toBeUndefined();
+    expect(getJobHandler(ALERT_EMAIL_JOB)!.followUps).toBeUndefined();
+  });
+
+  it("an evaluation fans out to the webhook and email, each when the user set it up", () => {
+    const followUps = getJobHandler(ALERTS_EVALUATE_JOB)!.followUps!;
+    const fires = [{ alertId: "a1", type: "NOINDEX_SITEWIDE", message: "m", siteId: "s1", domain: "quilltab.app" }];
+    const firedAt = "2026-10-19T05:00:00.000Z";
+    const payload = { fires, firedAt };
+    expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: true, email: true })).toEqual([
+      { type: ALERT_WEBHOOK_JOB, payload, unique: false },
+      { type: ALERT_EMAIL_JOB, payload, unique: false },
+    ]);
+    expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: false, email: true })).toEqual([
+      { type: ALERT_EMAIL_JOB, payload, unique: false },
+    ]);
+    expect(followUps({} as never, { fired: 1, fires, firedAt, webhook: false, email: false })).toEqual([]);
+    const recent = [{ ...fires[0], previousFiredAt: "2026-10-19T04:00:00.000Z" }];
+    expect(followUps({} as never, { fired: 1, fires: recent, firedAt, webhook: true, email: true })).toEqual([]);
   });
 
   it("an evaluation queues a webhook delivery only when alerts fired and the user has a webhook", () => {

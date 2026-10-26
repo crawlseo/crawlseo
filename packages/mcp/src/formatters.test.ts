@@ -23,3 +23,18 @@ describe("formatCrawlIssues noindex line (#105)", () => {
     expect(formatCrawlIssues({ crawl, total: 0, bySeverity: {}, issues: [] })).not.toContain("noindex");
   });
 });
+
+describe("formatCrawlIssues site-wide noindex warning (#106)", () => {
+  const message = "9 of 10 pages are noindex. If that is not intended, search engines will drop them.";
+
+  it("prints the warning above the counts when the instance sends one", () => {
+    const out = formatCrawlIssues({ crawl, total: 0, bySeverity: {}, noindexPages: 9, noindexWarning: { message }, issues: [] });
+    expect(out).toContain(`WARNING: ${message}`);
+    expect(out.indexOf("WARNING")).toBeLessThan(out.indexOf("9 noindex pages crawled"));
+  });
+
+  it("prints nothing for null or an instance without the field", () => {
+    expect(formatCrawlIssues({ crawl, total: 0, bySeverity: {}, noindexPages: 1, noindexWarning: null, issues: [] })).not.toContain("WARNING");
+    expect(formatCrawlIssues({ crawl, total: 0, bySeverity: {}, noindexPages: 1, issues: [] })).not.toContain("WARNING");
+  });
+});

@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { getSitePeriodMetrics } from "@/lib/seo-metrics";
 import { getContentDecay } from "@/lib/seo-opportunities";
+import { getNoindexWarning } from "@/lib/crawler/noindex-warning";
+import type { AlertType, Prisma } from "@prisma/client";
 
 export type AlertFire = {
   alertId: string;
@@ -79,6 +81,24 @@ export async function evaluateAlertsForUser(
         }
       }
 
+      if (alert.type === "NOINDEX_SITEWIDE") {
+        const latest = await db.crawl.findFirst({
+          where: { siteId: alert.siteId, status: "COMPLETED" },
+          orderBy: { finishedAt: "desc" },
+          select: { id: true },
+        });
+        const warning = latest ? await getNoindexWarning(db, latest.id) : null;
+        if (warning) {
+          fires.push({
+            alertId: alert.id,
+            type: alert.type,
+            siteId: alert.siteId,
+            domain: alert.site.domain,
+            message: `Most pages are noindex on ${alert.site.domain}: ${warning.message}`,
+          });
+        }
+      }
+
       if (alert.type === "VITALS_DEGRADED") {
         const recent = await db.vitalsReport.findMany({
           where: { siteId: alert.siteId },
@@ -125,40 +145,28 @@ export async function evaluateAlertsForUser(
   return fires;
 }
 
-export async function ensureDefaultAlerts(userId: string, siteId: string) {
-  const existing = await db.alert.count({ where: { userId, siteId } });
-  if (existing > 0) return;
+/** The alerts every site gets, all on. */
+const DEFAULT_ALERTS: { type: AlertType; config: Prisma.InputJsonValue }[] = [
+  { type: "TRAFFIC_DROP", config: { thresholdPct: -20 } },
+  { type: "POSITION_CHANGE", config: { thresholdPositions: -2 } },
+  { type: "CRAWL_ISSUES", config: {} },
+  { type: "VITALS_DEGRADED", config: {} },
+  { type: "NOINDEX_SITEWIDE", config: {} },
+];
 
+/**
+ * Adds the default alerts a site does not have yet: all of them for a new
+ * site, and a type added in a later release for an existing one. An alert
+ * the user turned off stays off. With `newTypesOnly`, a site without any
+ * alert gets none.
+ */
+export async function ensureDefaultAlerts(userId: string, siteId: string, opts: { newTypesOnly?: boolean } = {}) {
+  const existing = await db.alert.findMany({ where: { userId, siteId }, select: { type: true } });
+  if (opts.newTypesOnly && existing.length === 0) return;
+  const have = new Set(existing.map((a) => a.type));
+  const missing = DEFAULT_ALERTS.filter((a) => !have.has(a.type));
+  if (missing.length === 0) return;
   await db.alert.createMany({
-    data: [
-      {
-        userId,
-        siteId,
-        type: "TRAFFIC_DROP",
-        channel: "EMAIL",
-        config: { thresholdPct: -20 },
-      },
-      {
-        userId,
-        siteId,
-        type: "POSITION_CHANGE",
-        channel: "EMAIL",
-        config: { thresholdPositions: -2 },
-      },
-      {
-        userId,
-        siteId,
-        type: "CRAWL_ISSUES",
-        channel: "EMAIL",
-        config: {},
-      },
-      {
-        userId,
-        siteId,
-        type: "VITALS_DEGRADED",
-        channel: "EMAIL",
-        config: {},
-      },
-    ],
+    data: missing.map((a) => ({ userId, siteId, type: a.type, channel: "EMAIL" as const, config: a.config })),
   });
 }
