@@ -232,7 +232,7 @@ Image tags:
 | Tag | What it is |
 |---|---|
 | `latest` | The latest release. Moves only when a version is tagged. |
-| `0.3.4`, `0.3` | A release, and the newest patch of a minor version. |
+| `0.3.5`, `0.3` | A release, and the newest patch of a minor version. |
 | `edge` | The latest build of `main`, ahead of the last release. |
 | `sha-<commit>` | One exact build, for main pushes and releases. |
 
@@ -240,7 +240,7 @@ To pin a release, follow `main`, or use an image from a fork, set
 `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.4
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.5
 ```
 
 To build locally instead, build the same image name before starting Compose:
@@ -374,7 +374,7 @@ Each delivery is a JSON POST:
     }
   ],
   "url": "https://seo.example.com/sites/cmgz.../alerts",
-  "crawlseo": { "version": "0.3.4" }
+  "crawlseo": { "version": "0.3.5" }
 }
 ```
 
@@ -455,6 +455,14 @@ never shown in Settings and never logged (errors are shown without it).
 Each user then opens **Settings > Email alerts**, enters up to 5 addresses,
 turns on **Email fired alerts** and saves. **Send test** sends one test
 email to the addresses in the form and shows the SMTP server's answer.
+
+**Recipients are not verified.** On an instance with open sign-up, any user
+can have your SMTP server send alert emails, and up to 5 test emails per 10
+minutes (counted per app process, each to up to 5 addresses), to any address
+they enter. If you allow open sign-up, know that mail sent this way goes out
+under your SMTP account and sender address. `DISABLE_REGISTRATION=true` stops
+new accounts from doing so (accounts that already signed in keep their
+access); `ALERT_EMAILS_ENABLED=false` turns email off for everyone.
 
 All alerts of one site from one evaluation come in one email, plain text plus
 simple HTML, with no tracking pixel, no remote image and no link except to

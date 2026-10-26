@@ -3,7 +3,7 @@
 Notable changes per release. Releases before 0.3.3 are described on the
 [releases page](https://github.com/crawlseo/crawlseo/releases).
 
-## Unreleased
+## 0.3.5 (2026-10-26)
 
 ### Changed
 
@@ -28,9 +28,9 @@ Notable changes per release. Releases before 0.3.3 are described on the
   and each user can turn on **Settings > Email alerts** with up to 5
   addresses and send a test. The same alerts that reach the webhook are
   emailed when they fire, in plain text and simple HTML with no tracking and
-  no links except to your instance. Sending is best effort: a failure is
-  retried, shown in Settings and never blocks a crawl, sync or alert
-  evaluation. The SMTP login stays in the environment and is never stored,
+  no links except to your instance. Sending is best effort: a temporary failure
+  (network error, timeout, SMTP 4xx) is retried, any failure is shown in
+  Settings, and none blocks a crawl, sync or alert evaluation. The SMTP login stays in the environment and is never stored,
   returned, shown or logged. `ALERT_EMAILS_ENABLED=false` turns email off for
   the instance. See [Alert emails](README.md#alert-emails).
 - **A warning when most pages are noindex** (#106). When at least 80% of a
@@ -44,6 +44,9 @@ Notable changes per release. Releases before 0.3.3 are described on the
 - The crawl page shows how many noindex pages a crawl found, and the crawled
   pages table marks them and can be filtered to them. `/api/v1` crawl issues
   and the `get_crawl_issues` MCP tool return the same count (`noindexPages`).
+- **`@crawlseo/mcp` 0.3.5**: `get_crawl_issues` prints the noindex count and
+  the site-wide noindex warning. Both fields are optional, so it still works
+  against an older instance.
 
 ### Upgrading
 
@@ -57,6 +60,10 @@ Notable changes per release. Releases before 0.3.3 are described on the
 - Email stays off until the operator sets `SMTP_HOST` and `SMTP_FROM` and a
   user turns it on in Settings. The only new outbound host is the SMTP
   server you set yourself.
+- Alert email recipients are not verified. On an instance with open sign-up,
+  any user can have your SMTP server send alert mail to an address they
+  enter. If you allow open sign-up, see
+  [Alert emails](README.md#alert-emails).
 
 ## 0.3.4
 

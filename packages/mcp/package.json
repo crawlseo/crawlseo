@@ -1,6 +1,6 @@
 {
   "name": "@crawlseo/mcp",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Read-only MCP server for crawlseo: your Search Console data, crawl issues, Core Web Vitals and SEO opportunities for AI agents, through your own instance's API.",
   "keywords": [
     "mcp",
