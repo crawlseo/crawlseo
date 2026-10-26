@@ -2,6 +2,7 @@ import type { Crawl, IssueSeverity } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getVisibleIssues, listVisibleIssues } from "@/lib/crawler/issue-filter";
 import { NOINDEX_PAGE } from "@/lib/crawler/page-stats";
+import { getNoindexWarning } from "@/lib/crawler/noindex-warning";
 import { INTERRUPTED_MESSAGE, staleCrawlWhere } from "@/lib/crawler/lifecycle";
 import { getDailyTraffic, getSitePeriodMetrics, getTopKeywords, getTopPages } from "@/lib/seo-metrics";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
@@ -122,6 +123,8 @@ export async function crawls(site: Site, params: URLSearchParams) {
  * Issues of one crawl of the site; crawlId "latest" is the latest completed
  * crawl. noindex pages have no issues and do not count toward the health
  * score; `noindexPages` says how many the crawl kept out (#105).
+ * `noindexWarning` is set when at least 80% of the fetched (2xx) pages are
+ * noindex, so a clean score is not read as a healthy site; null otherwise.
  */
 export async function crawlIssues(site: Site, crawlId: string, params: URLSearchParams) {
   const severity = enumParam(params, "severity", SEVERITIES);
@@ -132,10 +135,11 @@ export async function crawlIssues(site: Site, crawlId: string, params: URLSearch
     select: CRAWL_SELECT,
   });
   if (!crawl) throw new ApiError(404, crawlId === "latest" ? "This site has no completed crawl yet" : "Crawl not found");
-  const [counts, issues, noindexPages] = await Promise.all([
+  const [counts, issues, noindexPages, noindexWarning] = await Promise.all([
     getVisibleIssues(db, crawl.id, 0),
     listVisibleIssues(db, { crawlId: crawl.id, severity, limit }),
     db.auditPage.count({ where: { crawlId: crawl.id, ...NOINDEX_PAGE } }),
+    getNoindexWarning(db, crawl.id),
   ]);
   return {
     site,
@@ -143,6 +147,7 @@ export async function crawlIssues(site: Site, crawlId: string, params: URLSearch
     total: counts.total,
     bySeverity: counts.bySeverity,
     noindexPages,
+    noindexWarning,
     issues,
   };
 }

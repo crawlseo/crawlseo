@@ -1,13 +1,16 @@
 import type { Job, PrismaClient } from "@prisma/client";
 import { runSiteCrawl } from "@/lib/crawler/engine";
 import { ACTIVE_CRAWL_STATUSES, INTERRUPTED_MESSAGE, trackRunningCrawl } from "@/lib/crawler/lifecycle";
-import { evaluateAlertsForUser } from "@/lib/alerts/evaluate";
+import { ensureDefaultAlerts, evaluateAlertsForUser } from "@/lib/alerts/evaluate";
 import { BingKeyMissingError } from "@/lib/bing/bing-client";
 import { ReauthRequiredError } from "@/lib/google";
 import { runGSCSync } from "@/lib/workers/gsc-sync";
 import { syncBingDataForSite } from "@/lib/workers/bing-sync";
 import { syncVitalsForSite } from "@/lib/workers/vitals-sync";
-import { getWebhook } from "@/lib/user-settings";
+import { emailAvailable } from "@/lib/email/config";
+import { alertEmail } from "@/lib/email/messages";
+import { sendEmail } from "@/lib/email/send";
+import { getAlertEmail, getWebhook } from "@/lib/user-settings";
 import { webhooksEnabled } from "@/lib/webhooks/config";
 import { alertPayload, firesToDeliver, sendWebhook, type AlertDelivery } from "@/lib/webhooks/deliver";
 import { clampMaxPages } from "./policy";
@@ -53,6 +56,7 @@ export const GSC_SYNC_JOB = "gsc-sync";
 export const BING_SYNC_JOB = "bing-sync";
 export const ALERTS_EVALUATE_JOB = "alerts-evaluate";
 export const ALERT_WEBHOOK_JOB = "alert-webhook";
+export const ALERT_EMAIL_JOB = "alert-email";
 
 /** The job's site, or a permanent failure when it is gone. */
 async function siteOf(db: PrismaClient, job: Job) {
@@ -90,6 +94,8 @@ const crawlHandler: JobHandler = {
   maxAttempts: 2,
   isPermanent: () => true,
   stopOnShutdown: true,
+  // A crawl can raise or clear a crawl alert (health, most pages noindex).
+  followUps: () => [ALERTS_EVALUATE_JOB],
   async run({ db, job, workerId, signal, deadline }) {
     const site = await siteOf(db, job);
     const maxPages = clampMaxPages((job.payload as { maxPages?: unknown } | null)?.maxPages);
@@ -208,25 +214,41 @@ export async function hasAlertWebhook(db: PrismaClient, userId: string): Promise
   return webhooksEnabled() && (await getWebhook(db, userId)) !== null;
 }
 
+/** Whether the user's alerts are emailed: email set up and on for this server, and on in Settings with an address. */
+export async function hasAlertEmail(db: PrismaClient, userId: string): Promise<boolean> {
+  if (!emailAvailable()) return false;
+  const settings = await getAlertEmail(db, userId);
+  return settings.enabled && settings.recipients.length > 0;
+}
+
+type EvaluateResult = { fires?: AlertDelivery["fires"]; firedAt?: string; webhook?: boolean; email?: boolean };
+
 const alertsEvaluateHandler: JobHandler = {
   type: ALERTS_EVALUATE_JOB,
   class: "SHORT",
   maxAttempts: 3,
   isPermanent: isPermanentJobError,
-  // The alerts that fired go to the user's webhook as one delivery, a job of its own.
+  // The alerts that fired go to the user's webhook and email, each as one delivery, a job of its own.
   followUps: (_job, result) => {
-    const r = result as { fires?: AlertDelivery["fires"]; firedAt?: string; webhook?: boolean } | undefined;
-    if (!r?.webhook || !r.fires?.length || !r.firedAt) return [];
+    const r = result as EvaluateResult | undefined;
+    if (!r?.fires?.length || !r.firedAt) return [];
     const fires = firesToDeliver(r.fires, new Date(r.firedAt));
     if (fires.length === 0) return [];
-    return [{ type: ALERT_WEBHOOK_JOB, payload: { fires, firedAt: r.firedAt }, unique: false }];
+    const payload = { fires, firedAt: r.firedAt };
+    return [
+      ...(r.webhook ? [{ type: ALERT_WEBHOOK_JOB, payload, unique: false }] : []),
+      ...(r.email ? [{ type: ALERT_EMAIL_JOB, payload, unique: false }] : []),
+    ];
   },
   async run({ db, job }) {
     const site = await siteOf(db, job);
     // Looked up first: a failure here retries the job before any alert is stamped as fired.
-    const webhook = await hasAlertWebhook(db, site.userId);
+    const [webhook, email] = await Promise.all([hasAlertWebhook(db, site.userId), hasAlertEmail(db, site.userId)]);
+    // An alert type added in a release reaches sites that already have alerts.
+    await ensureDefaultAlerts(site.userId, site.id, { newTypesOnly: true });
     const fires = await evaluateAlertsForUser(site.userId, { siteId: site.id });
-    return { fired: fires.length, fires, firedAt: new Date().toISOString(), webhook: webhook && fires.length > 0 };
+    const fired = fires.length > 0;
+    return { fired: fires.length, fires, firedAt: new Date().toISOString(), webhook: webhook && fired, email: email && fired };
   },
 };
 
@@ -264,6 +286,40 @@ const alertWebhookHandler: JobHandler = {
   },
 };
 
+/**
+ * One alert email: the alerts of one evaluation of one site, to the
+ * addresses in Settings. Best effort: a failure a retry can fix (network
+ * error, timeout, SMTP 4xx) is retried with the queue's backoff, any other
+ * fails at once; either way it is logged without the SMTP login and shown in
+ * Settings, and nothing else waits on it.
+ */
+const alertEmailHandler: JobHandler = {
+  type: ALERT_EMAIL_JOB,
+  class: "SHORT",
+  maxAttempts: 3,
+  isPermanent: isPermanentJobError,
+  async run({ db, job }) {
+    const site = await siteOf(db, job);
+    if (!emailAvailable()) {
+      throw new JobError("Alert emails are turned off or not set up on this server", { code: "EMAIL_OFF", permanent: true });
+    }
+    const settings = await getAlertEmail(db, site.userId);
+    if (!settings.enabled || settings.recipients.length === 0) {
+      throw new JobError("Alert emails are off in Settings", { code: "NOT_CONFIGURED", permanent: true });
+    }
+    const delivery = job.payload as AlertDelivery | null;
+    if (!Array.isArray(delivery?.fires) || delivery.fires.length === 0) {
+      throw new JobError("The email has no alerts", { code: "EMPTY", permanent: true });
+    }
+    if (delivery.fires.some((f) => typeof f?.message !== "string" || typeof f?.siteId !== "string")) {
+      throw new JobError("The email has a malformed alert", { code: "EMPTY", permanent: true });
+    }
+    const result = await sendEmail(alertEmail(settings.recipients, delivery));
+    if (!result.ok) throw new JobError(result.error, { code: "SMTP", permanent: !result.retryable });
+    return { recipients: settings.recipients.length, alerts: delivery.fires.length };
+  },
+};
+
 export const BUILT_IN_JOB_HANDLERS: readonly JobHandler[] = [
   crawlHandler,
   vitalsHandler,
@@ -271,6 +327,7 @@ export const BUILT_IN_JOB_HANDLERS: readonly JobHandler[] = [
   bingSyncHandler,
   alertsEvaluateHandler,
   alertWebhookHandler,
+  alertEmailHandler,
 ];
 
 for (const handler of BUILT_IN_JOB_HANDLERS) {

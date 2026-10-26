@@ -198,12 +198,14 @@ export function formatCrawlIssues(result: {
   bySeverity: Record<string, number>;
   /** Absent from instances that predate noindex handling (#105). */
   noindexPages?: number;
+  /** Set when most fetched pages are noindex; absent from instances before 0.3.5. */
+  noindexWarning?: { message: string } | null;
   issues: { severity: string; type: string; url: string; message: string }[];
 }): string {
-  const { crawl, total, bySeverity, noindexPages, issues } = result;
-  const noindex = noindexPages
-    ? `${num(noindexPages)} noindex pages crawled but not scored (no issues, not in the health score)\n`
-    : "";
+  const { crawl, total, bySeverity, noindexPages, noindexWarning, issues } = result;
+  const noindex =
+    (noindexWarning?.message ? `WARNING: ${noindexWarning.message} The health score leaves them out.\n` : "") +
+    (noindexPages ? `${num(noindexPages)} noindex pages crawled but not scored (no issues, not in the health score)\n` : "");
   const head =
     `Crawl ${crawl.id} (${crawl.status}, finished ${minute(crawl.finishedAt)}, health ${crawl.healthScore ?? "-"}/100)\n` +
     `${num(total)} issues: ${num(bySeverity.CRITICAL ?? 0)} critical, ${num(bySeverity.WARNING ?? 0)} warning, ${num(bySeverity.INFO ?? 0)} info\n` +

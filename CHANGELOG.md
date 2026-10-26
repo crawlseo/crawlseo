@@ -15,8 +15,32 @@ Notable changes per release. Releases before 0.3.3 are described on the
   followed. Directives for other crawlers are ignored. A broken page is still
   reported as broken.
 
+- Alerts are also checked after each crawl, so crawl alerts (low health, most
+  pages noindex) fire without waiting for the next sync.
+- README: the tagline says "Free and open source (MIT)." and the footer
+  "Self-hosted SEO tools should be free and open source. Your data stays on
+  your server."
+
 ### Added
 
+- **Email alerts through your own SMTP server** (CRAW-58). Set `SMTP_HOST`,
+  `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM`,
+  and each user can turn on **Settings > Email alerts** with up to 5
+  addresses and send a test. The same alerts that reach the webhook are
+  emailed when they fire, in plain text and simple HTML with no tracking and
+  no links except to your instance. Sending is best effort: a failure is
+  retried, shown in Settings and never blocks a crawl, sync or alert
+  evaluation. The SMTP login stays in the environment and is never stored,
+  returned, shown or logged. `ALERT_EMAILS_ENABLED=false` turns email off for
+  the instance. See [Alert emails](README.md#alert-emails).
+- **A warning when most pages are noindex** (#106). When at least 80% of a
+  crawl's fetched (2xx) pages are noindex, the crawl page and the site
+  overview say "<n> of <m> pages are noindex. If that is not intended, search
+  engines will drop them." with a link to those pages, so a score of 100 with
+  no issues no longer looks healthy. A new alert, **most pages are noindex**
+  (`NOINDEX_SITEWIDE`), sends the same to the webhook and email. `/api/v1`
+  crawl issues return it as `noindexWarning` (null otherwise), and the
+  `get_crawl_issues` MCP tool prints it.
 - The crawl page shows how many noindex pages a crawl found, and the crawled
   pages table marks them and can be filtered to them. `/api/v1` crawl issues
   and the `get_crawl_issues` MCP tool return the same count (`noindexPages`).
@@ -26,6 +50,13 @@ Notable changes per release. Releases before 0.3.3 are described on the
 - A migration adds `noindexSource` and `xRobotsTag` to the `AuditPage` table;
   it runs when the container starts. Crawls from before the upgrade keep
   their score; the next crawl applies the new rule.
+- A migration adds `alertEmailTo` and `alertEmailEnabled` to the
+  `UserSettings` table and the `NOINDEX_SITEWIDE` alert type. Sites that
+  already have alerts get the new alert, on, at their next alert evaluation
+  or when the Alerts page is opened.
+- Email stays off until the operator sets `SMTP_HOST` and `SMTP_FROM` and a
+  user turns it on in Settings. The only new outbound host is the SMTP
+  server you set yourself.
 
 ## 0.3.4
 

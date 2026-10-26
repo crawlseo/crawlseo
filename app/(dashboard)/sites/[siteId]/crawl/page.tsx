@@ -7,7 +7,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { CrawlButton } from "@/components/sites/action-buttons";
 import { CrawlStatusPoller } from "@/components/sites/crawl-status-poller";
 import { CrawlFailedNotice } from "@/components/sites/crawl-failed-notice";
-import { CrawledPagesTable } from "@/components/sites/crawled-pages-table";
+import { CrawledPagesTable, type IndexFilter } from "@/components/sites/crawled-pages-table";
+import { NoindexWarningNotice } from "@/components/sites/noindex-warning";
+import { getNoindexWarning } from "@/lib/crawler/noindex-warning";
 import { RobotsPanel } from "@/components/sites/robots-panel";
 import { cn } from "@/lib/utils";
 import { formatDay } from "@/lib/format";
@@ -19,11 +21,15 @@ const ISSUE_ROWS = 200;
 
 interface Props {
   params: Promise<{ siteId: string }>;
+  searchParams?: Promise<{ pages?: string | string[] }>;
 }
 
-export default async function CrawlPage({ params }: Props) {
+export default async function CrawlPage({ params, searchParams }: Props) {
   const session = await auth();
   const { siteId } = await params;
+  // ?pages=noindex opens the Crawled pages table on its noindex filter.
+  const pagesParam = (await searchParams)?.pages;
+  const initialFilter: IndexFilter = pagesParam === "noindex" || pagesParam === "indexable" ? pagesParam : "all";
 
   const site = await db.site.findUnique({
     where: { id: siteId },
@@ -54,7 +60,7 @@ export default async function CrawlPage({ params }: Props) {
   // Page counts come from the database over every stored page, and the table
   // gets every row (a crawl stores at most 2000), so no count depends on a
   // capped list (#56).
-  const [pageStats, auditPages, robotsReport] = latest
+  const [pageStats, auditPages, robotsReport, noindexWarning] = latest
     ? await Promise.all([
         getCrawlPageStats(db, latest.id),
         db.auditPage.findMany({
@@ -63,8 +69,9 @@ export default async function CrawlPage({ params }: Props) {
           select: crawledPageColumns,
         }),
         getCrawlRobotsReport(db, latest.id),
+        getNoindexWarning(db, latest.id),
       ])
-    : [{ pages: 0, avgContentScore: null, orphans: 0, noindex: 0 }, [], null];
+    : [{ pages: 0, avgContentScore: null, orphans: 0, noindex: 0 }, [], null, null];
   const { avgContentScore, orphans: orphanCount, noindex: noindexCount } = pageStats;
 
   const crawledAt = latest?.finishedAt ? formatDay(latest.finishedAt, { time: true }) : null;
@@ -95,6 +102,9 @@ export default async function CrawlPage({ params }: Props) {
         />
       ) : (
         <div className="flex flex-col gap-5">
+          {noindexWarning && (
+            <NoindexWarningNotice warning={noindexWarning} href={`/sites/${siteId}/crawl?pages=noindex#crawled-pages`} />
+          )}
           <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
             <div className="panel col-span-2 flex flex-col gap-2.5 px-5 py-[18px] lg:col-span-1">
               <span className="text-[13px] leading-5 text-muted-foreground">Health</span>
@@ -105,6 +115,11 @@ export default async function CrawlPage({ params }: Props) {
               <span className="mono-label text-[11px] leading-[1.5] text-muted-foreground">
                 Latest completed crawl · content avg {avgContentScore ?? "n/a"}/100
               </span>
+              {noindexWarning && (
+                <span className="text-[12px] leading-[18px] text-warning">
+                  Not a healthy result: most pages are noindex and not scored
+                </span>
+              )}
             </div>
             <CountCard label="Critical" n={bySeverity.CRITICAL} note="Blocks indexing or users" tone="danger" />
             <CountCard label="Warning" n={bySeverity.WARNING} note="Hurts ranking" tone="warning" />
@@ -209,7 +224,8 @@ export default async function CrawlPage({ params }: Props) {
                   {plural(pageStats.pages, "page")}, each stored with full metadata
                 </p>
               </div>
-              <CrawledPagesTable rows={auditPages} />
+              {/* Keyed: the warning's link is a soft navigation to this page, which must reset the filter. */}
+              <CrawledPagesTable key={initialFilter} rows={auditPages} initialFilter={initialFilter} />
             </section>
           )}
         </div>

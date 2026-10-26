@@ -16,6 +16,8 @@ import {
 import { CsvExportButton } from "@/components/ui/csv-export-button";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { countVisibleIssues } from "@/lib/crawler/issue-filter";
+import { getNoindexWarning } from "@/lib/crawler/noindex-warning";
+import { NoindexWarningNotice } from "@/components/sites/noindex-warning";
 import { getCrawlActivity } from "@/lib/jobs/site-jobs";
 import { cn } from "@/lib/utils";
 
@@ -48,12 +50,13 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   });
   // Counted live with the Crawl / Audit page's rules, so both screens agree,
   // also for crawls stored before issuesFound left out the internal rows.
-  const [latestIssueCount, latestPageCount] = latestCrawl
+  const [latestIssueCount, latestPageCount, noindexWarning] = latestCrawl
     ? await Promise.all([
         countVisibleIssues(db, latestCrawl.id),
         db.auditPage.count({ where: { crawlId: latestCrawl.id } }),
+        getNoindexWarning(db, latestCrawl.id),
       ])
-    : [0, 0];
+    : [0, 0, null];
   // A crawl in progress, or the failure of the last attempt since latestCrawl (#57).
   const crawlActivity = await getCrawlActivity(db, siteId, latestCrawl?.finishedAt ?? null);
 
@@ -85,6 +88,12 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
         }
       />
 
+      {noindexWarning && (
+        <div className="mb-[22px]">
+          <NoindexWarningNotice warning={noindexWarning} href={`/sites/${siteId}/crawl?pages=noindex#crawled-pages`} />
+        </div>
+      )}
+
       {!hasData ? (
         <EmptyState
           illustration="empty-gsc-wait"
@@ -103,7 +112,14 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
               <h2 className="text-[15px] leading-5 font-semibold">Site checks</h2>
               <CheckRow
                 label="Crawl health"
-                value={latestCrawl?.healthScore != null ? `${latestCrawl.healthScore}/100` : "n/a"}
+                value={
+                  noindexWarning
+                    ? "Most pages noindex"
+                    : latestCrawl?.healthScore != null
+                      ? `${latestCrawl.healthScore}/100`
+                      : "n/a"
+                }
+                tone={noindexWarning ? "warning" : undefined}
               />
               <CheckRow
                 label="Crawl"
@@ -161,7 +177,7 @@ export default async function SiteOverviewPage({ params }: SitePageProps) {
   );
 }
 
-function CheckRow({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
+function CheckRow({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[13px] leading-5">
       <span className="text-text">{label}</span>
@@ -169,7 +185,7 @@ function CheckRow({ label, value, tone }: { label: string; value: string; tone?:
       <span
         className={cn(
           /^[\d.,/%]+$/.test(value) ? "font-data" : "mono-label text-[12px]",
-          tone === "danger" ? "text-danger" : "text-text-strong"
+          tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-text-strong"
         )}
       >
         {value}

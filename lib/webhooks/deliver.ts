@@ -36,8 +36,8 @@ export function signWebhook(secret: string, timestamp: number, body: string): st
   return `sha256=${createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex")}`;
 }
 
-/** The public base URL of the app, for links in the payload, or null. */
-function appUrl(): string | null {
+/** The public base URL of the app (NEXTAUTH_URL), for links in the payload and in alert emails, or null. */
+export function appUrl(): string | null {
   const raw = process.env.NEXTAUTH_URL?.trim();
   if (!raw) return null;
   try {

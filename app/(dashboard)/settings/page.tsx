@@ -10,6 +10,8 @@ import { ConnectionsSection } from "@/components/settings/connections-section";
 import { ScheduleSection } from "@/components/settings/schedule-section";
 import { McpSection } from "@/components/settings/mcp-section";
 import { WebhookSection } from "@/components/settings/webhook-section";
+import { EmailSection } from "@/components/settings/email-section";
+import { emailStatus } from "@/lib/email/status";
 import { instanceOrigin } from "@/lib/instance-origin";
 import { mcpStatus } from "@/lib/mcp-settings";
 import { getScheduleSettings, scheduleServerInfo } from "@/lib/user-settings";
@@ -54,10 +56,11 @@ export default async function SettingsPage({ searchParams }: Props) {
   if (!user) redirect("/login");
 
   const connected = hasToken(user.googleTokens);
-  const [keys, schedule, webhook, mcp] = await Promise.all([
+  const [keys, schedule, webhook, email, mcp] = await Promise.all([
     apiKeyStatus(db, session.user.id),
     getScheduleSettings(db, session.user.id),
     webhookStatus(db, session.user.id),
+    emailStatus(db, session.user.id),
     mcpStatus(db, session.user.id),
   ]);
   const mcpEndpoint = `${await instanceOrigin()}/mcp`;
@@ -131,6 +134,15 @@ export default async function SettingsPage({ searchParams }: Props) {
             description="Send fired alerts to your own endpoint, such as n8n, Zapier or a script of yours."
           />
           <WebhookSection initial={webhook} />
+        </section>
+
+        <section id="email" aria-labelledby="email-heading" className="scroll-mt-6">
+          <SectionHeading
+            id="email-heading"
+            title="Email alerts"
+            description="Email fired alerts through the SMTP server this instance is set up with."
+          />
+          <EmailSection initial={email} />
         </section>
 
         <section id="mcp" aria-labelledby="mcp-heading" className="scroll-mt-6">

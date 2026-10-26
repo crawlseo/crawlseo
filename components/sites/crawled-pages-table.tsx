@@ -78,9 +78,16 @@ export function paginate<T>(filtered: T[], total: number, pageIndex: number) {
   return { shown, current, pageCount, summary: `Showing ${shown.length} of ${of}${range}` };
 }
 
-export function CrawledPagesTable({ rows }: { rows: CrawledPageRowData[] }) {
+export function CrawledPagesTable({
+  rows,
+  initialFilter = "all",
+}: {
+  rows: CrawledPageRowData[];
+  /** From ?pages=noindex, the link in the site-wide noindex warning. */
+  initialFilter?: IndexFilter;
+}) {
   const [search, setSearch] = useState("");
-  const [indexFilter, setIndexFilter] = useState<IndexFilter>("all");
+  const [indexFilter, setIndexFilter] = useState<IndexFilter>(initialFilter);
   const [pageIndex, setPageIndex] = useState(0);
   const { sort, toggle } = useTableSort({ key: "contentScore", dir: "desc" });
 

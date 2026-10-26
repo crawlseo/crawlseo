@@ -7,6 +7,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EvaluateAlertsButton } from "@/components/sites/evaluate-alerts-button";
 import { formatDay } from "@/lib/format";
 
+/** Names for types whose enum name does not read well. */
+const ALERT_LABELS: Record<string, string> = { NOINDEX_SITEWIDE: "most pages are noindex" };
+
 interface Props {
   params: Promise<{ siteId: string }>;
 }
@@ -34,12 +37,17 @@ export default async function AlertsPage({ params }: Props) {
         title="Alerts"
         description={
           <>
-            Rules for traffic drops, position changes, crawl health and vitals. They are checked after each GSC or Bing
-            sync and when you click Evaluate now. Fired alerts show here and go to your{" "}
+            Rules for traffic drops, position changes, crawl health, sites that are mostly noindex and vitals. They
+            are checked after each GSC or Bing sync, after each crawl and when you click Evaluate now. Fired alerts
+            show here and go to your{" "}
             <Link href="/settings#webhook" className="text-link">
               alert webhook
             </Link>{" "}
-            if you set one.
+            and{" "}
+            <Link href="/settings#email" className="text-link">
+              email
+            </Link>{" "}
+            if you set them up.
           </>
         }
         actions={<EvaluateAlertsButton />}
@@ -53,7 +61,7 @@ export default async function AlertsPage({ params }: Props) {
           >
             <div>
               <p className="mono-label text-[12px] text-text-strong">
-                {a.type.replaceAll("_", " ")}
+                {ALERT_LABELS[a.type] ?? a.type.replaceAll("_", " ")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {a.lastFired

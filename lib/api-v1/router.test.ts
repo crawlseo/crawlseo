@@ -236,6 +236,29 @@ describe("endpoints", () => {
     expect(critical.issues).toEqual([expect.objectContaining({ severity: "CRITICAL" })]);
   });
 
+  it("crawl issues: noindexWarning is null on a normal crawl and set when most fetched pages are noindex", async () => {
+    const normal = (await body(await get("/sites/site-a/crawls/latest/issues"))) as unknown as { noindexWarning: unknown };
+    expect(normal.noindexWarning).toBeNull();
+
+    await db.auditPage.createMany({
+      data: [
+        ...Array.from({ length: 4 }, (_, i) => ({ crawlId: "crawl-b1", url: `https://b.example/${i}`, statusCode: 200, indexable: false })),
+        { crawlId: "crawl-b1", url: "https://b.example/ok", statusCode: 200, indexable: true },
+        { crawlId: "crawl-b1", url: "https://b.example/gone", statusCode: 404, indexable: true },
+      ],
+    });
+    const r = (await body(await get("/sites/site-b/crawls/latest/issues", f.keyB))) as unknown as {
+      noindexPages: number;
+      noindexWarning: { noindexPages: number; fetchedPages: number; message: string };
+    };
+    expect(r.noindexWarning).toEqual({
+      noindexPages: 4,
+      fetchedPages: 5,
+      message: "4 of 5 pages are noindex. If that is not intended, search engines will drop them.",
+    });
+    expect(r.noindexPages).toBe(4);
+  });
+
   it("vitals filter by device", async () => {
     const r = (await body(await get("/sites/site-a/vitals?device=desktop"))) as unknown as { reports: { device: string }[] };
     expect(r.reports.map((v) => v.device)).toEqual(["DESKTOP"]);
