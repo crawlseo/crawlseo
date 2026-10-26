@@ -10,6 +10,9 @@ import { z } from "zod";
 
 import { ApiRequestError, type ApiClient } from "./api-client";
 import {
+  formatBingKeywords,
+  formatBingPages,
+  formatBingTraffic,
   formatCrawlIssues,
   formatCrawls,
   formatKeywords,
@@ -21,6 +24,7 @@ import {
 } from "./formatters";
 
 type Period = { startDate: string; endDate: string };
+type BingPeriod = Period & { bingSite: string };
 type SearchRow = { clicks: number; impressions: number; position: number; ctr: number };
 type Crawl = Parameters<typeof formatCrawls>[0][number];
 
@@ -64,6 +68,9 @@ export const TOOL_NAMES = [
   "get_crawl_issues",
   "get_vitals",
   "get_opportunities",
+  "get_bing_traffic",
+  "get_bing_keywords",
+  "get_bing_pages",
 ] as const;
 
 export function registerTools(server: McpServer, api: ApiClient): void {
@@ -71,20 +78,29 @@ export function registerTools(server: McpServer, api: ApiClient): void {
     "list_sites",
     {
       title: "List sites",
-      description: "List your monitored sites with their IDs, domains and Search Console properties.",
+      description: "List your monitored sites with their IDs, domains, Search Console and Bing Webmaster properties.",
       inputSchema: {},
       annotations: READ_ONLY,
     },
     () =>
       run(async () => {
         const { sites } = await api.get<{
-          sites: { id: string; domain: string; gscProperty: string | null; createdAt: string; crawls: number; vitalsReports: number }[];
+          sites: {
+            id: string;
+            domain: string;
+            gscProperty: string | null;
+            bingSite?: string | null;
+            createdAt: string;
+            crawls: number;
+            vitalsReports: number;
+          }[];
         }>("/sites");
         if (sites.length === 0) return "No sites found.";
         const lines = sites.map(
           (s) =>
             `${s.domain}  (id: ${s.id})` +
-            `\n  GSC: ${s.gscProperty ?? "not connected"}  |  Crawls: ${s.crawls}  |  Vitals reports: ${s.vitalsReports}` +
+            `\n  GSC: ${s.gscProperty ?? "not connected"}  |  Bing: ${s.bingSite ?? "not connected"}` +
+            `\n  Crawls: ${s.crawls}  |  Vitals reports: ${s.vitalsReports}` +
             `\n  Added: ${s.createdAt.slice(0, 10)}`
         );
         return `${sites.length} site(s):\n\n${lines.join("\n\n")}`;
@@ -254,6 +270,71 @@ export function registerTools(server: McpServer, api: ApiClient): void {
       run(async () => {
         const r = await api.get<Parameters<typeof formatOpportunities>[0]>(`/sites/${encodeURIComponent(siteId)}/opportunities`);
         return formatOpportunities(r);
+      })
+  );
+
+  server.registerTool(
+    "get_bing_traffic",
+    {
+      title: "Bing daily traffic",
+      description:
+        "Daily Bing Webmaster Tools data for a site: clicks, impressions, pages crawled, and Bing's count of indexed pages and crawl errors on each day. For sites with a Bing property connected. Default period: the last 90 days.",
+      inputSchema: { siteId, ...periodShape },
+      annotations: READ_ONLY,
+    },
+    ({ siteId, ...p }) =>
+      run(async () => {
+        const r = await api.get<BingPeriod & { days: Parameters<typeof formatBingTraffic>[0] }>(
+          `/sites/${encodeURIComponent(siteId)}/bing/traffic`,
+          periodQuery(p)
+        );
+        return formatBingTraffic(r.days, r);
+      })
+  );
+
+  server.registerTool(
+    "get_bing_keywords",
+    {
+      title: "Bing keywords",
+      description:
+        "Top Bing search queries for a site, by clicks: clicks, impressions and average position, summed over the weeks that end in the period (Bing reports them by week). Bing often lists queries Search Console hides. Default period: the last 28 days.",
+      inputSchema: {
+        siteId,
+        ...periodShape,
+        limit: z.number().int().min(1).max(1000).optional().default(25).describe("Most keywords to return (default 25)"),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ siteId, limit, ...p }) =>
+      run(async () => {
+        const r = await api.get<BingPeriod & { keywords: Parameters<typeof formatBingKeywords>[0] }>(
+          `/sites/${encodeURIComponent(siteId)}/bing/keywords`,
+          { ...periodQuery(p), limit }
+        );
+        return formatBingKeywords(r.keywords, r);
+      })
+  );
+
+  server.registerTool(
+    "get_bing_pages",
+    {
+      title: "Bing pages",
+      description:
+        "Top pages of a site in Bing, by clicks: clicks, impressions and average position, summed over the weeks that end in the period. Default period: the last 28 days.",
+      inputSchema: {
+        siteId,
+        ...periodShape,
+        limit: z.number().int().min(1).max(1000).optional().default(25).describe("Most pages to return (default 25)"),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ siteId, limit, ...p }) =>
+      run(async () => {
+        const r = await api.get<BingPeriod & { pages: Parameters<typeof formatBingPages>[0] }>(
+          `/sites/${encodeURIComponent(siteId)}/bing/pages`,
+          { ...periodQuery(p), limit }
+        );
+        return formatBingPages(r.pages, r);
       })
   );
 }

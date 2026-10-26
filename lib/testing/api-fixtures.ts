@@ -3,8 +3,8 @@ import { createAccessKey } from "@/lib/access-keys";
 
 /*
  * Two users with a site each, for the /api/v1 and MCP tests: Search Console
- * rows over the last days, a completed and a stale running crawl with
- * issues, and vitals. Only user A's data should ever reach user A's key.
+ * and Bing rows over the last days, a completed and a stale running crawl
+ * with issues, and vitals. Only user A's data should ever reach user A's key.
  * Both have MCP turned on; a third user with a key has not.
  */
 
@@ -23,8 +23,8 @@ export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
   await db.user.create({ data: { id: "user-b", email: "b@quilltab.app" } });
   await db.user.create({ data: { id: "user-off", email: "off@quilltab.app" } });
   await db.userSettings.createMany({ data: [{ userId: "user-a", mcpEnabled: true }, { userId: "user-b", mcpEnabled: true }] });
-  await db.site.create({ data: { id: "site-a", userId: "user-a", domain: "quilltab.app", gscProperty: "sc-domain:quilltab.app" } });
-  await db.site.create({ data: { id: "site-b", userId: "user-b", domain: "secret-b.com", gscProperty: "sc-domain:secret-b.com" } });
+  await db.site.create({ data: { id: "site-a", userId: "user-a", domain: "quilltab.app", gscProperty: "sc-domain:quilltab.app", bingSite: "https://quilltab.app/" } });
+  await db.site.create({ data: { id: "site-b", userId: "user-b", domain: "secret-b.com", gscProperty: "sc-domain:secret-b.com", bingSite: "https://secret-b.com/" } });
 
   for (const [siteId, query, url] of [
     ["site-a", "quilltab notes", "https://quilltab.app/"],
@@ -37,6 +37,26 @@ export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
   }
   // An older query, only inside a date range that goes back far enough.
   await db.keyword.create({ data: { siteId: "site-a", query: "old query", date: daysAgo(100), clicks: 7, impressions: 70, ctr: 0.1, position: 12 } });
+
+  // Bing: daily rows, and weekly query and page rows. One day and one query
+  // where Bing left the counters out (null), and an old week outside 28 days.
+  for (const siteId of ["site-a", "site-b"]) {
+    for (let i = 1; i <= 10; i++) {
+      await db.bingDaily.create({ data: { siteId, date: daysAgo(i), clicks: 2, impressions: 20, crawledPages: 5, inIndex: 40, crawlErrors: 1 } });
+    }
+  }
+  await db.bingDaily.create({ data: { siteId: "site-a", date: daysAgo(11), crawledPages: 3 } });
+  await db.bingSearchWeekly.createMany({
+    data: [
+      { siteId: "site-a", kind: "query", key: "quilltab bing", weekEnding: daysAgo(3), clicks: 4, impressions: 100, avgImpressionPosition: 2 },
+      { siteId: "site-a", kind: "query", key: "quilltab bing", weekEnding: daysAgo(10), clicks: 2, impressions: 300, avgImpressionPosition: 6 },
+      { siteId: "site-a", kind: "query", key: "unmeasured query", weekEnding: daysAgo(3) },
+      { siteId: "site-a", kind: "query", key: "old bing query", weekEnding: daysAgo(100), clicks: 9, impressions: 90, avgImpressionPosition: 3 },
+      { siteId: "site-a", kind: "page", key: "https://quilltab.app/", weekEnding: daysAgo(3), clicks: 3, impressions: 50, avgImpressionPosition: 4 },
+      { siteId: "site-b", kind: "query", key: "secret b bing", weekEnding: daysAgo(3), clicks: 99, impressions: 999, avgImpressionPosition: 1 },
+      { siteId: "site-b", kind: "page", key: "https://secret-b.com/private", weekEnding: daysAgo(3), clicks: 99, impressions: 999, avgImpressionPosition: 1 },
+    ],
+  });
 
   await db.crawl.create({
     data: { id: "crawl-a1", siteId: "site-a", status: "COMPLETED", startedAt: daysAgo(3), finishedAt: daysAgo(3), pagesFound: 12, issuesFound: 2, healthScore: 88 },
@@ -80,6 +100,8 @@ export async function snapshotUserData(db: PrismaClient): Promise<string> {
     db.crawl.findMany({ orderBy: { id: "asc" } }),
     db.crawlIssue.findMany({ orderBy: { id: "asc" } }),
     db.vitalsReport.findMany({ orderBy: { id: "asc" } }),
+    db.bingDaily.findMany({ orderBy: { id: "asc" } }),
+    db.bingSearchWeekly.findMany({ orderBy: { id: "asc" } }),
     db.job.findMany({ orderBy: { id: "asc" } }),
     db.alert.findMany({ orderBy: { id: "asc" } }),
     db.userSettings.findMany({ orderBy: { userId: "asc" } }),

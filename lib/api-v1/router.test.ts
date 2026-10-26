@@ -112,6 +112,9 @@ describe("read-only", () => {
       "/sites/site-a/crawls/crawl-a2/issues",
       "/sites/site-a/vitals",
       "/sites/site-a/opportunities",
+      "/sites/site-a/bing/traffic",
+      "/sites/site-a/bing/keywords",
+      "/sites/site-a/bing/pages",
     ]) {
       expect((await get(path)).status, path).toBe(200);
     }
@@ -138,6 +141,9 @@ describe("user isolation", () => {
       "/sites/site-b/crawls/crawl-b1/issues",
       "/sites/site-b/vitals",
       "/sites/site-b/opportunities",
+      "/sites/site-b/bing/traffic",
+      "/sites/site-b/bing/keywords",
+      "/sites/site-b/bing/pages",
     ]) {
       const res = await get(path);
       expect(res.status, path).toBe(404);
@@ -275,6 +281,71 @@ describe("endpoints", () => {
     for (const path of ["/", "/users", "/sites/site-a/backlinks", "/sites/site-a/crawls/crawl-a1", "/sites/%E0%A4%A/keywords"]) {
       expect((await get(path)).status, path).toBe(404);
     }
+  });
+});
+
+describe("Bing", () => {
+  type BingRow = { clicks: number | null; impressions: number | null; position: number | null; weeks: number };
+
+  it("sites list the Bing property", async () => {
+    const { sites } = (await body(await get("/sites"))) as unknown as { sites: { bingSite: string | null }[] };
+    expect(sites[0].bingSite).toBe("https://quilltab.app/");
+  });
+
+  it("keywords: weekly rows summed per query, position weighted by impressions, unreported totals stay null", async () => {
+    const r = (await body(await get("/sites/site-a/bing/keywords"))) as unknown as {
+      bingSite: string;
+      keywords: (BingRow & { query: string })[];
+    };
+    expect(r.bingSite).toBe("https://quilltab.app/");
+    expect(r.keywords).toEqual([
+      { query: "quilltab bing", clicks: 6, impressions: 400, position: 5, weeks: 2 },
+      { query: "unmeasured query", clicks: null, impressions: null, position: null, weeks: 1 },
+    ]);
+  });
+
+  it("keywords: a week counts when it ends inside the period, and limit applies after sorting", async () => {
+    const start = daysAgo(120).toISOString().slice(0, 10);
+    const end = daysAgo(0).toISOString().slice(0, 10);
+    const all = (await body(await get(`/sites/site-a/bing/keywords?startDate=${start}&endDate=${end}`))) as unknown as {
+      keywords: { query: string }[];
+    };
+    expect(all.keywords.map((k) => k.query)).toEqual(["old bing query", "quilltab bing", "unmeasured query"]);
+    const top = (await body(await get("/sites/site-a/bing/keywords?days=5&limit=1"))) as unknown as { keywords: BingRow[] };
+    expect(top.keywords).toEqual([{ query: "quilltab bing", clicks: 4, impressions: 100, position: 2, weeks: 1 }]);
+  });
+
+  it("pages are summed the same way", async () => {
+    const r = (await body(await get("/sites/site-a/bing/pages"))) as unknown as { pages: unknown[] };
+    expect(r.pages).toEqual([{ url: "https://quilltab.app/", clicks: 3, impressions: 50, position: 4, weeks: 1 }]);
+  });
+
+  it("traffic: one row per day, oldest first, counters Bing left out are null", async () => {
+    const r = (await body(await get("/sites/site-a/bing/traffic?days=12"))) as unknown as {
+      days: { date: string; clicks: number | null; crawledPages: number | null; inIndex: number | null }[];
+    };
+    expect(r.days).toHaveLength(11);
+    expect(r.days[0]).toMatchObject({ date: daysAgo(11).toISOString().slice(0, 10), clicks: null, crawledPages: 3, inIndex: null });
+    expect(r.days[10]).toMatchObject({ date: daysAgo(1).toISOString().slice(0, 10), clicks: 2, crawledPages: 5, inIndex: 40 });
+    expect(r.days.map((d) => d.date)).toEqual([...r.days.map((d) => d.date)].sort());
+  });
+
+  it("a site with no Bing property answers 404 and says so", async () => {
+    await db.site.update({ where: { id: "site-a" }, data: { bingSite: null } });
+    try {
+      for (const path of ["/sites/site-a/bing/traffic", "/sites/site-a/bing/keywords", "/sites/site-a/bing/pages"]) {
+        const res = await get(path);
+        expect(res.status, path).toBe(404);
+        expect((await body(res)).error).toBe("This site has no Bing Webmaster property connected");
+      }
+    } finally {
+      await db.site.update({ where: { id: "site-a" }, data: { bingSite: "https://quilltab.app/" } });
+    }
+  });
+
+  it("unknown Bing paths are 404", async () => {
+    expect((await get("/sites/site-a/bing")).status).toBe(404);
+    expect((await get("/sites/site-a/bing/backlinks")).status).toBe(404);
   });
 });
 

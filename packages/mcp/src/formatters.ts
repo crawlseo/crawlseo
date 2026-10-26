@@ -264,3 +264,70 @@ export function formatOpportunities(opportunities: Opportunities): string {
 
   return lines.join("\n");
 }
+
+// Bing Webmaster Tools. Counters Bing did not report are null and read "-".
+
+type BingDay = {
+  date: string;
+  clicks: number | null;
+  impressions: number | null;
+  crawledPages: number | null;
+  inIndex: number | null;
+  crawlErrors: number | null;
+};
+
+type BingSearchRow = { clicks: number | null; impressions: number | null; position: number | null; weeks: number };
+
+type BingPeriod = Period & { bingSite: string };
+
+function maybe(n: number | null): string {
+  return n === null ? "-" : num(n);
+}
+
+function sum(values: (number | null)[]): number | null {
+  const known = values.filter((v): v is number => v !== null);
+  return known.length ? known.reduce((s, v) => s + v, 0) : null;
+}
+
+export function formatBingTraffic(days: BingDay[], p: BingPeriod): string {
+  if (days.length === 0) return `No Bing data found for ${period(p)} (${p.bingSite}).`;
+
+  const headers = ["Date", "Clicks", "Impressions", "Crawled", "In index", "Crawl errors"];
+  const rows = days.map((d) => [d.date, maybe(d.clicks), maybe(d.impressions), maybe(d.crawledPages), maybe(d.inIndex), maybe(d.crawlErrors)]);
+
+  return (
+    `Bing daily traffic and crawling, ${p.bingSite}, ${period(p)} (${days.length} days with data):\n` +
+    `Total: ${maybe(sum(days.map((d) => d.clicks)))} clicks, ${maybe(sum(days.map((d) => d.impressions)))} impressions, ` +
+    `${maybe(sum(days.map((d) => d.crawledPages)))} pages crawled\n` +
+    `In index and crawl errors are Bing's count on that day, not a daily total.\n\n` +
+    formatTable(headers, rows)
+  );
+}
+
+function bingSearchTable(label: string, rows: (BingSearchRow & { name: string })[], p: BingPeriod): string {
+  if (rows.length === 0) return `No Bing ${label} found for ${period(p)} (${p.bingSite}).`;
+
+  const headers = [label === "keywords" ? "Keyword" : "URL", "Clicks", "Impressions", "Position", "Weeks"];
+  const body = rows.map((r) => [
+    r.name.length > 60 ? r.name.slice(0, 57) + "..." : r.name,
+    maybe(r.clicks),
+    maybe(r.impressions),
+    r.position === null ? "-" : pos(r.position),
+    String(r.weeks),
+  ]);
+
+  return (
+    `Top ${rows.length} Bing ${label}, ${p.bingSite}, weeks ending ${period(p)}:\n` +
+    `Bing reports queries and pages by week; position is weighted by impressions.\n\n` +
+    formatTable(headers, body)
+  );
+}
+
+export function formatBingKeywords(keywords: (BingSearchRow & { query: string })[], p: BingPeriod): string {
+  return bingSearchTable("keywords", keywords.map((k) => ({ ...k, name: k.query })), p);
+}
+
+export function formatBingPages(pages: (BingSearchRow & { url: string })[], p: BingPeriod): string {
+  return bingSearchTable("pages", pages.map((r) => ({ ...r, name: r.url })), p);
+}
+

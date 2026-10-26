@@ -58,7 +58,7 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
 }
 
 const CALLS: [string, Record<string, unknown>, RegExp][] = [
-  ["list_sites", {}, /quilltab\.app\s+\(id: site-a\)/],
+  ["list_sites", {}, /quilltab\.app\s+\(id: site-a\)[\s\S]*Bing: https:\/\/quilltab\.app\//],
   ["get_site_overview", { siteId: "site-a" }, /Site: quilltab\.app[\s\S]*Clicks:[\s\S]*Status: FAILED/],
   ["get_keywords", { siteId: "site-a" }, /quilltab notes/],
   ["get_keywords", { siteId: "site-a", startDate: "2020-01-01", endDate: "2020-01-31" }, /No keywords found for 2020-01-01 to 2020-01-31/],
@@ -69,6 +69,9 @@ const CALLS: [string, Record<string, unknown>, RegExp][] = [
   ["get_crawl_issues", { siteId: "site-a", crawlId: "crawl-a1", severity: "CRITICAL" }, /BROKEN_LINK/],
   ["get_vitals", { siteId: "site-a", device: "MOBILE" }, /MOBILE/],
   ["get_opportunities", { siteId: "site-a" }, /SEO Opportunities Summary/],
+  ["get_bing_traffic", { siteId: "site-a", days: 12 }, /Total: 20 clicks, 200 impressions, 53 pages crawled[\s\S]*\| -/],
+  ["get_bing_keywords", { siteId: "site-a" }, /quilltab bing\s+\| 6\s+\| 400\s+\| 5\.0\s+\| 2/],
+  ["get_bing_pages", { siteId: "site-a" }, /https:\/\/quilltab\.app\/\s+\| 3/],
 ];
 
 describe("MCP tools", () => {

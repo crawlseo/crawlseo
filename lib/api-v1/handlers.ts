@@ -6,6 +6,7 @@ import { getNoindexWarning } from "@/lib/crawler/noindex-warning";
 import { INTERRUPTED_MESSAGE, staleCrawlWhere } from "@/lib/crawler/lifecycle";
 import { getDailyTraffic, getSitePeriodMetrics, getTopKeywords, getTopPages } from "@/lib/seo-metrics";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
+import { gscDate } from "@/lib/google/gsc-date";
 import { ApiError, enumParam, intParam, periodParam } from "./params";
 
 /*
@@ -66,6 +67,7 @@ export async function listSites(userId: string) {
       id: true,
       domain: true,
       gscProperty: true,
+      bingSite: true,
       createdAt: true,
       _count: { select: { crawls: true, vitals: true } },
     },
@@ -183,4 +185,77 @@ export async function vitals(site: Site, params: URLSearchParams) {
 
 export async function opportunities(site: Site) {
   return { site, ...(await getAllOpportunities(site.id)) };
+}
+
+/** The site's Bing Webmaster property, or 404 when none is connected. */
+async function bingProperty(site: Site): Promise<string> {
+  const row = await db.site.findUnique({ where: { id: site.id }, select: { bingSite: true } });
+  if (!row?.bingSite) throw new ApiError(404, "This site has no Bing Webmaster property connected");
+  return row.bingSite;
+}
+
+/** Bing rows are stored by day the way Search Console rows are (gscDate). */
+function dayRange({ startDate, endDate }: { startDate: string; endDate: string }) {
+  return { gte: gscDate(startDate), lte: gscDate(endDate) };
+}
+
+/**
+ * Bing's daily rows. Only clicks, impressions and crawledPages count that day;
+ * inIndex, inLinks and the status-code columns are what Bing knew that day,
+ * so they are read per day, never summed. null means Bing did not report it.
+ */
+export async function bingTraffic(site: Site, params: URLSearchParams) {
+  const bingSite = await bingProperty(site);
+  const { startDate, endDate } = periodParam(params, 90);
+  const rows = await db.bingDaily.findMany({
+    where: { siteId: site.id, date: dayRange({ startDate, endDate }) },
+    orderBy: { date: "asc" },
+    omit: { id: true, siteId: true },
+  });
+  const days = rows.map(({ date, ...counts }) => ({ date: date.toISOString().slice(0, 10), ...counts }));
+  return { site, bingSite, startDate, endDate, days };
+}
+
+type BingSearchRow = { key: string; clicks: number | null; impressions: number | null; position: number | null; weeks: number };
+
+/**
+ * Bing's weekly query or page rows whose week ends inside the period, summed
+ * per query or page. position is weighted by impressions. A total Bing never
+ * reported stays null. Sorted by clicks, then impressions.
+ */
+async function bingSearch(site: Site, params: URLSearchParams, kind: "query" | "page") {
+  const bingSite = await bingProperty(site);
+  const { startDate, endDate } = periodParam(params, 28);
+  const limit = intParam(params, "limit", 50, 1, 1000);
+  const rows = await db.bingSearchWeekly.findMany({
+    where: { siteId: site.id, kind, weekEnding: dayRange({ startDate, endDate }) },
+    select: { key: true, clicks: true, impressions: true, avgImpressionPosition: true },
+  });
+  const byKey = new Map<string, BingSearchRow & { weighted: number; weight: number }>();
+  for (const r of rows) {
+    const t = byKey.get(r.key) ?? { key: r.key, clicks: null, impressions: null, position: null, weeks: 0, weighted: 0, weight: 0 };
+    if (r.clicks !== null) t.clicks = (t.clicks ?? 0) + r.clicks;
+    if (r.impressions !== null) t.impressions = (t.impressions ?? 0) + r.impressions;
+    if (r.avgImpressionPosition !== null && r.impressions) {
+      t.weighted += r.avgImpressionPosition * r.impressions;
+      t.weight += r.impressions;
+    }
+    t.weeks++;
+    byKey.set(r.key, t);
+  }
+  const totals: BingSearchRow[] = [...byKey.values()]
+    .map(({ weighted, weight, ...t }) => ({ ...t, position: weight > 0 ? weighted / weight : null }))
+    .sort((a, b) => (b.clicks ?? -1) - (a.clicks ?? -1) || (b.impressions ?? -1) - (a.impressions ?? -1) || a.key.localeCompare(b.key))
+    .slice(0, limit);
+  return { site, bingSite, startDate, endDate, totals };
+}
+
+export async function bingKeywords(site: Site, params: URLSearchParams) {
+  const { totals, ...rest } = await bingSearch(site, params, "query");
+  return { ...rest, keywords: totals.map(({ key, ...t }) => ({ query: key, ...t })) };
+}
+
+export async function bingPages(site: Site, params: URLSearchParams) {
+  const { totals, ...rest } = await bingSearch(site, params, "page");
+  return { ...rest, pages: totals.map(({ key, ...t }) => ({ url: key, ...t })) };
 }
