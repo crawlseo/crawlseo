@@ -29,7 +29,13 @@ export async function evaluateAlertsForUser(
 
   const fires: AlertFire[] = [];
 
+  // Two rows of one type on one site (ensureDefaultAlerts racing itself) fire once.
+  const seen = new Set<string>();
+
   for (const alert of alerts) {
+    const key = `${alert.siteId}:${alert.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const config = (alert.config || {}) as {
       thresholdPct?: number;
       thresholdPositions?: number;

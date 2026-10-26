@@ -461,7 +461,7 @@ simple HTML, with no tracking pixel, no remote image and no link except to
 this instance (when `NEXTAUTH_URL` is set). An alert that keeps firing is
 emailed again at most once a day, as with webhooks. Sending is best effort
 and never holds up a crawl, a sync or an alert evaluation: a network error, a
-timeout (10 s) or a temporary SMTP answer (4xx) is retried after about 1 and
+timeout (10 s for each step: DNS, connect, greeting, each answer) or a temporary SMTP answer (4xx) is retried after about 1 and
 5 minutes (on Vercel within the request, then at the next cron run), any
 other failure ends it at once, and Settings shows the last
 email and its error. `ALERT_EMAILS_ENABLED=false` turns alert emails off for

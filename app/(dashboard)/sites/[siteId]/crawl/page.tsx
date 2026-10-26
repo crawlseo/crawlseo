@@ -224,7 +224,8 @@ export default async function CrawlPage({ params, searchParams }: Props) {
                   {plural(pageStats.pages, "page")}, each stored with full metadata
                 </p>
               </div>
-              <CrawledPagesTable rows={auditPages} initialFilter={initialFilter} />
+              {/* Keyed: the warning's link is a soft navigation to this page, which must reset the filter. */}
+              <CrawledPagesTable key={initialFilter} rows={auditPages} initialFilter={initialFilter} />
             </section>
           )}
         </div>

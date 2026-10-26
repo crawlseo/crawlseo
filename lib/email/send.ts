@@ -38,7 +38,10 @@ function describe(err: unknown): { message: string; retryable: boolean } {
   const message = typeof e.message === "string" && e.message ? e.message : String(err);
   if (code === "EAUTH") return { message: `The SMTP server refused the login: ${message}`, retryable: false };
   if (responseCode !== null) return { message, retryable: responseCode >= 400 && responseCode < 500 };
-  return { message, retryable: RETRYABLE_CODES.has(code) || code === "" };
+  // A TLS mismatch (SMTP_SECURE=true on a STARTTLS port) is a setting to fix, not a network blip.
+  if (/ssl|tls|certificate|wrong version/i.test(message)) return { message, retryable: false };
+  // An unknown failure is not retried: it is shown in Settings for the operator to look at.
+  return { message, retryable: RETRYABLE_CODES.has(code) };
 }
 
 export async function sendEmail(
@@ -59,6 +62,7 @@ export async function sendEmail(
       connectionTimeout: timeout,
       greetingTimeout: timeout,
       socketTimeout: timeout,
+      dnsTimeout: timeout,
       // No protocol log: it would carry the login.
       logger: false,
       debug: false,

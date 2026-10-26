@@ -77,6 +77,12 @@ describe("NOINDEX_SITEWIDE", () => {
     expect(await evaluateAlertsForUser("u1", { siteId: "n0" })).toEqual([]);
   });
 
+  it("fires once when a site has the same alert twice", async () => {
+    await siteWithCrawl("ndup", pages(5, 0));
+    await db.alert.create({ data: { userId: "u1", siteId: "ndup", type: "NOINDEX_SITEWIDE", channel: "EMAIL", config: {} } });
+    expect(await evaluateAlertsForUser("u1", { siteId: "ndup" })).toHaveLength(1);
+  });
+
   it("does not fire when the user turned it off", async () => {
     await siteWithCrawl("noff", pages(5, 0));
     await db.alert.updateMany({ where: { siteId: "noff" }, data: { enabled: false } });

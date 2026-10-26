@@ -49,13 +49,16 @@ export function emailAvailable(env: Env = process.env): boolean {
 }
 
 /**
- * `text` without the SMTP credentials of `config`, for errors that are
- * stored, shown or logged. A library error can quote the login it tried.
+ * `text` without the SMTP credentials and host of `config`, for errors that
+ * are stored, shown or logged. A library error can quote the login it tried
+ * or the address it could not reach.
  */
 export function redactSmtp(text: string, config: SmtpConfig | null = smtpConfig()): string {
   let out = text;
   const secrets = [config?.auth?.pass, config?.auth?.user].filter((s): s is string => !!s && s.length >= 3);
   for (const secret of secrets) out = out.split(secret).join("[redacted]");
+  // The host is not a secret, but Settings shows errors to every user: keep the operator's network out of them.
+  if (config?.host && config.host.length >= 3) out = out.split(config.host).join("[smtp host]");
   // An AUTH PLAIN or LOGIN exchange in base64 carries both.
   if (config?.auth) {
     const encoded = [

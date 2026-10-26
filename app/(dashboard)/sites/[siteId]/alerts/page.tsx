@@ -7,6 +7,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EvaluateAlertsButton } from "@/components/sites/evaluate-alerts-button";
 import { formatDay } from "@/lib/format";
 
+/** Names for types whose enum name does not read well. */
+const ALERT_LABELS: Record<string, string> = { NOINDEX_SITEWIDE: "most pages are noindex" };
+
 interface Props {
   params: Promise<{ siteId: string }>;
 }
@@ -58,7 +61,7 @@ export default async function AlertsPage({ params }: Props) {
           >
             <div>
               <p className="mono-label text-[12px] text-text-strong">
-                {a.type.replaceAll("_", " ")}
+                {ALERT_LABELS[a.type] ?? a.type.replaceAll("_", " ")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {a.lastFired

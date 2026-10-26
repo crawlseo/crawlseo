@@ -311,6 +311,9 @@ const alertEmailHandler: JobHandler = {
     if (!Array.isArray(delivery?.fires) || delivery.fires.length === 0) {
       throw new JobError("The email has no alerts", { code: "EMPTY", permanent: true });
     }
+    if (delivery.fires.some((f) => typeof f?.message !== "string" || typeof f?.siteId !== "string")) {
+      throw new JobError("The email has a malformed alert", { code: "EMPTY", permanent: true });
+    }
     const result = await sendEmail(alertEmail(settings.recipients, delivery));
     if (!result.ok) throw new JobError(result.error, { code: "SMTP", permanent: !result.retryable });
     return { recipients: settings.recipients.length, alerts: delivery.fires.length };

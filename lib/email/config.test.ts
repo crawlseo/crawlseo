@@ -78,6 +78,11 @@ describe("redactSmtp", () => {
     expect(out).toContain("[redacted]");
   });
 
+  it("removes the host, so Settings does not show the operator's network", () => {
+    const out = redactSmtp("getaddrinfo ENOTFOUND smtp.example.com", config);
+    expect(out).toBe("getaddrinfo ENOTFOUND [smtp host]");
+  });
+
   it("leaves text without a login alone", () => {
     expect(redactSmtp("Connection timeout", null)).toBe("Connection timeout");
   });
