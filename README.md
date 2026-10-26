@@ -457,10 +457,12 @@ turns on **Email fired alerts** and saves. **Send test** sends one test
 email to the addresses in the form and shows the SMTP server's answer.
 
 **Recipients are not verified.** On an instance with open sign-up, any user
-can have your SMTP server send alert emails (and up to 5 test emails per 10
-minutes) to any address they enter. If you allow open sign-up, know that
-mail sent this way goes out under your SMTP account and sender address;
-`DISABLE_REGISTRATION=true` or `ALERT_EMAILS_ENABLED=false` prevents it.
+can have your SMTP server send alert emails, and up to 5 test emails per 10
+minutes (counted per app process, each to up to 5 addresses), to any address
+they enter. If you allow open sign-up, know that mail sent this way goes out
+under your SMTP account and sender address. `DISABLE_REGISTRATION=true` stops
+new accounts from doing so (accounts that already signed in keep their
+access); `ALERT_EMAILS_ENABLED=false` turns email off for everyone.
 
 All alerts of one site from one evaluation come in one email, plain text plus
 simple HTML, with no tracking pixel, no remote image and no link except to

@@ -28,9 +28,9 @@ Notable changes per release. Releases before 0.3.3 are described on the
   and each user can turn on **Settings > Email alerts** with up to 5
   addresses and send a test. The same alerts that reach the webhook are
   emailed when they fire, in plain text and simple HTML with no tracking and
-  no links except to your instance. Sending is best effort: a failure is
-  retried, shown in Settings and never blocks a crawl, sync or alert
-  evaluation. The SMTP login stays in the environment and is never stored,
+  no links except to your instance. Sending is best effort: a temporary failure
+  (network error, timeout, SMTP 4xx) is retried, any failure is shown in
+  Settings, and none blocks a crawl, sync or alert evaluation. The SMTP login stays in the environment and is never stored,
   returned, shown or logged. `ALERT_EMAILS_ENABLED=false` turns email off for
   the instance. See [Alert emails](README.md#alert-emails).
 - **A warning when most pages are noindex** (#106). When at least 80% of a
