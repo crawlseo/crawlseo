@@ -177,7 +177,7 @@ Tested end to end with Claude Code.
 
 | Tool | What it reads |
 |---|---|
-| `list_sites` | Your sites with their IDs and Search Console properties |
+| `list_sites` | Your sites with their IDs, Search Console and Bing Webmaster properties |
 | `get_site_overview` | Clicks, impressions, position and CTR over 28 days against the 28 before, the latest crawl and vitals |
 | `get_keywords` | Top Search Console queries, for the last N days or a date range |
 | `get_pages` | Top pages, for the last N days or a date range |
@@ -186,6 +186,9 @@ Tested end to end with Claude Code.
 | `get_crawl_issues` | Issues of a crawl (the latest completed one by default), by severity |
 | `get_vitals` | Core Web Vitals reports: performance score, LCP, CLS, INP, TTFB |
 | `get_opportunities` | Striking distance, low CTR, content decay and cannibalization |
+| `get_bing_traffic` | Bing daily clicks, impressions and pages crawled, with Bing's indexed-page and crawl-error counts per day |
+| `get_bing_keywords` | Top Bing queries, summed over the weeks that end in the period (Bing reports by week) |
+| `get_bing_pages` | Top pages in Bing, summed the same way |
 
 The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours).
 

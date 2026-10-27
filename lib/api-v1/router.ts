@@ -20,6 +20,9 @@ import { ApiError } from "./params";
  * GET /api/v1/sites/{siteId}/crawls/{id}/issues    id or "latest", ?severity=&limit=
  * GET /api/v1/sites/{siteId}/vitals                ?device=&limit=
  * GET /api/v1/sites/{siteId}/opportunities
+ * GET /api/v1/sites/{siteId}/bing/traffic          Bing daily rows, ?days= or ?startDate=&endDate=
+ * GET /api/v1/sites/{siteId}/bing/keywords         Bing weekly queries summed over the period, &limit=
+ * GET /api/v1/sites/{siteId}/bing/pages            the same for pages
  */
 
 const PREFIX = "/api/v1/";
@@ -79,6 +82,16 @@ async function route(owner: KeyOwner, segments: string[], params: URLSearchParam
         return read.vitals(site, params);
       case "opportunities":
         return read.opportunities(site);
+    }
+  }
+  if (segments.length === 4 && resource === "bing") {
+    switch (segments[3]) {
+      case "traffic":
+        return read.bingTraffic(site, params);
+      case "keywords":
+        return read.bingKeywords(site, params);
+      case "pages":
+        return read.bingPages(site, params);
     }
   }
   if (segments.length === 5 && resource === "crawls" && sub === "issues") {
