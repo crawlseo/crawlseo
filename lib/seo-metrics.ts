@@ -163,17 +163,22 @@ export async function getSitePeriodMetrics(
   };
 }
 
-/** Aggregate keyword rows across the period (sum metrics, weighted position). */
+/**
+ * Aggregate keyword rows across the period (sum metrics, weighted position).
+ * `queries` keeps only those queries.
+ */
 export async function getTopKeywords(
   siteId: string,
   period: Period = 28,
-  limit = 50
+  limit = 50,
+  queries?: string[]
 ): Promise<KeywordRow[]> {
   const range = parseRange(period);
   const rows = await db.keyword.findMany({
     where: {
       siteId,
       date: { gte: range.start, lte: range.end },
+      ...(queries && { query: { in: queries } }),
     },
     select: {
       query: true,
