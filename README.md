@@ -236,7 +236,7 @@ Image tags:
 | Tag | What it is |
 |---|---|
 | `latest` | The latest release. Moves only when a version is tagged. |
-| `0.3.5`, `0.3` | A release, and the newest patch of a minor version. |
+| `0.3.6`, `0.3` | A release, and the newest patch of a minor version. |
 | `edge` | The latest build of `main`, ahead of the last release. |
 | `sha-<commit>` | One exact build, for main pushes and releases. |
 
@@ -244,7 +244,7 @@ To pin a release, follow `main`, or use an image from a fork, set
 `CRAWLSEO_IMAGE` in `.env`:
 
 ```bash
-CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.5
+CRAWLSEO_IMAGE=ghcr.io/crawlseo/crawlseo:0.3.6
 ```
 
 To build locally instead, build the same image name before starting Compose:
@@ -378,7 +378,7 @@ Each delivery is a JSON POST:
     }
   ],
   "url": "https://seo.example.com/sites/cmgz.../alerts",
-  "crawlseo": { "version": "0.3.5" }
+  "crawlseo": { "version": "0.3.6" }
 }
 ```
 
@@ -416,6 +416,51 @@ fifth attempt the delivery fails. Any other status fails it at once, and
 redirects are not followed (set the final URL). Settings shows the last
 delivery and its error. On Vercel a failed delivery is retried in the same
 request after 2, 10 and 30 seconds, then at the next cron run.
+
+**Telegram, Slack, Discord.** crawlseo has no built-in chat integrations.
+Point the webhook at a relay of your own (n8n, Make, Zapier or a small script)
+that verifies the signature as above and forwards the alert text to your chat.
+In n8n that is a Webhook node, a Code node that checks the signature, and a
+Telegram, Slack or Discord node. A minimal Node script for Telegram, with your
+own bot token and chat id in the environment:
+
+```js
+// relay.mjs: crawlseo alert webhook -> Telegram. Node 18+, no dependencies.
+import { createServer } from "node:http";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+const { WEBHOOK_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, PORT = "8787" } = process.env;
+if (!WEBHOOK_SECRET || !TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) throw new Error("Set WEBHOOK_SECRET, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID");
+
+function verify(rawBody, headers) {
+  const timestamp = headers["x-crawlseo-timestamp"];
+  const expected = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(`${timestamp}.${rawBody}`).digest("hex");
+  const given = Buffer.from(headers["x-crawlseo-signature"] ?? "");
+  const fresh = Math.abs(Date.now() / 1000 - Number(timestamp)) < 300;
+  return fresh && given.length === expected.length && timingSafeEqual(given, Buffer.from(expected));
+}
+
+createServer(async (req, res) => {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (req.method !== "POST" || !verify(raw, req.headers)) return res.writeHead(401).end();
+  const p = JSON.parse(raw);
+  const text = [...(p.event === "test" ? [p.message] : p.alerts.map((a) => a.message)), p.url].filter(Boolean).join("\n");
+  const sent = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
+  }).then((r) => r.ok, () => false);
+  res.writeHead(sent ? 200 : 502).end(); // 502: crawlseo retries later
+}).listen(Number(PORT));
+```
+
+Run it with `WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` set,
+behind HTTPS, and set its URL in **Settings > Alert webhook**. For Slack or
+Discord, post the same text to an incoming webhook URL instead (`{ text }`
+for Slack, `{ content }` for Discord). A relay on your own network needs
+`ALERT_WEBHOOK_ALLOW_PRIVATE=true` (see below).
 
 **Where webhooks may go.** The URL is checked with the same guard as the
 crawler, on save and again on every connection, so a name that resolves to a
