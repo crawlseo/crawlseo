@@ -20,7 +20,8 @@ Notable changes per release. Releases before 0.3.3 are described on the
   `get_saved_keywords` return the saved keywords of a site, newest first,
   with their notes and their Search Console clicks, impressions, average
   position and CTR for the period (`?days=` or `?startDate=&endDate=`). A
-  saved keyword with no Search Console data in the period has empty totals.
+  saved keyword with no Search Console data in the period has `null` clicks,
+  impressions, position and CTR (shown as `-` in the MCP).
   Thanks to @rafaferreira.
 - README: Telegram, Slack or Discord alerts through a webhook relay of your
   own, with a small Node example for Telegram. See

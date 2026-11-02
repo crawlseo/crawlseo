@@ -441,25 +441,25 @@ function verify(rawBody, headers) {
 }
 
 createServer(async (req, res) => {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const raw = Buffer.concat(chunks).toString("utf8");
-  if (req.method !== "POST" || !verify(raw, req.headers)) return res.writeHead(401).end();
-  const p = JSON.parse(raw);
-  const text = [...(p.event === "test" ? [p.message] : p.alerts.map((a) => a.message)), p.url].filter(Boolean).join("\n");
-  const sent = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
-  }).then((r) => r.ok, () => false);
-  res.writeHead(sent ? 200 : 502).end(); // 502: crawlseo retries later
+  try {
+    if (req.method !== "POST" || !(Number(req.headers["content-length"]) < 1e6)) return res.writeHead(400).end();
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const raw = Buffer.concat(chunks).toString("utf8");
+    if (!verify(raw, req.headers)) return res.writeHead(401).end();
+    const p = JSON.parse(raw);
+    const lines = p.event === "test" ? [p.message] : Array.isArray(p.alerts) ? p.alerts.map((a) => a.message) : [];
+    if (!lines.length) return res.writeHead(204).end(); // an event this relay does not forward
+    const text = [...lines, p.url].filter(Boolean).join("\n").slice(0, 4096);
+    const sent = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }), signal: AbortSignal.timeout(8000) }).then((r) => r.ok, () => false);
+    res.writeHead(sent ? 200 : 502).end(); // 502: crawlseo retries later
+  } catch { if (!res.headersSent) res.writeHead(400).end(); } // bad JSON or a broken request: never crash
 }).listen(Number(PORT));
 ```
 
 Run it with `WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` set,
 behind HTTPS, and set its URL in **Settings > Alert webhook**. For Slack or
 Discord, post the same text to an incoming webhook URL instead (`{ text }`
-for Slack, `{ content }` for Discord). A relay on your own network needs
+for Slack, `{ content }` for Discord, which takes at most 2000 characters). A relay on your own network needs
 `ALERT_WEBHOOK_ALLOW_PRIVATE=true` (see below).
 
 **Where webhooks may go.** The URL is checked with the same guard as the
