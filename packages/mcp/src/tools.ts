@@ -18,6 +18,7 @@ import {
   formatKeywords,
   formatOpportunities,
   formatPages,
+  formatSavedKeywords,
   formatSiteOverview,
   formatTraffic,
   formatVitals,
@@ -71,6 +72,7 @@ export const TOOL_NAMES = [
   "get_bing_traffic",
   "get_bing_keywords",
   "get_bing_pages",
+  "get_saved_keywords",
 ] as const;
 
 export function registerTools(server: McpServer, api: ApiClient): void {
@@ -335,6 +337,25 @@ export function registerTools(server: McpServer, api: ApiClient): void {
           { ...periodQuery(p), limit }
         );
         return formatBingPages(r.pages, r);
+      })
+  );
+
+  server.registerTool(
+    "get_saved_keywords",
+    {
+      title: "Saved keywords",
+      description:
+        "The keywords saved in crawlseo for a site (the ones being tracked), newest first, with their notes and their Search Console clicks, impressions, average position and CTR for the period, computed as get_keywords computes them. A saved keyword with no Search Console data in the period shows \"-\". Default period: the last 28 days.",
+      inputSchema: { siteId, ...periodShape },
+      annotations: READ_ONLY,
+    },
+    ({ siteId, ...p }) =>
+      run(async () => {
+        const r = await api.get<Period & { savedKeywords: Parameters<typeof formatSavedKeywords>[0] }>(
+          `/sites/${encodeURIComponent(siteId)}/saved-keywords`,
+          periodQuery(p)
+        );
+        return formatSavedKeywords(r.savedKeywords, r);
       })
   );
 }

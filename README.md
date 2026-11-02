@@ -189,6 +189,7 @@ Tested end to end with Claude Code.
 | `get_bing_traffic` | Bing daily clicks, impressions and pages crawled, with Bing's indexed-page and crawl-error counts per day |
 | `get_bing_keywords` | Top Bing queries, summed over the weeks that end in the period (Bing reports by week) |
 | `get_bing_pages` | Top pages in Bing, summed the same way |
+| `get_saved_keywords` | Your saved keywords with their notes and Search Console totals, for the last N days or a date range |
 
 The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours).
 

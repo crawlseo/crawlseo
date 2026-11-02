@@ -259,3 +259,33 @@ export async function bingPages(site: Site, params: URLSearchParams) {
   const { totals, ...rest } = await bingSearch(site, params, "page");
   return { ...rest, pages: totals.map(({ key, ...t }) => ({ url: key, ...t })) };
 }
+/**
+ * The keywords the user saved for the site, newest first, each with its
+ * Search Console totals for the period, computed as get_keywords computes
+ * them. A saved keyword with no Search Console row in the period has null
+ * totals.
+ */
+export async function savedKeywords(site: Site, params: URLSearchParams) {
+  const { period, startDate, endDate } = periodParam(params, 28);
+  const saved = await db.savedKeyword.findMany({
+    where: { siteId: site.id },
+    orderBy: { createdAt: "desc" },
+    select: { query: true, notes: true, createdAt: true },
+  });
+  const rows = saved.length
+    ? await getTopKeywords(site.id, period, saved.length, saved.map((s) => s.query))
+    : [];
+  const byQuery = new Map(rows.map(({ query, ...totals }) => [query, totals]));
+  return {
+    site,
+    startDate,
+    endDate,
+    savedKeywords: saved.map((s) => ({
+      query: s.query,
+      notes: s.notes,
+      savedAt: s.createdAt,
+      ...(byQuery.get(s.query) ?? { clicks: null, impressions: null, position: null, ctr: null }),
+    })),
+  };
+}
+

@@ -58,6 +58,15 @@ export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
     ],
   });
 
+  // Saved keywords: one with Search Console rows, a newer one with none.
+  await db.savedKeyword.createMany({
+    data: [
+      { siteId: "site-a", query: "quilltab notes", createdAt: daysAgo(5) },
+      { siteId: "site-a", query: "never seen query", notes: "launch target", createdAt: daysAgo(2) },
+      { siteId: "site-b", query: "secret b saved", notes: "secret b note", createdAt: daysAgo(2) },
+    ],
+  });
+
   await db.crawl.create({
     data: { id: "crawl-a1", siteId: "site-a", status: "COMPLETED", startedAt: daysAgo(3), finishedAt: daysAgo(3), pagesFound: 12, issuesFound: 2, healthScore: 88 },
   });
@@ -100,6 +109,7 @@ export async function snapshotUserData(db: PrismaClient): Promise<string> {
     db.crawl.findMany({ orderBy: { id: "asc" } }),
     db.crawlIssue.findMany({ orderBy: { id: "asc" } }),
     db.vitalsReport.findMany({ orderBy: { id: "asc" } }),
+    db.savedKeyword.findMany({ orderBy: { id: "asc" } }),
     db.bingDaily.findMany({ orderBy: { id: "asc" } }),
     db.bingSearchWeekly.findMany({ orderBy: { id: "asc" } }),
     db.job.findMany({ orderBy: { id: "asc" } }),

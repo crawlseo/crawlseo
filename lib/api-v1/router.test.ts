@@ -112,6 +112,7 @@ describe("read-only", () => {
       "/sites/site-a/crawls/crawl-a2/issues",
       "/sites/site-a/vitals",
       "/sites/site-a/opportunities",
+      "/sites/site-a/saved-keywords",
       "/sites/site-a/bing/traffic",
       "/sites/site-a/bing/keywords",
       "/sites/site-a/bing/pages",
@@ -141,6 +142,7 @@ describe("user isolation", () => {
       "/sites/site-b/crawls/crawl-b1/issues",
       "/sites/site-b/vitals",
       "/sites/site-b/opportunities",
+      "/sites/site-b/saved-keywords",
       "/sites/site-b/bing/traffic",
       "/sites/site-b/bing/keywords",
       "/sites/site-b/bing/pages",
@@ -346,6 +348,39 @@ describe("Bing", () => {
   it("unknown Bing paths are 404", async () => {
     expect((await get("/sites/site-a/bing")).status).toBe(404);
     expect((await get("/sites/site-a/bing/backlinks")).status).toBe(404);
+  });
+});
+
+describe("saved keywords", () => {
+  type Saved = { query: string; notes: string | null; savedAt: string; clicks: number | null; impressions: number | null; position: number | null; ctr: number | null };
+
+  it("newest first, with the same totals get_keywords gives for that query and period", async () => {
+    const r = (await body(await get("/sites/site-a/saved-keywords"))) as unknown as { startDate: string; endDate: string; savedKeywords: Saved[] };
+    const kw = (await body(await get("/sites/site-a/keywords?limit=1000"))) as unknown as { startDate: string; keywords: { query: string }[] };
+    expect(r.startDate).toBe(kw.startDate);
+    expect(r.savedKeywords.map((s) => s.query)).toEqual(["never seen query", "quilltab notes"]);
+    const row = kw.keywords.find((k) => k.query === "quilltab notes")!;
+    expect(r.savedKeywords[1]).toEqual({ ...row, notes: null, savedAt: daysAgo(5).toISOString() });
+    expect(r.savedKeywords[1].clicks).toBeGreaterThan(0);
+  });
+
+  it("a saved keyword with no Search Console row in the period has null totals, and keeps its notes", async () => {
+    const r = (await body(await get("/sites/site-a/saved-keywords"))) as unknown as { savedKeywords: Saved[] };
+    expect(r.savedKeywords[0]).toEqual({
+      query: "never seen query",
+      notes: "launch target",
+      savedAt: daysAgo(2).toISOString(),
+      clicks: null,
+      impressions: null,
+      position: null,
+      ctr: null,
+    });
+  });
+
+  it("takes a date range; outside the data every total is null", async () => {
+    const r = (await body(await get("/sites/site-a/saved-keywords?startDate=2020-01-01&endDate=2020-01-31"))) as unknown as { savedKeywords: Saved[] };
+    expect(r.savedKeywords.map((s) => s.clicks)).toEqual([null, null]);
+    expect((await get("/sites/site-a/saved-keywords?days=0")).status).toBe(400);
   });
 });
 

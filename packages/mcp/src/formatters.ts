@@ -331,3 +331,37 @@ export function formatBingPages(pages: (BingSearchRow & { url: string })[], p: B
   return bingSearchTable("pages", pages.map((r) => ({ ...r, name: r.url })), p);
 }
 
+
+type SavedKeyword = {
+  query: string;
+  notes: string | null;
+  savedAt: string;
+  clicks: number | null;
+  impressions: number | null;
+  position: number | null;
+  ctr: number | null;
+};
+
+export function formatSavedKeywords(saved: SavedKeyword[], p: Period): string {
+  if (saved.length === 0) return "No saved keywords for this site.";
+
+  const headers = ["Keyword", "Clicks", "Impressions", "Position", "CTR", "Saved", "Notes"];
+  const rows = saved.map((k) => [
+    k.query.length > 50 ? k.query.slice(0, 47) + "..." : k.query,
+    k.clicks === null ? "-" : num(k.clicks),
+    k.impressions === null ? "-" : num(k.impressions),
+    k.position === null ? "-" : pos(k.position),
+    k.ctr === null ? "-" : pct(k.ctr),
+    k.savedAt.slice(0, 10),
+    k.notes ? (k.notes.length > 40 ? k.notes.slice(0, 37) + "..." : k.notes) : "",
+  ]);
+  const noData = saved.filter((k) => k.impressions === null).length;
+
+  return (
+    `${saved.length} saved keywords, Search Console totals for ${period(p)}:\n` +
+    (noData ? `${noData} had no Search Console data in this period ("-").\n` : "") +
+    "\n" +
+    formatTable(headers, rows)
+  );
+}
+
