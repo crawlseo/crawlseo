@@ -3,6 +3,30 @@
 Notable changes per release. Releases before 0.3.3 are described on the
 [releases page](https://github.com/crawlseo/crawlseo/releases).
 
+## 0.3.6 (2026-11-02)
+
+### Added
+
+- **Bing Webmaster data through `/api/v1` and the MCP** (#109).
+  `GET /api/v1/sites/{siteId}/bing/traffic` returns Bing's daily clicks,
+  impressions, pages crawled, indexed pages and crawl errors (`?days=` or
+  `?startDate=&endDate=`). `.../bing/keywords` and `.../bing/pages` return
+  the top queries and pages, summed over the weeks that end in the period
+  (Bing reports by week), with `&limit=`. The MCP tools are
+  `get_bing_traffic`, `get_bing_keywords` and `get_bing_pages`. Thanks to
+  @rafaferreira.
+- **Saved keywords through `/api/v1` and the MCP** (#110).
+  `GET /api/v1/sites/{siteId}/saved-keywords` and the MCP tool
+  `get_saved_keywords` return the saved keywords of a site, newest first,
+  with their notes and their Search Console clicks, impressions, average
+  position and CTR for the period (`?days=` or `?startDate=&endDate=`). A
+  saved keyword with no Search Console data in the period has `null` clicks,
+  impressions, position and CTR (shown as `-` in the MCP).
+  Thanks to @rafaferreira.
+- README: Telegram, Slack or Discord alerts through a webhook relay of your
+  own, with a small Node example for Telegram. See
+  [Alert webhooks](README.md#alert-webhooks).
+
 ## 0.3.5 (2026-10-26)
 
 ### Changed
