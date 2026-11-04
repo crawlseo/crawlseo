@@ -294,14 +294,17 @@ export async function savedKeywords(site: Site, params: URLSearchParams) {
 /**
  * Whether a Search Console property covers the URL: an sc-domain: property
  * covers its host and every subdomain, on http and https; a URL-prefix
- * property covers the URLs that start with it.
+ * property covers the URLs under it. A prefix stored without its trailing
+ * slash still ends at a path boundary: https://a.example must not cover
+ * https://a.example.org/.
  */
 function propertyCovers(property: string, url: URL): boolean {
   if (property.startsWith("sc-domain:")) {
     const domain = property.slice("sc-domain:".length).toLowerCase();
     return url.hostname === domain || url.hostname.endsWith(`.${domain}`);
   }
-  return url.href.startsWith(property);
+  const prefix = property.endsWith("/") ? property : `${property}/`;
+  return url.href === property || url.href.startsWith(prefix);
 }
 
 /**
@@ -320,6 +323,8 @@ export async function urlInspection(userId: string, site: Site, params: URLSearc
     throw new ApiError(400, "url must be an absolute http or https URL");
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new ApiError(400, "url must be an absolute http or https URL");
+  // Credentials in the URL would be sent on to Google.
+  if (url.username || url.password) throw new ApiError(400, "url must not contain a user name or password");
   if (!propertyCovers(site.gscProperty, url)) {
     throw new ApiError(400, `url is not in this site's Search Console property (${site.gscProperty})`);
   }

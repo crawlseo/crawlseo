@@ -458,7 +458,7 @@ describe("URL inspection", () => {
     for (const url of ["https://quilltab.app/", "http://quilltab.app/a?b=1", "https://www.quilltab.app/x", "https://QUILLTAB.app/y"]) {
       expect((await inspect(url)).status, url).toBe(200);
     }
-    for (const url of ["https://example.com/", "https://quilltab.app.example.com/", "https://notquilltab.app/", "https://quilltab.app@example.com/"]) {
+    for (const url of ["https://example.com/", "https://quilltab.app.example.com/", "https://notquilltab.app/"]) {
       const res = await inspect(url);
       expect(res.status, url).toBe(400);
       expect((await body(res)).error).toMatch(/not in this site's Search Console property/);
@@ -477,6 +477,31 @@ describe("URL inspection", () => {
     } finally {
       await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
     }
+  });
+
+  it("a URL-prefix property stored without its trailing slash still ends at a path boundary", async () => {
+    stubGoogle();
+    await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "https://www.quilltab.app" } });
+    try {
+      for (const url of ["https://www.quilltab.app/", "https://www.quilltab.app/blog/post"]) {
+        expect((await inspect(url)).status, url).toBe(200);
+      }
+      for (const url of ["https://www.quilltab.app.example.com/", "https://www.quilltab.appx/"]) {
+        expect((await inspect(url)).status, url).toBe(400);
+      }
+    } finally {
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
+    }
+  });
+
+  it("refuses a url carrying a user name or password, before asking Google", async () => {
+    stubGoogle();
+    for (const url of ["https://user:pass@quilltab.app/", "https://user@quilltab.app/", "https://quilltab.app@example.com/"]) {
+      const res = await inspect(url);
+      expect(res.status, url).toBe(400);
+      expect((await body(res)).error).toMatch(/user name or password/);
+    }
+    expect(calls).toEqual([]);
   });
 
   it("refuses a missing, relative or non-http url with 400, before asking Google", async () => {
