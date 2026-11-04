@@ -364,7 +364,7 @@ export function registerTools(server: McpServer, api: ApiClient): void {
   server.registerTool(
     "inspect_url",
     {
-      title: "URL Inspection",
+      title: "URL inspection",
       description:
         "Google's URL Inspection of one page of a site, asked of Google live: whether it is on Google (verdict and coverage), when Google last crawled it and as which crawler, page fetch and robots.txt state, Google's canonical against the one the page declares, and the sitemaps and pages that link to it. Use it to check whether Google re-crawled a page after a deploy. Reads only: Google does not re-crawl or index anything for it. Each call counts toward Google's daily URL Inspection quota for the property.",
       inputSchema: {

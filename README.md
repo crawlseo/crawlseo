@@ -192,7 +192,7 @@ Tested end to end with Claude Code.
 | `get_saved_keywords` | Your saved keywords with their notes and Search Console totals, for the last N days or a date range |
 | `inspect_url` | Google's URL Inspection of one page, asked of Google live: verdict and coverage, last crawl, fetch and robots.txt state, canonicals, sitemaps and referring pages |
 
-The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours). `inspect_url` (and `GET /api/v1/sites/{siteId}/url-inspection?url=`) has your instance ask Google's URL Inspection API about that one URL, the Google row there; the result is not stored, and each call counts toward Google's URL Inspection quota for the property.
+The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours). `inspect_url` (and `GET /api/v1/sites/{siteId}/url-inspection?url=`) has your instance ask Google's URL Inspection API about that one URL (the Google row in that table); the result is not stored, and each call counts toward Google's URL Inspection quota for the property.
 
 ## Tech Stack
 

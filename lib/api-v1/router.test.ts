@@ -489,9 +489,20 @@ describe("URL inspection", () => {
       for (const url of ["https://www.quilltab.app.example.com/", "https://www.quilltab.appx/"]) {
         expect((await inspect(url)).status, url).toBe(400);
       }
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "https://WWW.Quilltab.app/blog" } });
+      for (const url of ["https://www.quilltab.app/blog", "https://www.quilltab.app/blog/x", "https://www.quilltab.app/blog?page=2"]) {
+        expect((await inspect(url)).status, url).toBe(200);
+      }
+      expect((await inspect("https://www.quilltab.app/blogger")).status).toBe(400);
     } finally {
       await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
     }
+  });
+
+  it("sends the URL to Google without its fragment", async () => {
+    stubGoogle();
+    expect((await inspect("https://quilltab.app/notes#top")).status).toBe(200);
+    expect(calls.at(-1)?.body).toMatchObject({ inspectionUrl: "https://quilltab.app/notes" });
   });
 
   it("refuses a url carrying a user name or password, before asking Google", async () => {
@@ -533,6 +544,7 @@ describe("URL inspection", () => {
       [429, 503, /quota/],
       [403, 502, /no access to sc-domain:quilltab\.app/],
       [401, 409, /Reconnect Google/],
+      [400, 400, /cannot inspect this URL/],
       [500, 502, /HTTP 500/],
     ] as const) {
       stubGoogle(google, { error: { code: google, message: "detail from Google", status: "X" } });
