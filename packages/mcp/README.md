@@ -54,6 +54,7 @@ Serves streamable HTTP on `http://127.0.0.1:3333/mcp` and a health check on `/he
 | `get_bing_keywords` | Top Bing queries, summed over the weeks that end in the period (Bing reports by week) |
 | `get_bing_pages` | Top pages in Bing, summed the same way |
 | `get_saved_keywords` | Your saved keywords with their notes and Search Console totals, for the last N days or a date range |
+| `inspect_url` | Google's URL Inspection of one page, asked of Google live: verdict and coverage, last crawl, fetch and robots.txt state, canonicals, sitemaps and referring pages |
 
 ## License
 

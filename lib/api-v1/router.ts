@@ -24,6 +24,7 @@ import { ApiError } from "./params";
  * GET /api/v1/sites/{siteId}/bing/keywords         Bing weekly queries summed over the period, &limit=
  * GET /api/v1/sites/{siteId}/bing/pages            the same for pages
  * GET /api/v1/sites/{siteId}/saved-keywords       saved keywords with their totals, ?days= or ?startDate=&endDate=
+ * GET /api/v1/sites/{siteId}/url-inspection       Google's live URL Inspection of one URL, ?url= (not stored)
  */
 
 const PREFIX = "/api/v1/";
@@ -85,6 +86,8 @@ async function route(owner: KeyOwner, segments: string[], params: URLSearchParam
         return read.opportunities(site);
       case "saved-keywords":
         return read.savedKeywords(site, params);
+      case "url-inspection":
+        return read.urlInspection(userId, site, params);
     }
   }
   if (segments.length === 4 && resource === "bing") {
