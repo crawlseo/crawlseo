@@ -50,7 +50,7 @@ The app talks to outside services only in these cases:
 
 | Destination | When | What is sent | How to turn it off |
 |---|---|---|---|
-| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, or disconnect Google. Also on the schedule: a GSC sync per site each day and a vitals check per site each week, or as often as you set in Settings > Schedule | Requests for your own properties and pages | Don't run syncs, vitals or index status checks, or disconnect Google in Settings > Connections. For the schedule: vitals checks Off in Settings > Schedule, `SCHEDULE_GSC_SYNC_HOURS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false` |
+| Google (sign-in, Search Console, PageSpeed Insights) | When you sign in, connect Google, add a site or sync, run a vitals or index status check, inspect a URL through `/api/v1` or the MCP, or disconnect Google. Also on the schedule: a GSC sync per site each day and a vitals check per site each week, or as often as you set in Settings > Schedule | Requests for your own properties and pages | Don't run syncs, vitals or index status checks or URL inspections, or disconnect Google in Settings > Connections. For the schedule: vitals checks Off in Settings > Schedule, `SCHEDULE_GSC_SYNC_HOURS=0`, `SCHEDULE_VITALS_DAYS=0` or `SCHEDULER_ENABLED=false` |
 | Bing Webmaster Tools | Only if you add your own Bing API key; then also a sync per site each day | Requests for your own Bing sites | Remove the key in Settings > Connections, or `SCHEDULE_BING_SYNC_HOURS=0` |
 | DataForSEO | Only if you add your own DataForSEO key | The keyword and domain queries you run | Remove the key in Settings > Connections |
 | Google autocomplete | Keyword suggestions when DataForSEO is not set up | The seed keyword you typed | Don't use keyword suggestions |
@@ -190,8 +190,9 @@ Tested end to end with Claude Code.
 | `get_bing_keywords` | Top Bing queries, summed over the weeks that end in the period (Bing reports by week) |
 | `get_bing_pages` | Top pages in Bing, summed the same way |
 | `get_saved_keywords` | Your saved keywords with their notes and Search Console totals, for the last N days or a date range |
+| `inspect_url` | Google's URL Inspection of one page, asked of Google live: verdict and coverage, last crawl, fetch and robots.txt state, canonicals, sitemaps and referring pages |
 
-The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours).
+The MCP talks only to your own instance, so it adds no outside service to [Your data stays yours](#your-data-stays-yours). `inspect_url` (and `GET /api/v1/sites/{siteId}/url-inspection?url=`) has your instance ask Google's URL Inspection API about that one URL (the Google row in that table); the result is not stored, and each call counts toward Google's URL Inspection quota for the property.
 
 ## Tech Stack
 

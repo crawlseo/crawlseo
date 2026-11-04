@@ -19,7 +19,11 @@ export function daysAgo(n: number): Date {
 export type Fixtures = { keyA: string; keyB: string; keyAId: string; keyOff: string };
 
 export async function seedApiFixtures(db: PrismaClient): Promise<Fixtures> {
-  await db.user.create({ data: { id: "user-a", email: "a@quilltab.app" } });
+  // User A's Google tokens in the legacy plain-text form (read as is), valid
+  // for a year, so a URL Inspection reaches the stubbed fetch without a refresh.
+  await db.user.create({
+    data: { id: "user-a", email: "a@quilltab.app", googleTokens: { accessToken: "test-access-a", refreshToken: "test-refresh-a", expiresAt: Date.now() + 365 * DAY_MS } },
+  });
   await db.user.create({ data: { id: "user-b", email: "b@quilltab.app" } });
   await db.user.create({ data: { id: "user-off", email: "off@quilltab.app" } });
   await db.userSettings.createMany({ data: [{ userId: "user-a", mcpEnabled: true }, { userId: "user-b", mcpEnabled: true }] });

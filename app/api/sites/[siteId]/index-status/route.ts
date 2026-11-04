@@ -55,8 +55,8 @@ export async function POST(
           coverageState: status?.coverageState ?? "Unknown",
           indexingState: status?.indexingState,
           lastCrawlTime: status?.lastCrawlTime,
-          robotsAllowed: status?.robotsAllowed,
-          pageIndexed: status?.pageIndexed,
+          verdict: status?.verdict,
+          robotsTxtState: status?.robotsTxtState,
         });
       } catch (err) {
         if (err instanceof ReauthRequiredError) {
