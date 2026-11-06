@@ -65,19 +65,11 @@ export async function GET(
     // Fallback to GSC data
     const metrics = await getSitePeriodMetrics(siteId, 28);
 
-    const keywordCount = await db.keyword.groupBy({
-      by: ["query"],
-      where: {
-        siteId,
-        date: { gte: new Date(Date.now() - 28 * 86400000) },
-      },
-    });
-
     return Response.json({
       source: "gsc",
       domain: targetDomain,
       overview: {
-        organicKeywords: keywordCount.length,
+        organicKeywords: metrics.current.uniqueKeywords,
         organicTraffic: metrics.current.clicks,
         organicCost: null,
         backlinks: null,
