@@ -4,7 +4,6 @@ const { auth, db, domainOverview, backlinksOverview, getSitePeriodMetrics } = vi
   auth: vi.fn(),
   db: {
     site: { findUnique: vi.fn() },
-    keyword: { groupBy: vi.fn() },
   },
   domainOverview: vi.fn(),
   backlinksOverview: vi.fn(),
@@ -26,7 +25,7 @@ const backlinks = {
   totalBacklinks: 42, referringDomains: 12, referringIps: 10, dofollow: 30, nofollow: 12,
 };
 const metrics = {
-  current: { clicks: 7, impressions: 80, avgPosition: 12 },
+  current: { clicks: 7, impressions: 80, avgPosition: 12, uniqueKeywords: 1 },
   previous: { clicks: 5, impressions: 60, avgPosition: 14 },
   deltas: { clicks: 2, impressions: 20, avgPosition: -2 },
 };
@@ -44,7 +43,6 @@ beforeEach(() => {
   domainOverview.mockResolvedValue(overview);
   backlinksOverview.mockResolvedValue(backlinks);
   getSitePeriodMetrics.mockResolvedValue(metrics);
-  db.keyword.groupBy.mockResolvedValue([{ query: "own keyword" }]);
 });
 
 describe("GET /api/sites/[siteId]/domain-overview", () => {
@@ -96,7 +94,6 @@ describe("GET /api/sites/[siteId]/domain-overview", () => {
       domain: "competitor.com", overview: null, backlinks: summary,
     });
     expect(getSitePeriodMetrics).not.toHaveBeenCalled();
-    expect(db.keyword.groupBy).not.toHaveBeenCalled();
   });
 
   it.each(["", "   ", "https://", "not a domain"])("rejects invalid comparison input %j before querying providers", async (domain) => {
