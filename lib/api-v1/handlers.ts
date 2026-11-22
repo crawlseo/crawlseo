@@ -7,6 +7,8 @@ import { INTERRUPTED_MESSAGE, staleCrawlWhere } from "@/lib/crawler/lifecycle";
 import { getDailyTraffic, getSitePeriodMetrics, getTopKeywords, getTopPages } from "@/lib/seo-metrics";
 import { getAllOpportunities } from "@/lib/seo-opportunities";
 import { gscDate } from "@/lib/google/gsc-date";
+import { ReauthRequiredError } from "@/lib/google/google-auth";
+import { inspectUrl, UrlInspectionError } from "@/lib/google/url-inspection-client";
 import { ApiError, enumParam, intParam, periodParam } from "./params";
 
 /*
@@ -289,3 +291,87 @@ export async function savedKeywords(site: Site, params: URLSearchParams) {
   };
 }
 
+/**
+ * Whether a Search Console property covers the URL: an sc-domain: property
+ * covers its host and every subdomain, on http and https; a URL-prefix
+ * property covers the URLs under it, compared in the same normalised form
+ * (lower-case host, punycode, no default port). A prefix stored without its
+ * trailing slash still ends at a path boundary: https://a.example/blog covers
+ * /blog, /blog/x and /blog?x, not https://a.example.org/ or /blogger.
+ */
+function propertyCovers(property: string, url: URL): boolean {
+  if (property.startsWith("sc-domain:")) {
+    const domain = property.slice("sc-domain:".length).toLowerCase();
+    return url.hostname === domain || url.hostname.endsWith(`.${domain}`);
+  }
+  let base: string;
+  try {
+    base = new URL(property).href;
+  } catch {
+    return false;
+  }
+  if (!url.href.startsWith(base)) return false;
+  return base.endsWith("/") || /^([/?#]|$)/.test(url.href.slice(base.length));
+}
+
+/**
+ * Google's live URL Inspection of one URL of the site (index status and last
+ * crawl), asked of Google on each request and not stored. It reads only:
+ * Google does not re-crawl or index anything for it. Each call counts toward
+ * Google's URL Inspection quota for the property.
+ */
+export async function urlInspection(userId: string, site: Site, params: URLSearchParams) {
+  if (!site.gscProperty) throw new ApiError(404, "This site has no Search Console property connected");
+  const raw = params.get("url") ?? "";
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ApiError(400, "url must be an absolute http or https URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new ApiError(400, "url must be an absolute http or https URL");
+  // Credentials in the URL would be sent on to Google, which also refuses a fragment.
+  if (url.username || url.password) throw new ApiError(400, "url must not contain a user name or password");
+  url.hash = "";
+  if (!propertyCovers(site.gscProperty, url)) {
+    throw new ApiError(400, `url is not in this site's Search Console property (${site.gscProperty})`);
+  }
+
+  let result;
+  try {
+    result = (await inspectUrl(userId, site.gscProperty, url.href)).inspectionResult;
+  } catch (err) {
+    // Not 401, 403 or 429: in /api/v1 those mean the access key or its rate limit.
+    if (err instanceof ReauthRequiredError || (err instanceof UrlInspectionError && err.status === 401)) {
+      throw new ApiError(409, "The Google connection has expired. Reconnect Google in crawlseo.");
+    }
+    if (err instanceof UrlInspectionError && err.status === 429) {
+      throw new ApiError(503, "Google's URL Inspection quota for this property is used up. Try again later.");
+    }
+    if (err instanceof UrlInspectionError && err.status === 403) {
+      throw new ApiError(502, `Google refused the inspection: the connected Google account has no access to ${site.gscProperty}`);
+    }
+    if (err instanceof UrlInspectionError && err.status === 400) {
+      throw new ApiError(400, "Google cannot inspect this URL");
+    }
+    if (err instanceof UrlInspectionError) throw new ApiError(502, err.message);
+    throw err;
+  }
+  const s = result?.indexStatusResult ?? {};
+  return {
+    site,
+    url: url.href,
+    inspectionResultLink: result?.inspectionResultLink ?? null,
+    verdict: s.verdict ?? null,
+    coverageState: s.coverageState ?? null,
+    robotsTxtState: s.robotsTxtState ?? null,
+    indexingState: s.indexingState ?? null,
+    lastCrawlTime: s.lastCrawlTime ?? null,
+    pageFetchState: s.pageFetchState ?? null,
+    crawledAs: s.crawledAs ?? null,
+    googleCanonical: s.googleCanonical ?? null,
+    userCanonical: s.userCanonical ?? null,
+    sitemap: s.sitemap ?? [],
+    referringUrls: s.referringUrls ?? [],
+  };
+}

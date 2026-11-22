@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCrawlIssues } from "./formatters";
+import { formatCrawlIssues, formatUrlInspection } from "./formatters";
 
 const crawl = {
   id: "c1",
@@ -36,5 +36,59 @@ describe("formatCrawlIssues site-wide noindex warning (#106)", () => {
   it("prints nothing for null or an instance without the field", () => {
     expect(formatCrawlIssues({ crawl, total: 0, bySeverity: {}, noindexPages: 1, noindexWarning: null, issues: [] })).not.toContain("WARNING");
     expect(formatCrawlIssues({ crawl, total: 0, bySeverity: {}, noindexPages: 1, issues: [] })).not.toContain("WARNING");
+  });
+});
+
+describe("formatUrlInspection", () => {
+  const indexed = {
+    url: "https://example.com/post",
+    inspectionResultLink: "https://search.google.com/search-console/inspect?id=1",
+    verdict: "PASS",
+    coverageState: "Submitted and indexed",
+    robotsTxtState: "ALLOWED",
+    indexingState: "INDEXING_ALLOWED",
+    lastCrawlTime: "2026-11-01T08:30:12Z",
+    pageFetchState: "SUCCESSFUL",
+    crawledAs: "MOBILE",
+    googleCanonical: "https://example.com/post",
+    userCanonical: "https://example.com/post",
+    sitemap: ["https://example.com/sitemap.xml"],
+    referringUrls: ["https://example.com/", "https://example.com/a", "https://example.com/b", "https://example.com/c"],
+  };
+
+  it("shows verdict, last crawl in UTC, fetch and robots state, counts with the first few URLs and the link", () => {
+    const out = formatUrlInspection(indexed);
+    expect(out).toContain("Verdict: PASS  |  Coverage: Submitted and indexed");
+    expect(out).toContain("Last crawl: 2026-11-01 08:30 UTC  |  Crawled as: MOBILE");
+    expect(out).toContain("Page fetch: SUCCESSFUL  |  robots.txt: ALLOWED  |  Indexing: INDEXING_ALLOWED");
+    expect(out).toContain("Sitemaps (1): https://example.com/sitemap.xml");
+    expect(out).toContain("Referring URLs (4): https://example.com/, https://example.com/a, https://example.com/b, ...");
+    expect(out).not.toContain("example.com/c");
+    expect(out).toContain("Search Console: https://search.google.com/search-console/inspect?id=1");
+    expect(out).not.toContain("WARNING");
+  });
+
+  it("flags a canonical mismatch", () => {
+    const out = formatUrlInspection({ ...indexed, googleCanonical: "https://example.com/other" });
+    expect(out).toContain("WARNING: Google chose a different canonical");
+  });
+
+  it("reads a never-crawled URL without inventing values", () => {
+    const out = formatUrlInspection({
+      ...indexed,
+      inspectionResultLink: null,
+      verdict: "NEUTRAL",
+      coverageState: "URL is unknown to Google",
+      lastCrawlTime: null,
+      crawledAs: null,
+      googleCanonical: null,
+      userCanonical: null,
+      sitemap: [],
+      referringUrls: [],
+    });
+    expect(out).toContain("Last crawl: never  |  Crawled as: -");
+    expect(out).toContain("Sitemaps: none");
+    expect(out).not.toContain("WARNING");
+    expect(out).not.toContain("Search Console:");
   });
 });

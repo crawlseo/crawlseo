@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The read-only API on a real Prisma client (PGlite): key auth, user
 // isolation, GET only, the rate limit, and the period parameters.
@@ -143,6 +143,7 @@ describe("user isolation", () => {
       "/sites/site-b/vitals",
       "/sites/site-b/opportunities",
       "/sites/site-b/saved-keywords",
+      "/sites/site-b/url-inspection?url=https%3A%2F%2Fsecret-b.com%2F",
       "/sites/site-b/bing/traffic",
       "/sites/site-b/bing/keywords",
       "/sites/site-b/bing/pages",
@@ -381,6 +382,191 @@ describe("saved keywords", () => {
     const r = (await body(await get("/sites/site-a/saved-keywords?startDate=2020-01-01&endDate=2020-01-31"))) as unknown as { savedKeywords: Saved[] };
     expect(r.savedKeywords.map((s) => s.clicks)).toEqual([null, null]);
     expect((await get("/sites/site-a/saved-keywords?days=0")).status).toBe(400);
+  });
+});
+
+describe("URL inspection", () => {
+  const INSPECTED = {
+    inspectionResult: {
+      inspectionResultLink: "https://search.google.com/search-console/inspect?resource_id=sc-domain:quilltab.app&id=abc",
+      indexStatusResult: {
+        verdict: "PASS",
+        coverageState: "Submitted and indexed",
+        robotsTxtState: "ALLOWED",
+        indexingState: "INDEXING_ALLOWED",
+        lastCrawlTime: "2026-11-01T08:30:00Z",
+        pageFetchState: "SUCCESSFUL",
+        googleCanonical: "https://quilltab.app/notes",
+        userCanonical: "https://quilltab.app/notes",
+        sitemap: ["https://quilltab.app/sitemap.xml"],
+        referringUrls: ["https://quilltab.app/"],
+        crawledAs: "MOBILE",
+      },
+      mobileUsabilityResult: { verdict: "VERDICT_UNSPECIFIED" },
+    },
+  };
+  const calls: { url: string; auth: string | null; body: unknown }[] = [];
+
+  function stubGoogle(status = 200, json: unknown = INSPECTED) {
+    calls.length = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init?: RequestInit) => {
+        calls.push({ url: input, auth: new Headers(init?.headers).get("authorization"), body: init?.body && JSON.parse(String(init.body)) });
+        return Response.json(json, { status });
+      })
+    );
+  }
+
+  const inspect = (url: string, key = f.keyA) => get(`/sites/site-a/url-inspection?url=${encodeURIComponent(url)}`, key);
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("asks Google about the URL with the user's token and the site's property, and changes nothing", async () => {
+    stubGoogle();
+    const before = await snapshotUserData(db);
+    const res = await inspect("https://quilltab.app/notes");
+    expect(res.status).toBe(200);
+    expect(calls).toEqual([
+      {
+        url: "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
+        auth: "Bearer test-access-a",
+        body: { inspectionUrl: "https://quilltab.app/notes", siteUrl: "sc-domain:quilltab.app" },
+      },
+    ]);
+    const { site, ...r } = await body(res);
+    expect(site).toMatchObject({ id: "site-a" });
+    expect(r).toEqual({
+      url: "https://quilltab.app/notes",
+      inspectionResultLink: INSPECTED.inspectionResult.inspectionResultLink,
+      ...INSPECTED.inspectionResult.indexStatusResult,
+    });
+    expect(await snapshotUserData(db)).toBe(before);
+  });
+
+  it("fields Google leaves out are null, lists are empty", async () => {
+    stubGoogle(200, { inspectionResult: { indexStatusResult: { verdict: "NEUTRAL", coverageState: "URL is unknown to Google" } } });
+    const r = await body(await inspect("https://quilltab.app/new"));
+    expect(r).toMatchObject({ verdict: "NEUTRAL", lastCrawlTime: null, googleCanonical: null, inspectionResultLink: null, sitemap: [], referringUrls: [] });
+  });
+
+  it("a domain property covers its host and subdomains on http and https, nothing else", async () => {
+    stubGoogle();
+    for (const url of ["https://quilltab.app/", "http://quilltab.app/a?b=1", "https://www.quilltab.app/x", "https://QUILLTAB.app/y"]) {
+      expect((await inspect(url)).status, url).toBe(200);
+    }
+    for (const url of ["https://example.com/", "https://quilltab.app.example.com/", "https://notquilltab.app/"]) {
+      const res = await inspect(url);
+      expect(res.status, url).toBe(400);
+      expect((await body(res)).error).toMatch(/not in this site's Search Console property/);
+    }
+  });
+
+  it("a URL-prefix property covers the URLs that start with it", async () => {
+    stubGoogle();
+    await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "https://www.quilltab.app/blog/" } });
+    try {
+      expect((await inspect("https://www.quilltab.app/blog/post")).status).toBe(200);
+      expect(calls.at(-1)?.body).toEqual({ inspectionUrl: "https://www.quilltab.app/blog/post", siteUrl: "https://www.quilltab.app/blog/" });
+      for (const url of ["https://www.quilltab.app/", "http://www.quilltab.app/blog/post", "https://quilltab.app/blog/post", "https://www.quilltab.app/blogger"]) {
+        expect((await inspect(url)).status, url).toBe(400);
+      }
+    } finally {
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
+    }
+  });
+
+  it("a URL-prefix property stored without its trailing slash still ends at a path boundary", async () => {
+    stubGoogle();
+    await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "https://www.quilltab.app" } });
+    try {
+      for (const url of ["https://www.quilltab.app/", "https://www.quilltab.app/blog/post"]) {
+        expect((await inspect(url)).status, url).toBe(200);
+      }
+      for (const url of ["https://www.quilltab.app.example.com/", "https://www.quilltab.appx/"]) {
+        expect((await inspect(url)).status, url).toBe(400);
+      }
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "https://WWW.Quilltab.app/blog" } });
+      for (const url of ["https://www.quilltab.app/blog", "https://www.quilltab.app/blog/x", "https://www.quilltab.app/blog?page=2"]) {
+        expect((await inspect(url)).status, url).toBe(200);
+      }
+      expect((await inspect("https://www.quilltab.app/blogger")).status).toBe(400);
+    } finally {
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
+    }
+  });
+
+  it("sends the URL to Google without its fragment", async () => {
+    stubGoogle();
+    expect((await inspect("https://quilltab.app/notes#top")).status).toBe(200);
+    expect(calls.at(-1)?.body).toMatchObject({ inspectionUrl: "https://quilltab.app/notes" });
+  });
+
+  it("refuses a url carrying a user name or password, before asking Google", async () => {
+    stubGoogle();
+    for (const url of ["https://user:pass@quilltab.app/", "https://user@quilltab.app/", "https://quilltab.app@example.com/"]) {
+      const res = await inspect(url);
+      expect(res.status, url).toBe(400);
+      expect((await body(res)).error).toMatch(/user name or password/);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a missing, relative or non-http url with 400, before asking Google", async () => {
+    stubGoogle();
+    for (const q of ["", "?url=", "?url=%2Fnotes", "?url=quilltab.app%2Fnotes", "?url=ftp%3A%2F%2Fquilltab.app%2F", "?url=javascript%3Aalert(1)"]) {
+      const res = await get(`/sites/site-a/url-inspection${q}`);
+      expect(res.status, q).toBe(400);
+      expect((await body(res)).error).toMatch(/url/);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("a site with no Search Console property answers 404 and says so", async () => {
+    stubGoogle();
+    await db.site.update({ where: { id: "site-a" }, data: { gscProperty: null } });
+    try {
+      const res = await inspect("https://quilltab.app/");
+      expect(res.status).toBe(404);
+      expect((await body(res)).error).toBe("This site has no Search Console property connected");
+    } finally {
+      await db.site.update({ where: { id: "site-a" }, data: { gscProperty: "sc-domain:quilltab.app" } });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("maps Google's errors to statuses that do not read as a bad key or the key's rate limit", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const [google, status, message] of [
+      [429, 503, /quota/],
+      [403, 502, /no access to sc-domain:quilltab\.app/],
+      [401, 409, /Reconnect Google/],
+      [400, 400, /cannot inspect this URL/],
+      [500, 502, /HTTP 500/],
+    ] as const) {
+      stubGoogle(google, { error: { code: google, message: "detail from Google", status: "X" } });
+      const res = await inspect("https://quilltab.app/");
+      expect(res.status, String(google)).toBe(status);
+      const { error } = await body(res);
+      expect(error).toMatch(message);
+      expect(error).not.toContain("detail from Google");
+    }
+  });
+
+  it("an expired Google connection (invalid_grant) asks to reconnect", async () => {
+    const user = await db.user.findUniqueOrThrow({ where: { id: "user-a" } });
+    await db.user.update({ where: { id: "user-a" }, data: { googleTokens: { accessToken: "old", refreshToken: "revoked", expiresAt: 0 } } });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "invalid_grant" }, { status: 400 })));
+    try {
+      const res = await inspect("https://quilltab.app/");
+      expect(res.status).toBe(409);
+      expect((await body(res)).error).toBe("The Google connection has expired. Reconnect Google in crawlseo.");
+    } finally {
+      await db.user.update({ where: { id: "user-a" }, data: { googleTokens: user.googleTokens ?? undefined } });
+    }
   });
 });
 

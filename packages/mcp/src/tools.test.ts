@@ -3,7 +3,7 @@ import { join } from "path";
 import type { PrismaClient } from "@prisma/client";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // The MCP tools end to end against the real /api/v1 handler on PGlite: every
 // tool reads through the API with the key, sees the key owner's data only,
@@ -34,6 +34,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await t?.close();
+});
+
+// inspect_url makes the instance ask Google; Google is stubbed here.
+const GOOGLE = { inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed", lastCrawlTime: "2026-11-01T08:30:00Z" } } };
+function stubGoogle() {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json(GOOGLE)));
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 async function connect(apiKey: string) {
@@ -73,6 +83,7 @@ const CALLS: [string, Record<string, unknown>, RegExp][] = [
   ["get_bing_keywords", { siteId: "site-a" }, /quilltab bing\s+\| 6\s+\| 400\s+\| 5\.0\s+\| 2/],
   ["get_bing_pages", { siteId: "site-a" }, /https:\/\/quilltab\.app\/\s+\| 3/],
   ["get_saved_keywords", { siteId: "site-a" }, /2 saved keywords[\s\S]*1 had no Search Console data[\s\S]*never seen query\s+\| -[\s\S]*launch target[\s\S]*quilltab notes\s+\| \d/],
+  ["inspect_url", { siteId: "site-a", url: "https://quilltab.app/notes" }, /of https:\/\/quilltab\.app\/notes[\s\S]*Verdict: PASS  \|  Coverage: Submitted and indexed[\s\S]*Last crawl: 2026-11-01 08:30 UTC/],
 ];
 
 describe("MCP tools", () => {
@@ -88,6 +99,7 @@ describe("MCP tools", () => {
   });
 
   it("every tool answers from the API with GET only, and nothing changes", async () => {
+    stubGoogle();
     const client = await connect(f.keyA);
     const before = await snapshotUserData(db);
     methods.length = 0;
@@ -109,7 +121,7 @@ describe("MCP tools", () => {
   it("another user's site reads as not found through every site tool", async () => {
     const client = await connect(f.keyA);
     for (const name of TOOL_NAMES.filter((n) => n !== "list_sites")) {
-      const res = await call(client, name, { siteId: "site-b" });
+      const res = await call(client, name, { siteId: "site-b", url: "https://secret-b.com/" });
       expect(res.isError, name).toBe(true);
       expect(res.text, name).toBe("Site not found");
     }

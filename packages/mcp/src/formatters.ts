@@ -365,3 +365,43 @@ export function formatSavedKeywords(saved: SavedKeyword[], p: Period): string {
   );
 }
 
+
+type UrlInspection = {
+  url: string;
+  inspectionResultLink: string | null;
+  verdict: string | null;
+  coverageState: string | null;
+  robotsTxtState: string | null;
+  indexingState: string | null;
+  lastCrawlTime: string | null;
+  pageFetchState: string | null;
+  crawledAs: string | null;
+  googleCanonical: string | null;
+  userCanonical: string | null;
+  sitemap: string[];
+  referringUrls: string[];
+};
+
+function firstFew(label: string, urls: string[]): string {
+  if (urls.length === 0) return `${label}: none`;
+  const shown = urls.slice(0, 3).join(", ");
+  return `${label} (${urls.length}): ${shown}${urls.length > 3 ? ", ..." : ""}`;
+}
+
+export function formatUrlInspection(r: UrlInspection): string {
+  const v = (s: string | null) => s ?? "-";
+  const lines = [
+    `Google URL Inspection of ${r.url} (live):`,
+    `Verdict: ${v(r.verdict)}  |  Coverage: ${v(r.coverageState)}`,
+    `Last crawl: ${r.lastCrawlTime ? `${minute(r.lastCrawlTime)} UTC` : "never"}  |  Crawled as: ${v(r.crawledAs)}`,
+    `Page fetch: ${v(r.pageFetchState)}  |  robots.txt: ${v(r.robotsTxtState)}  |  Indexing: ${v(r.indexingState)}`,
+    `Google canonical: ${v(r.googleCanonical)}`,
+    `User canonical: ${v(r.userCanonical)}`,
+  ];
+  if (r.googleCanonical && r.userCanonical && r.googleCanonical !== r.userCanonical) {
+    lines.push("WARNING: Google chose a different canonical than the one the page declares.");
+  }
+  lines.push(firstFew("Sitemaps", r.sitemap), firstFew("Referring URLs", r.referringUrls));
+  if (r.inspectionResultLink) lines.push(`Search Console: ${r.inspectionResultLink}`);
+  return lines.join("\n");
+}

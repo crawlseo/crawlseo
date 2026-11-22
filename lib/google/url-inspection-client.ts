@@ -3,27 +3,46 @@ import { getAccessToken } from "./google-auth";
 const URL_INSPECTION_API_BASE =
   "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 
+/**
+ * The response of urlInspection.index.inspect, as the Search Console API
+ * reference documents UrlInspectionResult. Fields Google has no value for are
+ * left out of the response.
+ */
 export interface UrlInspectionResult {
-  url: string;
   inspectionResult: {
+    inspectionResultLink?: string;
     indexStatusResult?: {
-      coverageState: string;
-      robotsTexted: boolean;
-      robotsAllowed: boolean;
-      indexingState: string;
+      /** PASS is "URL is on Google"; NEUTRAL is excluded; FAIL is an error. PARTIAL is no longer used. */
+      verdict?: "VERDICT_UNSPECIFIED" | "PASS" | "PARTIAL" | "FAIL" | "NEUTRAL";
+      /** Free text, e.g. "Submitted and indexed" or "Crawled - currently not indexed". */
+      coverageState?: string;
+      robotsTxtState?: string;
+      indexingState?: string;
+      /** RFC 3339, UTC. */
       lastCrawlTime?: string;
-      pagesFetched?: number;
-      pageFetchedGoogleBot?: number;
-      pageIndexed?: boolean;
+      pageFetchState?: string;
+      googleCanonical?: string;
+      userCanonical?: string;
+      sitemap?: string[];
+      referringUrls?: string[];
+      crawledAs?: string;
     };
-    mobileUsabilityResult?: {
-      mobileFriendliness: string;
-      issues: Array<{
-        rule: string;
-        issueCode: string;
-      }>;
-    };
+    /** Deprecated by Google. */
+    mobileUsabilityResult?: { verdict?: string; issues?: { issueType?: string; severity?: string; message?: string }[] };
+    richResultsResult?: { verdict?: string; detectedItems?: unknown[] };
   };
+}
+
+/** Google refused or failed an inspection; `status` is Google's HTTP status. */
+export class UrlInspectionError extends Error {
+  constructor(readonly status: number) {
+    super(
+      status === 429
+        ? "Search Console URL Inspection quota exhausted"
+        : `Search Console URL Inspection failed (HTTP ${status})`
+    );
+    this.name = "UrlInspectionError";
+  }
 }
 
 /**
@@ -49,10 +68,9 @@ export async function inspectUrl(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(
-      `Failed to inspect URL: ${response.statusText} - ${error}`
-    );
+    // Google's body can name the property; it goes to the log, not to the caller.
+    console.error(`[url-inspection] HTTP ${response.status}`, await response.text().catch(() => ""));
+    throw new UrlInspectionError(response.status);
   }
 
   const data = (await response.json()) as UrlInspectionResult;
@@ -61,7 +79,8 @@ export async function inspectUrl(
 }
 
 /**
- * Checks if a URL is indexed in Google
+ * Checks if a URL is indexed in Google: the verdict is PASS. coverageState is
+ * free text and also reads "... not indexed" for excluded URLs.
  */
 export async function isUrlIndexed(
   userId: string,
@@ -70,14 +89,7 @@ export async function isUrlIndexed(
 ): Promise<boolean> {
   try {
     const result = await inspectUrl(userId, siteUrl, inspectionUrl);
-
-    const coverage = result.inspectionResult?.indexStatusResult?.coverageState;
-
-    return (
-      coverage === "Indexed" ||
-      coverage === "Submitted, but not indexed" ||
-      coverage === "Crawled - not indexed"
-    );
+    return result.inspectionResult?.indexStatusResult?.verdict === "PASS";
   } catch {
     // If inspection fails, assume not indexed
     return false;
