@@ -1,3 +1,6 @@
+/** Days between today and the newest date with final data in GSC. */
+const GSC_LAG_DAYS = 3;
+
 /**
  * Format date to YYYY-MM-DD for Google APIs
  */
@@ -10,17 +13,19 @@ export function formatDateForAPI(date: Date): string {
  */
 export function getDateDaysAgo(days: number): string {
   const date = new Date();
-  date.setDate(date.getDate() - days);
+  date.setUTCDate(date.getUTCDate() - days);
   return formatDateForAPI(date);
 }
 
 /**
- * Get date range for last N days
+ * Get date range for the last N days GSC has data for: exactly N dates, ending
+ * at the lag boundary. Period comparisons build the previous period from this
+ * start, so ending any later would compare a short period with a full one.
  */
 export function getDateRange(days: number): { start: string; end: string } {
   return {
-    start: getDateDaysAgo(days),
-    end: formatDateForAPI(new Date()),
+    start: getDateDaysAgo(GSC_LAG_DAYS + days - 1),
+    end: getDataLagDate(),
   };
 }
 
@@ -40,7 +45,7 @@ export function calculatePercentChange(
  * is available. Google typically has a ~3-day lag.
  */
 export function getDataLagDate(): string {
-  return getDateDaysAgo(3);
+  return getDateDaysAgo(GSC_LAG_DAYS);
 }
 
 /**
